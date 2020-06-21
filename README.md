@@ -1,3 +1,16 @@
+# Bobbi's Fork of IP65
+
+I have made the following changes:
+
+## DATE65
+
+ - Load timezone information from `TZONE.TXT` configuration file, rather than hard-coding.
+ - Automatically determine if it is DST or not (using North American rules) and choose timezone accordingly.
+ - Support for ProDOS 2.5 extended date format.
+
+
+*The original `README.md` follows ...*
+
 IP65 consists of three parts:
 - A [TCP/IP library to be used by 6502 asm programmers](https://github.com/cc65/ip65/wiki/Library-for-asm-programs) using the [ca65](https://cc65.github.io/doc/ca65.html) macro assembler
 - A [TCP/IP library to be used by C programmers](https://github.com/cc65/ip65/wiki/Library-for-C-programs) using the [cc65](https://cc65.github.io/doc/cc65.html) 6502 C cross compiler
