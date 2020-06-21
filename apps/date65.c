@@ -390,7 +390,11 @@ int main(void)
   if (!strcmp(datestr, "Sun"))
      dow = 6;
 
-  dt.ispd25format = 1;
+  p = (unsigned char*)0xbfff;
+  if (*p == 0x25)
+      dt.ispd25format = 1;
+  else
+      dt.ispd25format = 0;
   dt.nodatetime = 0;
 
   dst = isDST(&dt, dow);
