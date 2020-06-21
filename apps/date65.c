@@ -255,6 +255,7 @@ void readtimezonefile(void) {
     }
     fscanf(fp, "%s,%u", nondst_tz_code, &nondst_tz_secs);
     fscanf(fp, "%s,%u", dst_tz_code, &dst_tz_secs);
+    nondst_tz_code[3] = dst_tz_code[3] = 0;
     fclose(fp); 
 }
 
@@ -414,7 +415,7 @@ int main(void)
   printf("%s", datestr);
   if (dst) {
       ++dt.hour; // Spring forward!
-      printf(" (DST)");
+      printf(" (%s)", dst ? dst_tz_code : nondst_tz_code);
   }
 
   p = (unsigned char*)0xbf98;
