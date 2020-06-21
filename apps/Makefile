@@ -135,6 +135,7 @@ ip65.dsk: bin
 	java -jar $(AC) -as $@ wget65             < wget65.bin
 	java -jar $(AC) -p  $@ wget65.system  sys < $(CC65)/apple2enh/util/loader.system
 	java -jar $(AC) -as $@ telnet65           < telnet65.bin
+	java -jar $(AC) -p  $@ tzone.txt      txt < tzone.txt
 
 ip65.atr: com
 	mkdir atr
