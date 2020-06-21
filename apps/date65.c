@@ -253,8 +253,8 @@ void readtimezonefile(void) {
         strcpy(dst_tz_code, "EDT");
         dst_tz_secs = -14400;
     }
-    fscanf(fp, "%s,%u", nondst_tz_code, &nondst_tz_secs);
-    fscanf(fp, "%s,%u", dst_tz_code, &dst_tz_secs);
+    fscanf(fp, "%d,%s", &nondst_tz_secs, nondst_tz_code);
+    fscanf(fp, "%d,%s", &dst_tz_secs, dst_tz_code);
     nondst_tz_code[3] = dst_tz_code[3] = 0;
     fclose(fp); 
 }
