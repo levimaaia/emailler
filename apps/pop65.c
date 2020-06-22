@@ -57,9 +57,12 @@ void __fastcall__ tcpcb(const uint8_t *tcp_buf, int16_t tcp_len) {
 //    printf("%d ", len);
       memcpy(buf, tcp_buf, len);
       buf[len] = 0;
-      for (idx = 0; idx < len; ++idx)
+      for (idx = 0; idx < len; ++idx) {
+        if ((idx % 11) == 0)
+          ip65_process();
         if (buf[idx] != '\r')
           putchar(buf[idx]);
+      }
       fwrite(buf, 1, len, fp);
       idx = strstr(buf, "\r\n.\r\n"); // CRLF.CRLF
       if (idx) {
@@ -67,7 +70,6 @@ void __fastcall__ tcpcb(const uint8_t *tcp_buf, int16_t tcp_len) {
         data_mode = 0; // If found, turn off data_mode
         fclose(fp);
       }
-      ip65_process();
       return;
     }
     memcpy(buf, tcp_buf, len);
