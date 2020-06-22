@@ -42,7 +42,8 @@ UDP =\
 TCP =\
 	hfs65 \
 	telnet65 \
-	tweet65
+	tweet65 \
+	pop65
 
 bin: wget65.bin
 
@@ -128,14 +129,17 @@ ip65.dsk: bin
 	cp ../build/prodos.dsk $@
 	java -jar $(AC) -as $@ date65             < date65.bin
 	java -jar $(AC) -p  $@ date65.system  sys < $(CC65)/apple2enh/util/loader.system
-	java -jar $(AC) -as $@ hfs65              < hfs65.bin
-	java -jar $(AC) -p  $@ hfs65.system   sys < $(CC65)/apple2enh/util/loader.system
-	java -jar $(AC) -as $@ tweet65            < tweet65.bin
-	java -jar $(AC) -p  $@ tweet65.system sys < $(CC65)/apple2enh/util/loader.system
+#	java -jar $(AC) -as $@ hfs65              < hfs65.bin
+#	java -jar $(AC) -p  $@ hfs65.system   sys < $(CC65)/apple2enh/util/loader.system
+#	java -jar $(AC) -as $@ tweet65            < tweet65.bin
+#	java -jar $(AC) -p  $@ tweet65.system sys < $(CC65)/apple2enh/util/loader.system
+	java -jar $(AC) -as $@ pop65              < pop65.bin
+	java -jar $(AC) -p  $@ pop65.system  sys  < $(CC65)/apple2enh/util/loader.system
 	java -jar $(AC) -as $@ wget65             < wget65.bin
 	java -jar $(AC) -p  $@ wget65.system  sys < $(CC65)/apple2enh/util/loader.system
 	java -jar $(AC) -as $@ telnet65           < telnet65.bin
 	java -jar $(AC) -p  $@ tzone.txt      txt < tzone.txt
+	java -jar $(AC) -p  $@ pop65.cfg      txt < pop65.cfg
 
 ip65.atr: com
 	mkdir atr
