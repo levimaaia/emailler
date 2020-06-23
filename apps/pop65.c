@@ -29,17 +29,20 @@
 #pragma optimize      (on)
 #pragma static-locals (on)
 
-#define FILENAME "/H1/DOCUMENTS/EMAIL.TXT"
-
 unsigned char buf[1500+1]; // One extra byte for null terminator
 int len;
 FILE *fp;
+uint32_t filesize;
 
 // Configuration params from POP65.CFG
-char cfg_server[80];
-char cfg_user[80];
-char cfg_pass[80];
+char cfg_server[80];         // IP of POP3 server
+char cfg_user[80];           // Username
+char cfg_pass[80];           // Password
+char cfg_emaildir[80];       // ProDOS directory to write email to
 
+/*
+ * Keypress before quit
+ */
 void confirm_exit(void)
 {
   printf("\nPress any key ");
@@ -47,17 +50,27 @@ void confirm_exit(void)
   exit(0);
 }
 
+/*
+ * Called for all non IP65 errors
+ */
 void error_exit()
 {
   confirm_exit();
 }
 
+/*
+ * Called if IP65 call fails
+ */
 void ip65_error_exit(void)
 {
   printf("- %s\n", ip65_strerror(ip65_error));
   confirm_exit();
 }
 
+/*
+ * Print message to the console, stripping extraneous CRLF stuff
+ * from the end.
+ */
 void print_strip_crlf(char *s) {
   uint8_t i = 0;
   while ((s[i] != '\0') && (s[i] != '\r') && (s[i] != '\n'))
@@ -65,19 +78,39 @@ void print_strip_crlf(char *s) {
   putchar('\n');
 }
 
+/*
+ * Spinner while downloading files
+ */
+void spinner(uint32_t sz, uint8_t final) {
+  static char chars[] = "|/-\\";
+  static char buf[10] = "";
+  static uint8_t i = 0;
+  uint8_t j;
+  for (j = 0; j < strlen(buf); ++j)
+    putchar(8); // Backspace
+  if (final)
+    sprintf(buf, " [%lu]\n", sz);
+  else
+    sprintf(buf, "%c %lu", chars[(i++) % 4], sz);
+  printf("%s", buf);
+}
+
+#define DO_SEND   1  // For do_send param
+#define DONT_SEND 0  // For do_send param
+#define CMD_MODE  0  // For mode param
+#define DATA_MODE 1  // For mode param
+
 // Modified verson of w5100_http_open from w5100_http.c
 // Sends a TCP message and receives a the first packet of the response.
 // sendbuf is the buffer to send (null terminated)
 // recvbuf is the buffer into which the received message will be written
 // length is the length of recvbuf[]
-// dosend Do the sending if true, otherwise skip
-// binary Binary mode for received message, maybe first block of long message
+// do_send Do the sending if true, otherwise skip
+// mode Binary mode for received message, maybe first block of long message
 bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
-                         uint8_t dosend, uint8_t binary) {
+                         uint8_t do_send, uint8_t mode) {
 
-  uint8_t i;
-
-  if (dosend) {
+  if (do_send == DO_SEND) {
     uint16_t snd;
     uint16_t pos = 0;
     uint16_t len = strlen(sendbuf);
@@ -127,14 +160,15 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
     }
   }
 
-  if (binary) {
+  if (mode == DATA_MODE) {
     //
     // Handle a sequence of data packets
     //
-    uint16_t rcv;
+    uint16_t rcv, written;
     uint16_t len = 0;
-    uint32_t size = 0;
     uint8_t cont = 1;
+
+    filesize = 0;
 
     while(cont) {
       if (input_check_for_abort_key()) {
@@ -171,9 +205,15 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
       w5100_receive_commit(rcv);
       len += rcv;
 
-      // TODO WRITE TO DISK HERE
-      size += len;
-      printf("Size is %ld\n", size);
+      written = fwrite(recvbuf, 1, len, fp);
+      if (written != len) {
+        printf("Write error");
+        fclose(fp);
+        error_exit();
+      }
+
+      filesize += len;
+      spinner(filesize, 0);
       len = 0;
     }
   } else {
@@ -222,6 +262,9 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
   return true;
 }
 
+/*
+ * Check expected string from server
+ */
 void expect(char *buf, char *s) {
   if (strncmp(buf, s, strlen(s)) != 0) {
     printf("\nExpected '%s' got '%s\n", s, buf);
@@ -229,6 +272,9 @@ void expect(char *buf, char *s) {
   }
 }
 
+/*
+ * Read parms from POP65.CFG
+ */
 void readconfigfile(void) {
     fp = fopen("POP65.CFG", "r");
     if (!fp) {
@@ -238,14 +284,14 @@ void readconfigfile(void) {
     fscanf(fp, "%s", cfg_server);
     fscanf(fp, "%s", cfg_user);
     fscanf(fp, "%s", cfg_pass);
+    fscanf(fp, "%s", cfg_emaildir);
     fclose(fp);
 }
 
 int main(void)
 {
-  char *arg;
   uint8_t eth_init = ETH_INIT_DEFAULT;
-  char sendbuf[80];
+  char sendbuf[80], filename[80];
   uint16_t msg, nummsgs;
   uint32_t bytes;
 
@@ -300,37 +346,46 @@ int main(void)
 
   printf(" Ok\n\n");
 
-  if (!w5100_tcp_send_recv(sendbuf, buf, 1500, 0, 0)) {
+  if (!w5100_tcp_send_recv(sendbuf, buf, 1500, DONT_SEND, CMD_MODE)) {
     error_exit();
   }
   expect(buf, "+OK");
 
   sprintf(sendbuf, "USER %s\r\n", cfg_user);
-  if (!w5100_tcp_send_recv(sendbuf, buf, 1500, 1, 0)) {
+  if (!w5100_tcp_send_recv(sendbuf, buf, 1500, DO_SEND, CMD_MODE)) {
     error_exit();
   }
   expect(buf, "+OK");
 
   sprintf(sendbuf, "PASS %s\r\n", cfg_pass);
-  if (!w5100_tcp_send_recv(sendbuf, buf, 1500, 1, 0)) {
+  if (!w5100_tcp_send_recv(sendbuf, buf, 1500, DO_SEND, CMD_MODE)) {
     error_exit();
   }
   expect(buf, "+OK Logged in.");
 
-  if (!w5100_tcp_send_recv("STAT\r\n", buf, 1500, 1, 0)) {
+  if (!w5100_tcp_send_recv("STAT\r\n", buf, 1500, DO_SEND, CMD_MODE)) {
     error_exit();
   }
   sscanf(buf, "+OK %u %lu", &nummsgs, &bytes);
   printf(" %u message(s), %lu total bytes\n", nummsgs, bytes);
 
   for (msg = 1; msg <= nummsgs; ++msg) {
-    sprintf(sendbuf, "RETR %u\r\n", msg);
-    if (!w5100_tcp_send_recv(sendbuf, buf, 1500, 1, 1)) {
+    sprintf(filename, "%s/EMAIL.%u", cfg_emaildir, msg);
+    remove(filename); /// TO MAKE DEBUGGING EASIER - GET RID OF THIS
+    fp = fopen(filename, "w"); 
+    if (!fp) {
+      printf("Can't create %s\n", filename);
       error_exit();
     }
+    sprintf(sendbuf, "RETR %u\r\n", msg);
+    if (!w5100_tcp_send_recv(sendbuf, buf, 1500, DO_SEND, DATA_MODE)) {
+      error_exit();
+    }
+    fclose(fp);
+    spinner(filesize, 1); // Cleanup spinner
   }
 
-  if (!w5100_tcp_send_recv("QUIT\r\n", buf, 1500, 1, 0)) {
+  if (!w5100_tcp_send_recv("QUIT\r\n", buf, 1500, DO_SEND, CMD_MODE)) {
     error_exit();
   }
   expect(buf, "+OK Logging out.");
