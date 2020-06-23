@@ -1,30 +1,37 @@
-///////////////////////////////////////////
-//
-// POP3 Client
-// Bobbi June 2020
-//
+/////////////////////////////////////////////////////////////////
+// POP65
+// Post Office Protocol v3 (POP3) Client for IP65
 // https://www.ietf.org/rfc/rfc1939.txt
-//
-///////////////////////////////////////////
+// (Based on IP65's wget65.c)
+// Bobbi June 2020
+/////////////////////////////////////////////////////////////////
 
+#include <dio.h>
 #include <cc65.h>
+#include <errno.h>
+#include <ctype.h>
 #include <fcntl.h>
 #include <conio.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
-#include <ctype.h>
+#include <dirent.h>
+#include <device.h>
+
 #include "../inc/ip65.h"
+#include "w5100.h"
+#include "w5100_http.h"
+#include "linenoise.h"
+
+// Both pragmas are obligatory to have cc65 generate code
+// suitable to access the W5100 auto-increment registers.
+#pragma optimize      (on)
+#pragma static-locals (on)
 
 #define FILENAME "/H1/DOCUMENTS/EMAIL.TXT"
 
-char expected[80] = "";
-volatile uint8_t await_response = 0;
-volatile uint8_t got_expected = 0;
-volatile uint8_t data_mode = 0;  // Set to 1 when receiving body of email
-
-unsigned char buf[1500];
+unsigned char buf[1500+1]; // One extra byte for null terminator
 int len;
 FILE *fp;
 
@@ -33,103 +40,193 @@ char cfg_server[80];
 char cfg_user[80];
 char cfg_pass[80];
 
-void error_exit(void)
-{
-  printf("- %s\n", ip65_strerror(ip65_error));
-  exit(EXIT_FAILURE);
-}
-
 void confirm_exit(void)
 {
   printf("\nPress any key ");
   cgetc();
+  exit(0);
 }
 
-/*
- * Handle an incoming TCP message
- */
-void __fastcall__ tcpcb(const uint8_t *tcp_buf, int16_t tcp_len) {
-  int idx;
-  await_response = 0;
-  len = tcp_len;
-  if (len != -1) {
-    if (data_mode) {
-//    printf("%d ", len);
-      memcpy(buf, tcp_buf, len);
-      buf[len] = 0;
-      for (idx = 0; idx < len; ++idx) {
-        if ((idx % 11) == 0)
-          ip65_process();
-        if (buf[idx] != '\r')
-          putchar(buf[idx]);
-      }
-      fwrite(buf, 1, len, fp);
-      idx = strstr(buf, "\r\n.\r\n"); // CRLF.CRLF
-      if (idx) {
-        puts("Found end");
-        data_mode = 0; // If found, turn off data_mode
-        fclose(fp);
-      }
-      return;
+void error_exit()
+{
+  confirm_exit();
+}
+
+void ip65_error_exit(void)
+{
+  printf("- %s\n", ip65_strerror(ip65_error));
+  confirm_exit();
+}
+
+void print_strip_crlf(char *s) {
+  uint8_t i = 0;
+  while ((s[i] != '\0') && (s[i] != '\r') && (s[i] != '\n'))
+    putchar(s[i++]);
+  putchar('\n');
+}
+
+// Modified verson of w5100_http_open from w5100_http.c
+// Sends a TCP message and receives a the first packet of the response.
+// sendbuf is the buffer to send (null terminated)
+// recvbuf is the buffer into which the received message will be written
+// length is the length of recvbuf[]
+// dosend Do the sending if true, otherwise skip
+// binary Binary mode for received message, maybe first block of long message
+bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
+                         uint8_t dosend, uint8_t binary) {
+
+  uint8_t i;
+
+  if (dosend) {
+    uint16_t snd;
+    uint16_t pos = 0;
+    uint16_t len = strlen(sendbuf);
+
+    if (strncmp(sendbuf, "PASS", 4) == 0)
+      printf(">PASS ****\n");
+    else {
+      putchar('>');
+      print_strip_crlf(sendbuf);
     }
-    memcpy(buf, tcp_buf, len);
-    buf[len-1] = 0; // HACK TO REMOVE DUPLICATE CR/LF
-    printf("<%s", buf);
-    if (strlen(expected) > 0) {
-#ifdef DEBUG
-      printf("Expected:%s", expected);
-#endif
-      if (strncmp(buf, expected, strlen(expected)) == 0) {
-        got_expected = 1;
-#ifdef DEBUG
-        printf(" match\n");
-#endif
-      } else {
-        got_expected = 0;
-#ifdef DEBUG
-        printf(" NO match\n");
-#endif
+
+    while (len) {
+      if (input_check_for_abort_key())
+      {
+        printf("- User abort\n");
+        w5100_disconnect();
+        return false;
       }
-    } else
-      got_expected = 1;
+
+      snd = w5100_send_request();
+      if (!snd) {
+        if (!w5100_connected()) {
+          printf("- Connection lost\n");
+          return false;
+        }
+        continue;
+      }
+
+      if (len < snd)
+        snd = len;
+
+      {
+        // One less to allow for faster pre-increment below
+        const char *dataptr = sendbuf + pos - 1;
+        uint16_t i;
+        for (i = 0; i < snd; ++i) {
+          // The variable is necessary to have cc65 generate code
+          // suitable to access the W5100 auto-increment register.
+          char data = *++dataptr;
+          *w5100_data = data;
+        }
+      }
+
+      w5100_send_commit(snd);
+      len -= snd;
+      pos += snd;
+    }
   }
+
+  if (binary) {
+    //
+    // Handle a sequence of data packets
+    //
+    uint16_t rcv;
+    uint16_t len = 0;
+    uint32_t size = 0;
+    uint8_t cont = 1;
+
+    while(cont) {
+      if (input_check_for_abort_key()) {
+        printf("- User abort\n");
+        w5100_disconnect();
+        return false;
+      }
+    
+      rcv = w5100_receive_request();
+      if (!rcv) {
+        cont = w5100_connected();
+        if (cont)
+          continue;
+      }
+
+      if (rcv > length - len) {
+        rcv = length - len;
+      }
+
+      {
+        // One less to allow for faster pre-increment below
+        char *dataptr = recvbuf + len - 1;
+        uint16_t i;
+        for (i = 0; i < rcv; ++i) {
+          // The variable is necessary to have cc65 generate code
+          // suitable to access the W5100 auto-increment register.
+          char data = *w5100_data;
+          *++dataptr = data;
+
+          if (!memcmp(dataptr - 4, "\r\n.\r\n", 5))
+            cont = 0;
+        }
+      }
+      w5100_receive_commit(rcv);
+      len += rcv;
+
+      // TODO WRITE TO DISK HERE
+      size += len;
+      printf("Size is %ld\n", size);
+      len = 0;
+    }
+  } else {
+    //
+    // Handle short single packet ASCII text responses
+    //
+    uint16_t rcv;
+    uint16_t len = 0;
+
+    while(1) {
+      if (input_check_for_abort_key()) {
+        printf("- User abort\n");
+        w5100_disconnect();
+        return false;
+      }
+    
+      rcv = w5100_receive_request();
+      if (rcv)
+        break;
+      if (!w5100_connected()) {
+        printf("Connection lost\n");
+        return false;
+      }
+    }
+
+    if (rcv > length - len) {
+      rcv = length - len;
+    }
+
+    {
+      // One less to allow for faster pre-increment below
+      char *dataptr = recvbuf + len - 1;
+      uint16_t i;
+      for (i = 0; i < rcv; ++i) {
+        // The variable is necessary to have cc65 generate code
+        // suitable to access the W5100 auto-increment register.
+        char data = *w5100_data;
+        *++dataptr = data;
+      }
+      w5100_receive_commit(rcv);
+      len += rcv;
+    }
+    putchar('<');
+    print_strip_crlf(recvbuf);
+  }
+  return true;
 }
 
-/*
- * Check gotexpected flag and quit if false
- */
-void checkgotexpected(void) {
-  int i;
-  while (await_response == 1) {
-#ifdef DEBUG
-    putchar('.');
-#endif
-    ip65_process();
-    for (i = 0; i < 20000; ++i);
-  }
-  if (!got_expected) {
-    printf("Didn't get expected response\n");
-    error_exit();
-  } else
-    putchar('.');
-}
-
-/*
- * Send a TCP message
- * msg - string to send
- * expect - sting to expect (or empty string)
- */
-void sendmessage(char *msg, char *expect) {
-  strcpy(expected, expect);
-  if (strncmp(msg, "PASS", 4) == 0)
-    printf(">PASS ****\n");
-  else
-    printf(">%s", msg);
-  if (tcp_send(msg, strlen(msg))) {
+void expect(char *buf, char *s) {
+  if (strncmp(buf, s, strlen(s)) != 0) {
+    printf("\nExpected '%s' got '%s\n", s, buf);
     error_exit();
   }
-  await_response = 1;
-  ip65_process();
 }
 
 void readconfigfile(void) {
@@ -146,6 +243,7 @@ void readconfigfile(void) {
 
 int main(void)
 {
+  char *arg;
   uint8_t eth_init = ETH_INIT_DEFAULT;
   char sendbuf[80];
   uint16_t msg, nummsgs;
@@ -161,11 +259,10 @@ int main(void)
   readconfigfile();
   printf(" Ok");
 
-#ifdef __APPLE2__
   {
     int file;
 
-    printf("\nSetting slot                 -");
+    printf("\nSetting slot        - ");
     file = open("ethernet.slot", O_RDONLY);
     if (file != -1)
     {
@@ -173,68 +270,73 @@ int main(void)
       close(file);
       eth_init &= ~'0';
     }
-    printf(" %d\n", eth_init);
   }
-#endif
 
-  printf("Initializing                 -");
+  printf("%d\n\nInitializing %s      - ", eth_init, eth_name);
   if (ip65_init(eth_init))
   {
-    error_exit();
+    ip65_error_exit();
   }
 
-  printf(" Ok\nObtaining IP address         -");
+  // Abort on Ctrl-C to be consistent with Linenoise
+  abort_key = 0x83;
+
+  printf("Ok\n\nObtaining IP address    - ");
   if (dhcp_init())
   {
-    error_exit();
+    ip65_error_exit();
   }
+
+  // Copy IP config from IP65 to W5100
+  w5100_config(eth_init);
 
   printf(" Ok\nConnecting to %s   -", cfg_server);
-  if (tcp_connect(parse_dotted_quad(cfg_server), 110, tcpcb)) {
+
+  if (!w5100_connect(parse_dotted_quad(cfg_server), 110))
+  {
+    printf("failed\n");
     error_exit();
   }
 
   printf(" Ok\n\n");
-  strcpy(expected, "+OK");
-  ip65_process();
-  await_response = 1;
-  checkgotexpected();
-  sprintf(sendbuf, "USER %s\n", cfg_user);
-  sendmessage(sendbuf, "+OK");
-  ip65_process();
-  checkgotexpected();
-  sprintf(sendbuf, "PASS %s\n", cfg_pass);
-  sendmessage(sendbuf, "+OK Logged in.");
-  ip65_process();
-  checkgotexpected();
-  sendmessage("STAT\n", "+OK");
-  ip65_process();
-  checkgotexpected();
+
+  if (!w5100_tcp_send_recv(sendbuf, buf, 1500, 0, 0)) {
+    error_exit();
+  }
+  expect(buf, "+OK");
+
+  sprintf(sendbuf, "USER %s\r\n", cfg_user);
+  if (!w5100_tcp_send_recv(sendbuf, buf, 1500, 1, 0)) {
+    error_exit();
+  }
+  expect(buf, "+OK");
+
+  sprintf(sendbuf, "PASS %s\r\n", cfg_pass);
+  if (!w5100_tcp_send_recv(sendbuf, buf, 1500, 1, 0)) {
+    error_exit();
+  }
+  expect(buf, "+OK Logged in.");
+
+  if (!w5100_tcp_send_recv("STAT\r\n", buf, 1500, 1, 0)) {
+    error_exit();
+  }
   sscanf(buf, "+OK %u %lu", &nummsgs, &bytes);
   printf(" %u message(s), %lu total bytes\n", nummsgs, bytes);
+
   for (msg = 1; msg <= nummsgs; ++msg) {
-    data_mode = 1;
-    remove(FILENAME);
-    fp = fopen(FILENAME, "wb");
-    if (!fp) {
-      printf("Can't open %s\n", FILENAME);
+    sprintf(sendbuf, "RETR %u\r\n", msg);
+    if (!w5100_tcp_send_recv(sendbuf, buf, 1500, 1, 1)) {
       error_exit();
     }
-    sprintf(sendbuf, "RETR %d\n", msg);
-    sendmessage(sendbuf, "");
-    do {
-      ip65_process();
-    } while (data_mode == 1);
   }
-  sendmessage("QUIT\n", "+OK Logging out.");
-  ip65_process();
-  checkgotexpected();
 
-  printf(" Ok\nClosing connection           -");
-  if (tcp_close()) {
+  if (!w5100_tcp_send_recv("QUIT\r\n", buf, 1500, 1, 0)) {
     error_exit();
   }
-  printf(" Ok\n\n");
+  expect(buf, "+OK Logging out.");
+
+  printf("- Ok\n\nDisconnecting ");
+  w5100_disconnect();
 
   return EXIT_SUCCESS;
 }
