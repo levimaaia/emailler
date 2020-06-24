@@ -31,7 +31,13 @@
 #pragma optimize      (on)
 #pragma static-locals (on)
 
-unsigned char buf[1500+1]; // One extra byte for null terminator
+#define NETBUFSZ  1500
+#define LINEBUFSZ 1000         // According to RFC2822 Section 2.1.1 (998+CRLF)
+#define READSZ    1024         // Must be less than NETBUFSZ to fit in buf[]
+unsigned char buf[NETBUFSZ+1]; // One extra byte for null terminator
+static char padding[1] = {0};  // Having an extra byte before linebuf[] helps
+static char linebuf[LINEBUFSZ];
+
 char filename[80];
 int len;
 FILE *fp;
@@ -209,6 +215,7 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
           char data = *w5100_data;
           *++dataptr = data;
 
+          // TODO -- check we are not looking before start of recvbuf here!!
           if (!memcmp(dataptr - 4, "\r\n.\r\n", 5))
             cont = 0;
         }
@@ -300,17 +307,50 @@ void readconfigfile(void) {
 }
 
 /*
+ * Read a text file a line at a time leaving the line in linebuf[]
+ * Returns 1 if line read, 0 if EOF.
+ * Converts line endings from CRLF -> CR (Apple ][ style)
+ */
+uint8_t get_line(FILE *fp) {
+  static uint16_t rd = 0;
+  static uint16_t buflen = 0;
+  uint8_t found = 0;
+  uint16_t j = 0;
+  uint16_t i;
+  while (1) {
+    for (i = rd; i < buflen; ++i) {
+      linebuf[j++] = buf[i];
+      if ((linebuf[j-1] == '\n') && (linebuf[j-2] == '\r')) {
+        found = 1;
+        break;
+      }
+    }
+    if (found) {
+      rd = i + 1;
+      linebuf[j-1] = '\0'; // Remove LF from end
+      j = 0;
+      return 1;
+    }
+    buflen = fread(buf, 1, READSZ, fp);
+    if (buflen == 0) {
+      rd = 0;
+      return 0; // Hit EOF before we found EOL
+    }
+    rd = 0;
+  }
+}
+
+/*
  * Update INBOX
- * Copy messages from spool dir to inbox with following changes:
- *  - Convert CR+LF endings to CR only (Apple ][ style) <--  TODO
- *  - Look for headers of interest (Date, From, To, BCC, Subject)
+ * Copy messages from spool dir to inbox and find headers of interest
+ * (Date, From, To, BCC, Subject)
  */
 void update_inbox(uint16_t nummsgs) {
-  uint16_t msg, l;
+  uint16_t msg;
   uint8_t headers;
-  char *p;
   FILE *destfp;
   for (msg = 1; msg <= nummsgs; ++msg) {
+    strcpy(linebuf, "");
     sprintf(filename, "%s/EMAIL.%u", cfg_spooldir, msg);
     puts(filename);
     fp = fopen(filename, "r");
@@ -322,53 +362,35 @@ void update_inbox(uint16_t nummsgs) {
     destfp = fopen(filename, "wb");
     if (!destfp) {
       printf("Can't open %s\n", filename);
+      fclose(fp);
       error_exit();
     }
     headers = 1;
-    while (!feof(fp)) {
-      l = fread(buf, 1, 1024, fp);
+    while (get_line(fp)) {
       if (headers) {
-        buf[l] = '\0';
-        p = strstr(buf, "\r\nDate:");
-        if (p) {
-          printf("D ");
-          print_strip_crlf(p+2);
-        }
-        p = strstr(buf, "\r\nFrom:");
-        if (p) {
-          printf("F ");
-          print_strip_crlf(p+2);
-        }
-        p = strstr(buf, "\r\nTo:");
-        if (p) {
-          printf("T ");
-          print_strip_crlf(p+2);
-        }
-        p = strstr(buf, "\r\nBcc:");
-        if (p) {
-          printf("B ");
-          print_strip_crlf(p+2);
-        }
-        p = strstr(buf, "\r\nSubject:");
-        if (p) {
-          printf("S ");
-          print_strip_crlf(p+2);
-        }
-        p = strstr(buf, "\r\n\r\n");
-        if (p) {
+        if (!strncmp(linebuf, "Date: ", 6))
+          printf("D %s", linebuf);
+        if (!strncmp(linebuf, "From: ", 6))
+          printf("F %s", linebuf);
+        if (!strncmp(linebuf, "To: ", 4))
+          printf("T %s", linebuf);
+        if (!strncmp(linebuf, "Bcc: ", 5))
+          printf("B %s", linebuf);
+        if (!strncmp(linebuf, "Subject: ", 9))
+          printf("S %s", linebuf);
+        if (linebuf[0] = '\0') {
           printf("Body\n");
           headers = 0;
         }
       }
-      fwrite(buf, 1, l, destfp);
+      fputs(linebuf, destfp);
     }
     fclose(fp);
-    close(destfp);
+    fclose(destfp);
   }
 }
 
-int main(void)
-{
+void main(void) {
   uint8_t eth_init = ETH_INIT_DEFAULT;
   char sendbuf[80];
   uint16_t msg, nummsgs;
@@ -416,24 +438,24 @@ int main(void)
 
   printf("Ok\n\n");
 
-  if (!w5100_tcp_send_recv(sendbuf, buf, 1500, DONT_SEND, CMD_MODE)) {
+  if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DONT_SEND, CMD_MODE)) {
     error_exit();
   }
   expect(buf, "+OK");
 
   sprintf(sendbuf, "USER %s\r\n", cfg_user);
-  if (!w5100_tcp_send_recv(sendbuf, buf, 1500, DO_SEND, CMD_MODE)) {
+  if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
     error_exit();
   }
   expect(buf, "+OK");
 
   sprintf(sendbuf, "PASS %s\r\n", cfg_pass);
-  if (!w5100_tcp_send_recv(sendbuf, buf, 1500, DO_SEND, CMD_MODE)) {
+  if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
     error_exit();
   }
   expect(buf, "+OK Logged in.");
 
-  if (!w5100_tcp_send_recv("STAT\r\n", buf, 1500, DO_SEND, CMD_MODE)) {
+  if (!w5100_tcp_send_recv("STAT\r\n", buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
     error_exit();
   }
   sscanf(buf, "+OK %u %lu", &nummsgs, &bytes);
@@ -448,7 +470,7 @@ int main(void)
       error_exit();
     }
     sprintf(sendbuf, "RETR %u\r\n", msg);
-    if (!w5100_tcp_send_recv(sendbuf, buf, 1500, DO_SEND, DATA_MODE)) {
+    if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, DATA_MODE)) {
       error_exit();
     }
     fclose(fp);
@@ -457,7 +479,7 @@ int main(void)
 
   // Ignore any error - can be a race condition where other side
   // disconnects too fast and we get an error
-  w5100_tcp_send_recv("QUIT\r\n", buf, 1500, DO_SEND, CMD_MODE);
+  w5100_tcp_send_recv("QUIT\r\n", buf, NETBUFSZ, DO_SEND, CMD_MODE);
 
   printf("Disconnecting\n");
   w5100_disconnect();
