@@ -307,6 +307,7 @@ void readconfigfile(void) {
  */
 void update_inbox(uint16_t nummsgs) {
   uint16_t msg, l;
+  uint8_t headers;
   char *p;
   FILE *destfp;
   for (msg = 1; msg <= nummsgs; ++msg) {
@@ -323,33 +324,41 @@ void update_inbox(uint16_t nummsgs) {
       printf("Can't open %s\n", filename);
       error_exit();
     }
+    headers = 1;
     while (!feof(fp)) {
       l = fread(buf, 1, 1024, fp);
-      buf[l] = '\0';
-      p = strstr(buf, "\r\nDate:");
-      if (p) {
-        printf("D ");
-        print_strip_crlf(p+2);
-      }
-      p = strstr(buf, "\r\nFrom:");
-      if (p) {
-        printf("F ");
-        print_strip_crlf(p+2);
-      }
-      p = strstr(buf, "\r\nTo:");
-      if (p) {
-        printf("T ");
-        print_strip_crlf(p+2);
-      }
-      p = strstr(buf, "\r\nBcc:");
-      if (p) {
-        printf("B ");
-        print_strip_crlf(p+2);
-      }
-      p = strstr(buf, "\r\nSubject:");
-      if (p) {
-        printf("S ");
-        print_strip_crlf(p+2);
+      if (headers) {
+        buf[l] = '\0';
+        p = strstr(buf, "\r\nDate:");
+        if (p) {
+          printf("D ");
+          print_strip_crlf(p+2);
+        }
+        p = strstr(buf, "\r\nFrom:");
+        if (p) {
+          printf("F ");
+          print_strip_crlf(p+2);
+        }
+        p = strstr(buf, "\r\nTo:");
+        if (p) {
+          printf("T ");
+          print_strip_crlf(p+2);
+        }
+        p = strstr(buf, "\r\nBcc:");
+        if (p) {
+          printf("B ");
+          print_strip_crlf(p+2);
+        }
+        p = strstr(buf, "\r\nSubject:");
+        if (p) {
+          printf("S ");
+          print_strip_crlf(p+2);
+        }
+        p = strstr(buf, "\r\n\r\n");
+        if (p) {
+          printf("Body\n");
+          headers = 0;
+        }
       }
       fwrite(buf, 1, l, destfp);
     }
