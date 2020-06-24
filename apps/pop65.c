@@ -32,6 +32,7 @@
 #pragma static-locals (on)
 
 unsigned char buf[1500+1]; // One extra byte for null terminator
+char filename[80];
 int len;
 FILE *fp;
 uint32_t filesize;
@@ -40,7 +41,8 @@ uint32_t filesize;
 char cfg_server[80];         // IP of POP3 server
 char cfg_user[80];           // Username
 char cfg_pass[80];           // Password
-char cfg_emaildir[80];       // ProDOS directory to write email to
+char cfg_spooldir[80];       // ProDOS directory to spool email to
+char cfg_inboxdir[80];       // ProDOS directory for email inbox
 
 /*
  * Keypress before quit
@@ -168,10 +170,10 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
 
   if (mode == DATA_MODE) {
     //
-    // Handle a sequence of data packets
+    // Handle email body
     //
     uint16_t rcv, written;
-    uint16_t len = 0, dropped = 0;
+    uint16_t len = 0;
     uint8_t cont = 1;
 
     // Backspace to put spinner on same line as RETR
@@ -207,15 +209,6 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
           char data = *w5100_data;
           *++dataptr = data;
 
-          // Throw away LF of CRLF pairs
-#if 0
-          if (!memcmp(dataptr - 1, "\r\n", 2)) {
-            --dataptr;
-            ++dropped;
-          }
-#endif
-
-          // Note that the first LFs have already been removed
           if (!memcmp(dataptr - 4, "\r\n.\r\n", 5))
             cont = 0;
         }
@@ -223,8 +216,8 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
       w5100_receive_commit(rcv);
       len += rcv;
 
-      written = fwrite(recvbuf, 1, len - dropped, fp);
-      if (written != len - dropped) {
+      written = fwrite(recvbuf, 1, len, fp);
+      if (written != len) {
         printf("Write error");
         fclose(fp);
         error_exit();
@@ -301,14 +294,74 @@ void readconfigfile(void) {
     fscanf(fp, "%s", cfg_server);
     fscanf(fp, "%s", cfg_user);
     fscanf(fp, "%s", cfg_pass);
-    fscanf(fp, "%s", cfg_emaildir);
+    fscanf(fp, "%s", cfg_spooldir);
+    fscanf(fp, "%s", cfg_inboxdir);
     fclose(fp);
+}
+
+/*
+ * Update INBOX
+ * Copy messages from spool dir to inbox with following changes:
+ *  - Convert CR+LF endings to CR only (Apple ][ style) <--  TODO
+ *  - Look for headers of interest (Date, From, To, BCC, Subject)
+ */
+void update_inbox(uint16_t nummsgs) {
+  uint16_t msg, l;
+  char *p;
+  FILE *destfp;
+  for (msg = 1; msg <= nummsgs; ++msg) {
+    sprintf(filename, "%s/EMAIL.%u", cfg_spooldir, msg);
+    puts(filename);
+    fp = fopen(filename, "r");
+    if (!fp) {
+      printf("Can't open %s\n", filename);
+      error_exit();
+    }
+    sprintf(filename, "%s/EMAIL.%u", cfg_inboxdir, msg);
+    destfp = fopen(filename, "wb");
+    if (!destfp) {
+      printf("Can't open %s\n", filename);
+      error_exit();
+    }
+    while (!feof(fp)) {
+      l = fread(buf, 1, 1024, fp);
+      buf[l] = '\0';
+      p = strstr(buf, "\r\nDate:");
+      if (p) {
+        printf("D ");
+        print_strip_crlf(p+2);
+      }
+      p = strstr(buf, "\r\nFrom:");
+      if (p) {
+        printf("F ");
+        print_strip_crlf(p+2);
+      }
+      p = strstr(buf, "\r\nTo:");
+      if (p) {
+        printf("T ");
+        print_strip_crlf(p+2);
+      }
+      p = strstr(buf, "\r\nBcc:");
+      if (p) {
+        printf("B ");
+        print_strip_crlf(p+2);
+      }
+      p = strstr(buf, "\r\nSubject:");
+      if (p) {
+        printf("S ");
+        print_strip_crlf(p+2);
+      }
+      fwrite(buf, 1, l, destfp);
+    }
+    fclose(fp);
+    close(destfp);
+  }
 }
 
 int main(void)
 {
   uint8_t eth_init = ETH_INIT_DEFAULT;
-  char sendbuf[80], filename[80];
+  char sendbuf[80];
   uint16_t msg, nummsgs;
   uint32_t bytes;
 
@@ -378,9 +431,9 @@ int main(void)
   printf(" %u message(s), %lu total bytes\n", nummsgs, bytes);
 
   for (msg = 1; msg <= nummsgs; ++msg) {
-    sprintf(filename, "%s/EMAIL.%u", cfg_emaildir, msg);
+    sprintf(filename, "%s/EMAIL.%u", cfg_spooldir, msg);
     remove(filename); /// TO MAKE DEBUGGING EASIER - GET RID OF THIS
-    fp = fopen(filename, "w"); 
+    fp = fopen(filename, "wb"); 
     if (!fp) {
       printf("Can't create %s\n", filename);
       error_exit();
@@ -393,13 +446,15 @@ int main(void)
     spinner(filesize, 1); // Cleanup spinner
   }
 
-  if (!w5100_tcp_send_recv("QUIT\r\n", buf, 1500, DO_SEND, CMD_MODE)) {
-    error_exit();
-  }
-  expect(buf, "+OK Logging out.");
+  // Ignore any error - can be a race condition where other side
+  // disconnects too fast and we get an error
+  w5100_tcp_send_recv("QUIT\r\n", buf, 1500, DO_SEND, CMD_MODE);
 
-  printf("Disconnecting ");
+  printf("Disconnecting\n");
   w5100_disconnect();
+
+  printf("Updating INBOX ...\n");
+  update_inbox(nummsgs);
 
   confirm_exit();
 }
