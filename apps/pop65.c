@@ -50,6 +50,15 @@ char cfg_pass[80];           // Password
 char cfg_spooldir[80];       // ProDOS directory to spool email to
 char cfg_inboxdir[80];       // ProDOS directory for email inbox
 
+// Represents the email headers for one message
+struct emailhdrs {
+  char date[80];
+  char from[80];
+  char to[80];
+  char cc[80];
+  char subject[80];
+};
+
 /*
  * Keypress before quit
  */
@@ -341,11 +350,28 @@ uint8_t get_line(FILE *fp) {
 }
 
 /*
+ * Update EMAIL.DB - quick access database for header info
+ */
+void update_email_db(struct emailhdrs *h) {
+  FILE *fp;
+  printf("Updating DB: %s", h->from);
+  sprintf(filename, "%s/EMAIL.DB", cfg_inboxdir);
+  fp = fopen(filename, "a");
+  if (!fp) {
+    printf("Can't open %s\n", filename);
+    error_exit();
+  }
+  fwrite(h, sizeof(struct emailhdrs), 1, fp);
+  fclose(fp);
+}
+
+/*
  * Update INBOX
  * Copy messages from spool dir to inbox and find headers of interest
  * (Date, From, To, BCC, Subject)
  */
 void update_inbox(uint16_t nummsgs) {
+  static struct emailhdrs hdrs;
   uint16_t msg;
   uint8_t headers;
   FILE *destfp;
@@ -368,25 +394,34 @@ void update_inbox(uint16_t nummsgs) {
     headers = 1;
     while (get_line(fp)) {
       if (headers) {
-        if (!strncmp(linebuf, "Date: ", 6))
-          printf("D %s", linebuf);
-        if (!strncmp(linebuf, "From: ", 6))
-          printf("F %s", linebuf);
-        if (!strncmp(linebuf, "To: ", 4))
-          printf("T %s", linebuf);
-        if (!strncmp(linebuf, "Bcc: ", 5))
-          printf("B %s", linebuf);
-        if (!strncmp(linebuf, "Subject: ", 9))
-          printf("S %s", linebuf);
-        if (linebuf[0] = '\0') {
-          printf("Body\n");
-          headers = 0;
+        if (!strncmp(linebuf, "Date: ", 6)) {
+          strncpy(hdrs.date, linebuf + 6, 79);
+          hdrs.date[79] = '\0';
         }
-      }
-      fputs(linebuf, destfp);
+        if (!strncmp(linebuf, "From: ", 6)) {
+          strncpy(hdrs.from, linebuf + 6, 79);
+          hdrs.from[79] = '\0';
+        }
+        if (!strncmp(linebuf, "To: ", 4)) {
+          strncpy(hdrs.to, linebuf + 4, 79);
+          hdrs.to[79] = '\0';
+        }
+        if (!strncmp(linebuf, "Cc: ", 4)) {
+          strncpy(hdrs.cc, linebuf + 4, 79);
+          hdrs.cc[79] = '\0';
+        }
+        if (!strncmp(linebuf, "Subject: ", 9)) {
+          strncpy(hdrs.subject, linebuf + 9, 79);
+          hdrs.subject[79] = '\0';
+        }
+        if (linebuf[0] == '\r')
+          headers = 0;
+      } else
+        fputs(linebuf, destfp);
     }
     fclose(fp);
     fclose(destfp);
+    update_email_db(&hdrs);
   }
 }
 
@@ -484,6 +519,7 @@ void main(void) {
   printf("Disconnecting\n");
   w5100_disconnect();
 
+inbox:
   printf("Updating INBOX ...\n");
   update_inbox(nummsgs);
 
