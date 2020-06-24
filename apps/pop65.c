@@ -431,6 +431,8 @@ void main(void) {
   uint16_t msg, nummsgs;
   uint32_t bytes;
 
+  padding[0] = 0; // To shut up warning
+
   videomode(VIDEOMODE_80COL);
   printf("\nReading POP65.CFG            -");
   readconfigfile();
@@ -519,7 +521,6 @@ void main(void) {
   printf("Disconnecting\n");
   w5100_disconnect();
 
-inbox:
   printf("Updating INBOX ...\n");
   update_inbox(nummsgs);
 
