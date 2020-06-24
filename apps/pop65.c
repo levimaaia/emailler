@@ -24,6 +24,8 @@
 #include "w5100_http.h"
 #include "linenoise.h"
 
+#define BACKSPACE 8
+
 // Both pragmas are obligatory to have cc65 generate code
 // suitable to access the W5100 auto-increment registers.
 #pragma optimize      (on)
@@ -63,7 +65,7 @@ void error_exit()
  */
 void ip65_error_exit(void)
 {
-  printf("- %s\n", ip65_strerror(ip65_error));
+  printf("%s\n", ip65_strerror(ip65_error));
   confirm_exit();
 }
 
@@ -87,12 +89,16 @@ void spinner(uint32_t sz, uint8_t final) {
   static uint8_t i = 0;
   uint8_t j;
   for (j = 0; j < strlen(buf); ++j)
-    putchar(8); // Backspace
-  if (final)
+    putchar(BACKSPACE);
+  if (final) {
     sprintf(buf, " [%lu]\n", sz);
-  else
+    printf("%s", buf);
+    strcpy(buf, "");
+  }
+  else {
     sprintf(buf, "%c %lu", chars[(i++) % 4], sz);
-  printf("%s", buf);
+    printf("%s", buf);
+  }
 }
 
 #define DO_SEND   1  // For do_send param
@@ -125,7 +131,7 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
     while (len) {
       if (input_check_for_abort_key())
       {
-        printf("- User abort\n");
+        printf("User abort\n");
         w5100_disconnect();
         return false;
       }
@@ -133,7 +139,7 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
       snd = w5100_send_request();
       if (!snd) {
         if (!w5100_connected()) {
-          printf("- Connection lost\n");
+          printf("Connection lost\n");
           return false;
         }
         continue;
@@ -165,14 +171,18 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
     // Handle a sequence of data packets
     //
     uint16_t rcv, written;
-    uint16_t len = 0;
+    uint16_t len = 0, dropped = 0;
     uint8_t cont = 1;
+
+    // Backspace to put spinner on same line as RETR
+    for (rcv = 0; rcv < 15; ++rcv)
+      putchar(BACKSPACE);
 
     filesize = 0;
 
     while(cont) {
       if (input_check_for_abort_key()) {
-        printf("- User abort\n");
+        printf("User abort\n");
         w5100_disconnect();
         return false;
       }
@@ -184,9 +194,8 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
           continue;
       }
 
-      if (rcv > length - len) {
+      if (rcv > length - len)
         rcv = length - len;
-      }
 
       {
         // One less to allow for faster pre-increment below
@@ -198,6 +207,15 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
           char data = *w5100_data;
           *++dataptr = data;
 
+          // Throw away LF of CRLF pairs
+#if 0
+          if (!memcmp(dataptr - 1, "\r\n", 2)) {
+            --dataptr;
+            ++dropped;
+          }
+#endif
+
+          // Note that the first LFs have already been removed
           if (!memcmp(dataptr - 4, "\r\n.\r\n", 5))
             cont = 0;
         }
@@ -205,8 +223,8 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
       w5100_receive_commit(rcv);
       len += rcv;
 
-      written = fwrite(recvbuf, 1, len, fp);
-      if (written != len) {
+      written = fwrite(recvbuf, 1, len - dropped, fp);
+      if (written != len - dropped) {
         printf("Write error");
         fclose(fp);
         error_exit();
@@ -225,7 +243,7 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
 
     while(1) {
       if (input_check_for_abort_key()) {
-        printf("- User abort\n");
+        printf("User abort\n");
         w5100_disconnect();
         return false;
       }
@@ -239,9 +257,8 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
       }
     }
 
-    if (rcv > length - len) {
+    if (rcv > length - len)
       rcv = length - len;
-    }
 
     {
       // One less to allow for faster pre-increment below
@@ -295,11 +312,6 @@ int main(void)
   uint16_t msg, nummsgs;
   uint32_t bytes;
 
-  if (doesclrscrafterexit())
-  {
-    atexit(confirm_exit);
-  }
-
   videomode(VIDEOMODE_80COL);
   printf("\nReading POP65.CFG            -");
   readconfigfile();
@@ -308,43 +320,39 @@ int main(void)
   {
     int file;
 
-    printf("\nSetting slot        - ");
+    printf("\nSetting slot                 - ");
     file = open("ethernet.slot", O_RDONLY);
-    if (file != -1)
-    {
+    if (file != -1) {
       read(file, &eth_init, 1);
       close(file);
       eth_init &= ~'0';
     }
   }
 
-  printf("%d\n\nInitializing %s      - ", eth_init, eth_name);
-  if (ip65_init(eth_init))
-  {
+  printf("%d\nInitializing %s     - ", eth_init, eth_name);
+  if (ip65_init(eth_init)) {
     ip65_error_exit();
   }
 
   // Abort on Ctrl-C to be consistent with Linenoise
   abort_key = 0x83;
 
-  printf("Ok\n\nObtaining IP address    - ");
-  if (dhcp_init())
-  {
+  printf("Ok\nObtaining IP address         - ");
+  if (dhcp_init()) {
     ip65_error_exit();
   }
 
   // Copy IP config from IP65 to W5100
   w5100_config(eth_init);
 
-  printf(" Ok\nConnecting to %s   -", cfg_server);
+  printf("Ok\nConnecting to %s   - ", cfg_server);
 
-  if (!w5100_connect(parse_dotted_quad(cfg_server), 110))
-  {
-    printf("failed\n");
+  if (!w5100_connect(parse_dotted_quad(cfg_server), 110)) {
+    printf("Fail\n");
     error_exit();
   }
 
-  printf(" Ok\n\n");
+  printf("Ok\n\n");
 
   if (!w5100_tcp_send_recv(sendbuf, buf, 1500, DONT_SEND, CMD_MODE)) {
     error_exit();
@@ -390,8 +398,8 @@ int main(void)
   }
   expect(buf, "+OK Logging out.");
 
-  printf("- Ok\n\nDisconnecting ");
+  printf("Disconnecting ");
   w5100_disconnect();
 
-  return EXIT_SUCCESS;
+  confirm_exit();
 }
