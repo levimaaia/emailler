@@ -366,6 +366,19 @@ void update_email_db(struct emailhdrs *h) {
 }
 
 /*
+ * Copy one header from source->dest, removing '\r' from end
+ */
+void copyheader(char *dest, char *source, uint16_t len) {
+  uint16_t i;
+  memset(dest, ' ', len);
+  for (i = 0; i < len; ++i) {
+    if ((*source == '\0') || (*source == '\r'))
+      return;
+    *dest++ = *source++;
+  }
+}
+
+/*
  * Update INBOX
  * Copy messages from spool dir to inbox and find headers of interest
  * (Date, From, To, BCC, Subject)
@@ -395,23 +408,23 @@ void update_inbox(uint16_t nummsgs) {
     while (get_line(fp)) {
       if (headers) {
         if (!strncmp(linebuf, "Date: ", 6)) {
-          strncpy(hdrs.date, linebuf + 6, 79);
+          copyheader(hdrs.date, linebuf + 6, 79);
           hdrs.date[79] = '\0';
         }
         if (!strncmp(linebuf, "From: ", 6)) {
-          strncpy(hdrs.from, linebuf + 6, 79);
+          copyheader(hdrs.from, linebuf + 6, 79);
           hdrs.from[79] = '\0';
         }
         if (!strncmp(linebuf, "To: ", 4)) {
-          strncpy(hdrs.to, linebuf + 4, 79);
+          copyheader(hdrs.to, linebuf + 4, 79);
           hdrs.to[79] = '\0';
         }
         if (!strncmp(linebuf, "Cc: ", 4)) {
-          strncpy(hdrs.cc, linebuf + 4, 79);
+          copyheader(hdrs.cc, linebuf + 4, 79);
           hdrs.cc[79] = '\0';
         }
         if (!strncmp(linebuf, "Subject: ", 9)) {
-          strncpy(hdrs.subject, linebuf + 9, 79);
+          copyheader(hdrs.subject, linebuf + 9, 79);
           hdrs.subject[79] = '\0';
         }
         if (linebuf[0] == '\r')

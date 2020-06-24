@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <conio.h>
+#include <string.h>
 
 char filename[80];
 FILE *fp;
@@ -96,13 +97,30 @@ void read_email_db(void) {
 }
 
 /*
+ * Print a header field from char postion start to end,
+ * padding with spaces as needed
+ */
+void printfield(char *s, uint8_t start, uint8_t end) {
+  uint8_t i;
+  uint8_t l = strlen(s);
+  for (i = start; i < end; i++)
+    putchar(i < l ? s[i] : ' ');
+}
+
+/*
  * Show email summary
  */
 void email_summary(void) {
   uint16_t i = 1;
   struct emailhdrs *h = headers;
   while (h) {
-    printf("**%d %s %s %s", i++, h->date, h->from, h->subject);
+    printf("%02d|", i++);
+    printfield(h->date, 0, 16);
+    putchar('|');
+    printfield(h->from, 0, 20);
+    putchar('|');
+    printfield(h->subject, 0, 39);
+    //putchar('\r');
     h = h->next;
   }
 }
