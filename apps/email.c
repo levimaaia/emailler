@@ -10,6 +10,11 @@
 #include <conio.h>
 #include <string.h>
 
+#define LINEBUFSZ 1000
+#define READSZ 1024
+static unsigned char buf[READSZ];
+static char linebuf[LINEBUFSZ];
+
 char filename[80];
 FILE *fp;
 struct emailhdrs *headers;
@@ -127,11 +132,25 @@ void print_one_email_summary(uint16_t num, struct emailhdrs *h, uint8_t inverse)
 }
 
 /*
+ * Get emailhdrs for nth email
+ */
+struct emailhdrs *get_headers(uint16_t n) {
+  uint16_t i = 1;
+  struct emailhdrs *h = headers;
+  while (i < n) {
+    ++i;
+    h = h->next;
+  }
+  return h;
+}
+
+/*
  * Show email summary
  */
 void email_summary(void) {
   uint16_t i = 1;
   struct emailhdrs *h = headers;
+  clrscr();
   while (h) {
     print_one_email_summary(i, h, (i == selection));
     ++i;
@@ -143,17 +162,13 @@ void email_summary(void) {
  * Show email summary for nth email message
  */
 void email_summary_for(uint16_t n) {
-  uint16_t i = 1;
   struct emailhdrs *h = headers;
   uint16_t j;
-  while (i < n) {
-    ++i;
-    h = h->next;
-  }
+  h = get_headers(n);
   putchar(0x19);   // HOME
-  for (j = 0; j < i - 1; ++j)
+  for (j = 0; j < n - 1; ++j)
     putchar(0x0a); // CURSOR DOWN
-  print_one_email_summary(i, h, (i == selection));
+  print_one_email_summary(n, h, (n == selection));
 }
 
 /*
@@ -162,6 +177,67 @@ void email_summary_for(uint16_t n) {
 void update_highlighted(void) {
   email_summary_for(prevselection);
   email_summary_for(selection);
+}
+
+/*
+ * Display email with simple pager functionality
+ */
+void email_pager(void) {
+  uint16_t pos = 0;
+  struct emailhdrs *h = get_headers(selection);
+  uint8_t line;
+  char c;
+  clrscr();
+  sprintf(filename, "%s/EMAIL.%u", cfg_inboxdir, selection);
+  fp = fopen(filename, "rb");
+  if (!fp) {
+    printf("Can't open %s\n", filename);
+    goto done;
+  }
+  line = 6;
+  fputs("Date:    ", stdout);
+  printfield(h->date, 0, 70);
+  fputs("\nFrom:    ", stdout);
+  printfield(h->from, 0, 70);
+  fputs("\nTo:      ", stdout);
+  printfield(h->to, 0, 70);
+  if (h->cc[0] != '\0') {
+    fputs("\nCC:      ", stdout);
+    printfield(h->cc, 0, 70);
+    ++line;
+  }
+  fputs("\nSubject: ", stdout);
+  printfield(h->subject, 0, 70);
+  fputs("\n\n", stdout);
+  while (!feof(fp)) {
+    c = fgetc(fp);
+    ++pos;
+    putchar(c);
+    if (c == '\r') {
+      ++line;
+      if (line == 22) {
+        putchar(0x0f); // INVERSE
+        printf("[q)uit | SPACE continue reading");
+        putchar(0x0e); // NORMAL
+        c = cgetc();
+        switch (c) {
+        case 'Q':
+        case 'q':
+          fclose(fp);
+          return;
+        }
+        clrscr();
+        line = 0;
+      }
+    }
+  }
+  fclose(fp);
+done:
+  putchar('\n');
+  putchar(0x0f); // INVERSE
+  printf("[Press any key]");
+  putchar(0x0e); // NORMAL
+  cgetc();
 }
 
 /*
@@ -189,11 +265,16 @@ void keyboard_hdlr(void) {
         update_highlighted();
       }
       break;
+    case 0x0d: // RETURN
+      email_pager();
+      email_summary();
+      break;
     case 'q':
     case 'Q':
       clrscr();
       exit(0);
     default:
+      //printf("[%02x]", c);
       putchar(7); // BELL
     }
   }
