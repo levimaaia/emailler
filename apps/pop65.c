@@ -6,7 +6,6 @@
 // Bobbi June 2020
 /////////////////////////////////////////////////////////////////
 
-#include <dio.h>
 #include <cc65.h>
 #include <errno.h>
 #include <ctype.h>
@@ -16,13 +15,13 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
-#include <dirent.h>
-#include <device.h>
 
 #include "../inc/ip65.h"
 #include "w5100.h"
 #include "w5100_http.h"
 #include "linenoise.h"
+
+#include "email_common.h"
 
 #define BACKSPACE 8
 
@@ -34,36 +33,19 @@
 #define NETBUFSZ  1500
 #define LINEBUFSZ 1000         // According to RFC2822 Section 2.1.1 (998+CRLF)
 #define READSZ    1024         // Must be less than NETBUFSZ to fit in buf[]
-static unsigned char buf[NETBUFSZ+1]; // One extra byte for null terminator
-static char padding[1] = {0};  // Having an extra byte before linebuf[] helps
-static char linebuf[LINEBUFSZ];
 
-char filename[80];
-int len;
-FILE *fp;
+static unsigned char buf[NETBUFSZ+1];    // One extra byte for null terminator
+static char          linebuf[LINEBUFSZ];
+
+char     filename[80];
+int      len;
+FILE     *fp;
 uint32_t filesize;
-
-// Configuration params from POP65.CFG
-char cfg_server[80];         // IP of POP3 server
-char cfg_user[80];           // Username
-char cfg_pass[80];           // Password
-char cfg_spooldir[80];       // ProDOS directory to spool email to
-char cfg_inboxdir[80];       // ProDOS directory for email inbox
-
-// Represents the email headers for one message
-struct emailhdrs {
-  char date[80];
-  char from[80];
-  char to[80];
-  char cc[80];
-  char subject[80];
-};
 
 /*
  * Keypress before quit
  */
-void confirm_exit(void)
-{
+void confirm_exit(void) {
   printf("\nPress any key ");
   cgetc();
   exit(0);
@@ -72,16 +54,14 @@ void confirm_exit(void)
 /*
  * Called for all non IP65 errors
  */
-void error_exit()
-{
+void error_exit() {
   confirm_exit();
 }
 
 /*
  * Called if IP65 call fails
  */
-void ip65_error_exit(void)
-{
+void ip65_error_exit(void) {
   printf("%s\n", ip65_strerror(ip65_error));
   confirm_exit();
 }
@@ -225,6 +205,8 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
           *++dataptr = data;
 
           // TODO -- check we are not looking before start of recvbuf here!!
+          // TODO -- this doesn't handle the case where the sequence is split across
+          //         packets!!!
           if (!memcmp(dataptr - 4, "\r\n.\r\n", 5))
             cont = 0;
         }
@@ -317,10 +299,10 @@ void readconfigfile(void) {
 
 /*
  * Read a text file a line at a time leaving the line in linebuf[]
- * Returns 1 if line read, 0 if EOF.
+ * Returns number of chars in the line, or -1 if EOF.
  * Converts line endings from CRLF -> CR (Apple ][ style)
  */
-uint8_t get_line(FILE *fp) {
+int16_t get_line(FILE *fp) {
   static uint16_t rd = 0;
   static uint16_t buflen = 0;
   uint8_t found = 0;
@@ -329,21 +311,21 @@ uint8_t get_line(FILE *fp) {
   while (1) {
     for (i = rd; i < buflen; ++i) {
       linebuf[j++] = buf[i];
-      if ((linebuf[j-1] == '\n') && (linebuf[j-2] == '\r')) {
+      // The following line is safe because j>=1 at this point
+      if ((linebuf[j - 1] == '\n') && (linebuf[j - 2] == '\r')) {
         found = 1;
         break;
       }
     }
     if (found) {
       rd = i + 1;
-      linebuf[j-1] = '\0'; // Remove LF from end
-      j = 0;
-      return 1;
+      linebuf[j - 1] = '\0'; // Remove LF from end
+      return j - 2;
     }
     buflen = fread(buf, 1, READSZ, fp);
     if (buflen == 0) {
       rd = 0;
-      return 0; // Hit EOF before we found EOL
+      return -1; // Hit EOF before we found EOL
     }
     rd = 0;
   }
@@ -399,7 +381,7 @@ void write_next_email(uint16_t num) {
  */
 void update_inbox(uint16_t nummsgs) {
   static struct emailhdrs hdrs;
-  uint16_t nextemail, msg;
+  uint16_t nextemail, msg, chars, headerchars;
   uint8_t headers;
   FILE *destfp;
   sprintf(filename, "%s/NEXT.EMAIL", cfg_inboxdir);
@@ -419,6 +401,7 @@ void update_inbox(uint16_t nummsgs) {
       printf("Can't open %s\n", filename);
       error_exit();
     }
+    hdrs.emailnum = nextemail;
     sprintf(filename, "%s/EMAIL.%u", cfg_inboxdir, nextemail++);
     puts(filename);
     destfp = fopen(filename, "wb");
@@ -428,10 +411,13 @@ void update_inbox(uint16_t nummsgs) {
       error_exit();
     }
     headers = 1;
-    while (get_line(fp)) {
+    headerchars = 0;
+    hdrs.skipbytes = 0; // Just in case it doesn't get set
+    while ((chars = get_line(fp)) != -1) {
       if (headers) {
+        headerchars += chars + 1;  // Don't forget the LF we deleted
         if (!strncmp(linebuf, "Date: ", 6)) {
-          copyheader(hdrs.date, linebuf + 6, 79);
+          copyheader(hdrs.date, linebuf + 6, 39);
           hdrs.date[79] = '\0';
         }
         if (!strncmp(linebuf, "From: ", 6)) {
@@ -450,10 +436,13 @@ void update_inbox(uint16_t nummsgs) {
           copyheader(hdrs.subject, linebuf + 9, 79);
           hdrs.subject[79] = '\0';
         }
-        if (linebuf[0] == '\r')
+        //if (linebuf[0] == '\r') {
+        if (strlen(linebuf) < 10) {
           headers = 0;
-      } else
-        fputs(linebuf, destfp);
+          hdrs.skipbytes = headerchars;
+        }
+      }
+      fputs(linebuf, destfp);
     }
     fclose(fp);
     fclose(destfp);
@@ -467,8 +456,6 @@ void main(void) {
   char sendbuf[80];
   uint16_t msg, nummsgs;
   uint32_t bytes;
-
-  padding[0] = 0; // To shut up warning
 
   videomode(VIDEOMODE_80COL);
   printf("\nReading POP65.CFG            -");

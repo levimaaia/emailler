@@ -1,14 +1,17 @@
-//
+/////////////////////////////////////////////////////////////////
 // Simple Email User Agent
-// Bobbi June 2020
 // Handles INBOX in the format created by POP65
-//
+// Bobbi June 2020
+/////////////////////////////////////////////////////////////////
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <conio.h>
 #include <string.h>
+
+#define EMAIL_C
+#include "email_common.h"
 
 #define SCROLLBACK 25*80
 
@@ -17,23 +20,6 @@ FILE *fp;
 struct emailhdrs *headers;
 uint16_t selection, prevselection;
 uint16_t num_msgs;
-
-// Configuration params from POP65.CFG
-char cfg_server[80];         // IP of POP3 server
-char cfg_user[80];           // Username
-char cfg_pass[80];           // Password
-char cfg_spooldir[80];       // ProDOS directory to spool email to
-char cfg_inboxdir[80];       // ProDOS directory for email inbox
-
-// Represents the email headers for one message
-struct emailhdrs {
-  char date[80];
-  char from[80];
-  char to[80];
-  char cc[80];
-  char subject[80];
-  struct emailhdrs *next;
-};
 
 /*
  * Keypress before quit
@@ -71,7 +57,7 @@ void readconfigfile(void) {
 }
 
 /*
- * Read EMAIL.DB
+ * Read EMAIL.DB and populate linked list rooted at headers
  */
 void read_email_db(void) {
   struct emailhdrs *curr = NULL, *prev = NULL;
@@ -116,9 +102,9 @@ void printfield(char *s, uint8_t start, uint8_t end) {
 /*
  * Print one line summary of email headers for one message
  */
-void print_one_email_summary(uint16_t num, struct emailhdrs *h, uint8_t inverse) {
+void print_one_email_summary(struct emailhdrs *h, uint8_t inverse) {
   putchar(inverse ? 0xf : 0xe); // INVERSE or NORMAL
-  printf("%02d|", num);
+  printf("%02d|", h->emailnum);
   printfield(h->date, 0, 16);
   putchar('|');
   printfield(h->from, 0, 20);
@@ -129,7 +115,7 @@ void print_one_email_summary(uint16_t num, struct emailhdrs *h, uint8_t inverse)
 }
 
 /*
- * Get emailhdrs for nth email
+ * Get emailhdrs for nth email in list of headers
  */
 struct emailhdrs *get_headers(uint16_t n) {
   uint16_t i = 1;
@@ -149,14 +135,14 @@ void email_summary(void) {
   struct emailhdrs *h = headers;
   clrscr();
   while (h) {
-    print_one_email_summary(i, h, (i == selection));
+    print_one_email_summary(h, (i == selection));
     ++i;
     h = h->next;
   }
 }
 
 /*
- * Show email summary for nth email message
+ * Show email summary for nth email message in list of headers
  */
 void email_summary_for(uint16_t n) {
   struct emailhdrs *h = headers;
@@ -165,7 +151,7 @@ void email_summary_for(uint16_t n) {
   putchar(0x19);   // HOME
   for (j = 0; j < n - 1; ++j)
     putchar(0x0a); // CURSOR DOWN
-  print_one_email_summary(n, h, (n == selection));
+  print_one_email_summary(h, (n == selection));
 }
 
 /*
@@ -185,7 +171,7 @@ void email_pager(void) {
   uint8_t line, eof;
   char c;
   clrscr();
-  sprintf(filename, "%s/EMAIL.%u", cfg_inboxdir, selection);
+  sprintf(filename, "%s/EMAIL.%u", cfg_inboxdir, h->emailnum);
   fp = fopen(filename, "rb");
   if (!fp) {
     printf("Can't open %s\n", filename);
@@ -193,6 +179,8 @@ void email_pager(void) {
     cgetc();
     return;
   }
+  pos = h->skipbytes;
+  fseek(fp, pos, SEEK_SET); // Skip over headers
 restart:
   clrscr();
   line = 6;
@@ -221,7 +209,7 @@ restart:
       ++line;
       if (line == 22) {
         putchar(0x0f); // INVERSE
-        printf("[%05lu] SPACE continue reading | B)ack | T)op | Q)uit", pos);
+        printf("[%05lu] SPACE continue reading | B)ack | T)op | H)drs | Q)uit", pos);
         putchar(0x0e); // NORMAL
 retry1:
         c = cgetc();
@@ -231,7 +219,7 @@ retry1:
         case 'B':
         case 'b':
           if (pos < (uint32_t)(SCROLLBACK)) {
-            pos = 0;
+            pos = h->skipbytes;
             fseek(fp, pos, SEEK_SET);
             goto restart;
           } else {
@@ -241,10 +229,16 @@ retry1:
           break;
         case 'T':
         case 't':
-          pos = 0;
+          pos = h->skipbytes;
           fseek(fp, pos, SEEK_SET);
           goto restart;
           break;
+        case 'H':
+        case 'h':
+          pos = 0;
+          fseek(fp, pos, SEEK_SET);
+          goto restart;
+        break;
         case 'Q':
         case 'q':
           fclose(fp);
@@ -258,7 +252,7 @@ retry1:
       }
     } else if (eof) {
       putchar(0x0f); // INVERSE
-      printf("[%05lu]      *** END ***       | B)ack | T)op | Q)uit", pos);
+      printf("[%05lu]      *** END ***       | B)ack | T)op | H)drs | Q)uit", pos);
       putchar(0x0e); // NORMAL
 retry2:
       c = cgetc();
@@ -266,7 +260,7 @@ retry2:
       case 'B':
       case 'b':
         if (pos < (uint32_t)(SCROLLBACK)) {
-          pos = 0;
+          pos = h->skipbytes;
           fseek(fp, pos, SEEK_SET);
           goto restart;
         } else {
@@ -276,6 +270,12 @@ retry2:
         break;
       case 'T':
       case 't':
+        pos = h->skipbytes;
+        fseek(fp, pos, SEEK_SET);
+        goto restart;
+        break;
+      case 'H':
+      case 'h':
         pos = 0;
         fseek(fp, pos, SEEK_SET);
         goto restart;
