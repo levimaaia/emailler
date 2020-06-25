@@ -10,10 +10,7 @@
 #include <conio.h>
 #include <string.h>
 
-#define LINEBUFSZ 1000
-#define READSZ 1024
-static unsigned char buf[READSZ];
-static char linebuf[LINEBUFSZ];
+#define SCROLLBACK 25*80
 
 char filename[80];
 FILE *fp;
@@ -183,17 +180,21 @@ void update_highlighted(void) {
  * Display email with simple pager functionality
  */
 void email_pager(void) {
-  uint16_t pos = 0;
+  uint32_t pos = 0;
   struct emailhdrs *h = get_headers(selection);
-  uint8_t line;
+  uint8_t line, eof;
   char c;
   clrscr();
   sprintf(filename, "%s/EMAIL.%u", cfg_inboxdir, selection);
   fp = fopen(filename, "rb");
   if (!fp) {
     printf("Can't open %s\n", filename);
-    goto done;
+    printf("[Press any key]");
+    cgetc();
+    return;
   }
+restart:
+  clrscr();
   line = 6;
   fputs("Date:    ", stdout);
   printfield(h->date, 0, 70);
@@ -209,35 +210,86 @@ void email_pager(void) {
   fputs("\nSubject: ", stdout);
   printfield(h->subject, 0, 70);
   fputs("\n\n", stdout);
-  while (!feof(fp)) {
+  while (1) {
     c = fgetc(fp);
-    ++pos;
-    putchar(c);
+    eof = feof(fp);
+    if (!eof) {
+      putchar(c);
+      ++pos;
+    }
     if (c == '\r') {
       ++line;
       if (line == 22) {
         putchar(0x0f); // INVERSE
-        printf("[q)uit | SPACE continue reading");
+        printf("[%05lu] SPACE continue reading | B)ack | T)op | Q)uit", pos);
         putchar(0x0e); // NORMAL
+retry1:
         c = cgetc();
         switch (c) {
+        case ' ':
+          break;
+        case 'B':
+        case 'b':
+          if (pos < (uint32_t)(SCROLLBACK)) {
+            pos = 0;
+            fseek(fp, pos, SEEK_SET);
+            goto restart;
+          } else {
+            pos -= (uint32_t)(SCROLLBACK);
+            fseek(fp, pos, SEEK_SET);
+          }
+          break;
+        case 'T':
+        case 't':
+          pos = 0;
+          fseek(fp, pos, SEEK_SET);
+          goto restart;
+          break;
         case 'Q':
         case 'q':
           fclose(fp);
           return;
+        default:
+          putchar(7); // BELL
+          goto retry1;
         }
         clrscr();
         line = 0;
       }
+    } else if (eof) {
+      putchar(0x0f); // INVERSE
+      printf("[%05lu]      *** END ***       | B)ack | T)op | Q)uit", pos);
+      putchar(0x0e); // NORMAL
+retry2:
+      c = cgetc();
+      switch (c) {
+      case 'B':
+      case 'b':
+        if (pos < (uint32_t)(SCROLLBACK)) {
+          pos = 0;
+          fseek(fp, pos, SEEK_SET);
+          goto restart;
+        } else {
+          pos -= (uint32_t)(SCROLLBACK);
+          fseek(fp, pos, SEEK_SET);
+        }
+        break;
+      case 'T':
+      case 't':
+        pos = 0;
+        fseek(fp, pos, SEEK_SET);
+        goto restart;
+        break;
+      case 'Q':
+      case 'q':
+        fclose(fp);
+        return;
+      default:
+        putchar(7); // BELL
+        goto retry2;
+      }
     }
   }
-  fclose(fp);
-done:
-  putchar('\n');
-  putchar(0x0f); // INVERSE
-  printf("[Press any key]");
-  putchar(0x0e); // NORMAL
-  cgetc();
 }
 
 /*
@@ -266,6 +318,7 @@ void keyboard_hdlr(void) {
       }
       break;
     case 0x0d: // RETURN
+    case ' ':
       email_pager();
       email_summary();
       break;
