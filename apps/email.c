@@ -288,6 +288,8 @@ retry2:
         putchar(7); // BELL
         goto retry2;
       }
+      clrscr();
+      line = 0;
     }
   }
 }

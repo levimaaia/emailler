@@ -378,25 +378,49 @@ void copyheader(char *dest, char *source, uint16_t len) {
 }
 
 /*
+ * Write NEXT.EMAIL file with number of next EMAIL.n file to be created
+ */
+void write_next_email(uint16_t num) {
+  sprintf(filename, "%s/NEXT.EMAIL", cfg_inboxdir);
+  fp = fopen(filename, "wb");
+  if (!fp) {
+    printf("Can't open %s\n", filename);
+    fclose(fp);
+    error_exit();
+  }
+  fprintf(fp, "%u", num);
+  fclose(fp);
+}
+
+/*
  * Update INBOX
  * Copy messages from spool dir to inbox and find headers of interest
  * (Date, From, To, BCC, Subject)
  */
 void update_inbox(uint16_t nummsgs) {
   static struct emailhdrs hdrs;
-  uint16_t msg;
+  uint16_t nextemail, msg;
   uint8_t headers;
   FILE *destfp;
+  sprintf(filename, "%s/NEXT.EMAIL", cfg_inboxdir);
+  fp = fopen(filename, "r");
+  if (!fp) {
+    nextemail = 1;
+    write_next_email(nextemail);
+  } else {
+    fscanf(fp, "%u", &nextemail);
+    fclose(fp);
+  }
   for (msg = 1; msg <= nummsgs; ++msg) {
     strcpy(linebuf, "");
     sprintf(filename, "%s/EMAIL.%u", cfg_spooldir, msg);
-    puts(filename);
     fp = fopen(filename, "r");
     if (!fp) {
       printf("Can't open %s\n", filename);
       error_exit();
     }
-    sprintf(filename, "%s/EMAIL.%u", cfg_inboxdir, msg);
+    sprintf(filename, "%s/EMAIL.%u", cfg_inboxdir, nextemail++);
+    puts(filename);
     destfp = fopen(filename, "wb");
     if (!destfp) {
       printf("Can't open %s\n", filename);
@@ -435,6 +459,7 @@ void update_inbox(uint16_t nummsgs) {
     fclose(destfp);
     update_email_db(&hdrs);
   }
+  write_next_email(nextemail);
 }
 
 void main(void) {
