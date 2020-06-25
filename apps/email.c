@@ -218,7 +218,7 @@ retry1:
           break;
         case 'B':
         case 'b':
-          if (pos < (uint32_t)(SCROLLBACK)) {
+          if (pos < h->skipbytes + (uint32_t)(SCROLLBACK)) {
             pos = h->skipbytes;
             fseek(fp, pos, SEEK_SET);
             goto restart;
@@ -259,7 +259,7 @@ retry2:
       switch (c) {
       case 'B':
       case 'b':
-        if (pos < (uint32_t)(SCROLLBACK)) {
+        if (pos < h->skipbytes + (uint32_t)(SCROLLBACK)) {
           pos = h->skipbytes;
           fseek(fp, pos, SEEK_SET);
           goto restart;
