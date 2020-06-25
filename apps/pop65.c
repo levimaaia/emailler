@@ -354,7 +354,6 @@ uint8_t get_line(FILE *fp) {
  */
 void update_email_db(struct emailhdrs *h) {
   FILE *fp;
-  printf("Updating DB: %s", h->from);
   sprintf(filename, "%s/EMAIL.DB", cfg_inboxdir);
   fp = fopen(filename, "a");
   if (!fp) {

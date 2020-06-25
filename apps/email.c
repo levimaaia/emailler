@@ -13,6 +13,8 @@
 char filename[80];
 FILE *fp;
 struct emailhdrs *headers;
+uint16_t selection, prevselection;
+uint16_t num_msgs;
 
 // Configuration params from POP65.CFG
 char cfg_server[80];         // IP of POP3 server
@@ -79,6 +81,7 @@ void read_email_db(void) {
     printf("Can't open %s\n", filename);
     error_exit();
   }
+  num_msgs = 0;
   while (1) {
     curr = (struct emailhdrs*)malloc(sizeof(struct emailhdrs));
     curr->next = NULL;
@@ -93,6 +96,7 @@ void read_email_db(void) {
     else
       prev->next = curr;
     prev = curr;
+    ++num_msgs;
   }
 }
 
@@ -108,20 +112,90 @@ void printfield(char *s, uint8_t start, uint8_t end) {
 }
 
 /*
+ * Print one line summary of email headers for one message
+ */
+void print_one_email_summary(uint16_t num, struct emailhdrs *h, uint8_t inverse) {
+  putchar(inverse ? 0xf : 0xe); // INVERSE or NORMAL
+  printf("%02d|", num);
+  printfield(h->date, 0, 16);
+  putchar('|');
+  printfield(h->from, 0, 20);
+  putchar('|');
+  printfield(h->subject, 0, 39);
+  //putchar('\r');
+  putchar(0xe); // NORMAL
+}
+
+/*
  * Show email summary
  */
 void email_summary(void) {
   uint16_t i = 1;
   struct emailhdrs *h = headers;
   while (h) {
-    printf("%02d|", i++);
-    printfield(h->date, 0, 16);
-    putchar('|');
-    printfield(h->from, 0, 20);
-    putchar('|');
-    printfield(h->subject, 0, 39);
-    //putchar('\r');
+    print_one_email_summary(i, h, (i == selection));
+    ++i;
     h = h->next;
+  }
+}
+
+/*
+ * Show email summary for nth email message
+ */
+void email_summary_for(uint16_t n) {
+  uint16_t i = 1;
+  struct emailhdrs *h = headers;
+  uint16_t j;
+  while (i < n) {
+    ++i;
+    h = h->next;
+  }
+  putchar(0x19);   // HOME
+  for (j = 0; j < i - 1; ++j)
+    putchar(0x0a); // CURSOR DOWN
+  print_one_email_summary(i, h, (i == selection));
+}
+
+/*
+ * Move the highlight bar when user selects different message
+ */
+void update_highlighted(void) {
+  email_summary_for(prevselection);
+  email_summary_for(selection);
+}
+
+/*
+ * Keyboard handler
+ */
+void keyboard_hdlr(void) {
+  while (1) {
+    char c = cgetc();
+    switch (c) {
+    case 'k':
+    case 'K':
+    case 0xb: // UP-ARROW
+      if (selection > 1) {
+        prevselection = selection;
+        --selection;
+        update_highlighted();
+      }
+      break;
+    case 'j':
+    case 'J':
+    case 0xa: // DOWN-ARROW
+      if (selection < num_msgs) {
+        prevselection = selection;
+        ++selection;
+        update_highlighted();
+      }
+      break;
+    case 'q':
+    case 'Q':
+      clrscr();
+      exit(0);
+    default:
+      putchar(7); // BELL
+    }
   }
 }
 
@@ -129,7 +203,8 @@ void main(void) {
   videomode(VIDEOMODE_80COL);
   readconfigfile();
   read_email_db();
+  selection = 1;
   email_summary();
-  confirm_exit();
+  keyboard_hdlr();
 }
 
