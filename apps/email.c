@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <conio.h>
 #include <string.h>
+#include <ctype.h>
 
 #define EMAIL_C
 #include "email_common.h"
@@ -27,6 +28,7 @@
 #define SCROLLBACK 25*80  // How many bytes to go back when paging up
 
 char filename[80];
+char userentry[80];
 FILE *fp;
 struct emailhdrs *headers;
 uint16_t selection, prevselection;
@@ -423,6 +425,44 @@ void change_mailbox(char *mbox) {
 }
 
 /*
+ * Prompt for a name in the line below the menu, store it in userentry
+ */
+char prompt_for_name(void) {
+  uint16_t i;
+  char c;
+  putchar(0x19);                          // HOME
+  for (i = 0; i < PROMPT_ROW - 1; ++i) 
+    putchar(0x0a);                        // CURSOR DOWN
+  printf(">>>");
+  i = 0;
+  while (1) {
+    c = cgetc();
+    if (!isalnum(c) && c != 0x0d && c != '.') {
+      putchar(7); // BELL
+      continue;
+    }
+    switch (c) {
+    case 0x0d:                            // RETURN KEY
+      goto done;
+    case 0x08:                            // BACKSPACE
+      putchar(0x08);
+      putchar(' ');
+      putchar(0x08);
+      --i;
+      break;
+    default:
+      putchar(c);
+      userentry[i++] = c;
+    }
+    if (i == 79)
+      goto done;
+  }
+done:
+  userentry[i] = '\0';
+  putchar(0x1a);                          // CLEAR LINE
+}
+
+/*
  * Keyboard handler
  */
 void keyboard_hdlr(void) {
@@ -458,7 +498,7 @@ void keyboard_hdlr(void) {
         email_summary();
       }
       break;
-    case 0x0d: // RETURN
+    case 0x0d: // RETURN KEY
     case ' ':
       h = get_headers(selection);
       if (h) {
@@ -494,16 +534,13 @@ void keyboard_hdlr(void) {
       break;
     case 'n':
     case 'N':
-      // TODO: Prompt for mailbox name
-      new_mailbox("RECEIVED");
+      prompt_for_name();
+      new_mailbox(userentry);
       break;
     case 'c':
     case 'C':
-      // TODO: Prompt for mailbox name
-      if (!strcmp(curr_mbox, "INBOX"))
-        change_mailbox("RECEIVED");
-      else
-        change_mailbox("INBOX");
+      prompt_for_name();
+      change_mailbox(userentry);
       break;
     case 'q':
     case 'Q':
