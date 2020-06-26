@@ -20,7 +20,8 @@
 #define EMAIL_C
 #include "email_common.h"
 
-#define MSGS_PER_PAGE 20  // Number of messages shown on summary screen
+#define MSGS_PER_PAGE 18  // Number of messages shown on summary screen
+#define MENU_ROW      23  // Row that the menu appears on
 #define SCROLLBACK 25*80  // How many bytes to go back when paging up
 
 char filename[80];
@@ -31,6 +32,7 @@ uint16_t num_msgs;    // Number of messages shown in current page
 uint16_t total_msgs;  // Total number of message in mailbox
 uint16_t total_new;   // Total number of new messages
 uint16_t first_msg;   // Message number of first message on current page
+char curr_mbox[80] = "INBOX";
 
 /*
  * Keypress before quit
@@ -60,8 +62,7 @@ void readconfigfile(void) {
     fscanf(fp, "%s", cfg_server);
     fscanf(fp, "%s", cfg_user);
     fscanf(fp, "%s", cfg_pass);
-    fscanf(fp, "%s", cfg_spooldir);
-    fscanf(fp, "%s", cfg_inboxdir);
+    fscanf(fp, "%s", cfg_emaildir);
     fclose(fp);
 }
 
@@ -90,7 +91,7 @@ void read_email_db(uint16_t startnum, uint8_t initialize) {
     total_new = total_msgs = 0;
   }
   free_headers_list();
-  sprintf(filename, "%s/EMAIL.DB", cfg_inboxdir);
+  sprintf(filename, "%s/%s/EMAIL.DB", cfg_emaildir, curr_mbox);
   fp = fopen(filename, "rb");
   if (!fp) {
     printf("Can't open %s\n", filename);
@@ -189,8 +190,8 @@ void email_summary(void) {
   uint8_t i = 1;
   struct emailhdrs *h = headers;
   clrscr();
-  printf("%c%u messages, %u new. Displaying %u-%u%c",
-         0x0f, total_msgs, total_new, first_msg,
+  printf("%c[%s] %u messages, %u new. Displaying %u-%u%c",
+         0x0f, curr_mbox, total_msgs, total_new, first_msg,
          first_msg + num_msgs - 1, 0x0e);
   printf("\n\n");
   while (h) {
@@ -199,7 +200,7 @@ void email_summary(void) {
     h = h->next;
   }
   putchar(0x19);                          // HOME
-  for (i = 0; i < 23; ++i) 
+  for (i = 0; i < MENU_ROW - 1; ++i) 
     putchar(0x0a);                        // CURSOR DOWN
   printf("%cUp/K Prev | Down/J Next | SPACE/CR Read | D)elete | U)ndel | Q)uit%c", 0x0f, 0x0e);
 }
@@ -234,7 +235,7 @@ void email_pager(void) {
   uint8_t line, eof;
   char c;
   clrscr();
-  sprintf(filename, "%s/EMAIL.%u", cfg_inboxdir, h->emailnum);
+  sprintf(filename, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, h->emailnum);
   fp = fopen(filename, "rb");
   if (!fp) {
     printf("Can't open %s\n", filename);
@@ -362,7 +363,7 @@ retry2:
  */
 void write_updated_headers(struct emailhdrs *h, uint16_t pos) {
   uint16_t l;
-  sprintf(filename, "%s/EMAIL.DB", cfg_inboxdir);
+  sprintf(filename, "%s/%s/EMAIL.DB", cfg_emaildir, curr_mbox);
   fp = fopen(filename, "rb+");
   if (!fp) {
     printf("Can't open %s\n", filename);
@@ -378,6 +379,17 @@ void write_updated_headers(struct emailhdrs *h, uint16_t pos) {
     error_exit();
   }
   fclose(fp);
+}
+
+/*
+ * Change current mailbox
+ */
+void change_mailbox(char *mbox) {
+  strcpy(curr_mbox, mbox);
+  first_msg = 1;
+  read_email_db(first_msg, 1);
+  selection = 1;
+  email_summary();
 }
 
 /*
@@ -449,6 +461,14 @@ void keyboard_hdlr(void) {
     case 'p':
     case 'P':
       // TODO: Purge deleted messages
+      break;
+    case 'c':
+    case 'C':
+      // TODO: Prompt for mailbox
+      if (!strcmp(curr_mbox, "INBOX"))
+        change_mailbox("RECEIVED");
+      else
+        change_mailbox("INBOX");
       break;
     case 'q':
     case 'Q':

@@ -8,8 +8,7 @@
 char cfg_server[80];         // IP of POP3 server
 char cfg_user[80];           // Username
 char cfg_pass[80];           // Password
-char cfg_spooldir[80];       // ProDOS directory to spool email to
-char cfg_inboxdir[80];       // ProDOS directory for email inbox
+char cfg_emaildir[80];       // ProDOS directory at root of email tree
 
 // Represents the email headers for one message
 struct emailhdrs {

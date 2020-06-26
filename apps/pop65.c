@@ -7,6 +7,7 @@
 /////////////////////////////////////////////////////////////////
 
 // TODO: EMAIL.n files should be type TXT
+// TODO: The way CRLF.CRLF is detected will not work if split across packets
 
 #include <cc65.h>
 #include <errno.h>
@@ -294,8 +295,7 @@ void readconfigfile(void) {
     fscanf(fp, "%s", cfg_server);
     fscanf(fp, "%s", cfg_user);
     fscanf(fp, "%s", cfg_pass);
-    fscanf(fp, "%s", cfg_spooldir);
-    fscanf(fp, "%s", cfg_inboxdir);
+    fscanf(fp, "%s", cfg_emaildir);
     fclose(fp);
 }
 
@@ -338,7 +338,7 @@ int16_t get_line(FILE *fp) {
  */
 void update_email_db(struct emailhdrs *h) {
   FILE *fp;
-  sprintf(filename, "%s/EMAIL.DB", cfg_inboxdir);
+  sprintf(filename, "%s/INBOX/EMAIL.DB", cfg_emaildir);
   fp = fopen(filename, "a");
   if (!fp) {
     printf("Can't open %s\n", filename);
@@ -365,7 +365,7 @@ void copyheader(char *dest, char *source, uint16_t len) {
  * Write NEXT.EMAIL file with number of next EMAIL.n file to be created
  */
 void write_next_email(uint16_t num) {
-  sprintf(filename, "%s/NEXT.EMAIL", cfg_inboxdir);
+  sprintf(filename, "%s/INBOX/NEXT.EMAIL", cfg_emaildir);
   fp = fopen(filename, "wb");
   if (!fp) {
     printf("Can't open %s\n", filename);
@@ -386,7 +386,7 @@ void update_inbox(uint16_t nummsgs) {
   uint16_t nextemail, msg, chars, headerchars;
   uint8_t headers;
   FILE *destfp;
-  sprintf(filename, "%s/NEXT.EMAIL", cfg_inboxdir);
+  sprintf(filename, "%s/INBOX/NEXT.EMAIL", cfg_emaildir);
   fp = fopen(filename, "r");
   if (!fp) {
     nextemail = 1;
@@ -397,14 +397,14 @@ void update_inbox(uint16_t nummsgs) {
   }
   for (msg = 1; msg <= nummsgs; ++msg) {
     strcpy(linebuf, "");
-    sprintf(filename, "%s/EMAIL.%u", cfg_spooldir, msg);
+    sprintf(filename, "%s/SPOOL/EMAIL.%u", cfg_emaildir, msg);
     fp = fopen(filename, "r");
     if (!fp) {
       printf("Can't open %s\n", filename);
       error_exit();
     }
     hdrs.emailnum = nextemail;
-    sprintf(filename, "%s/EMAIL.%u", cfg_inboxdir, nextemail++);
+    sprintf(filename, "%s/INBOX/EMAIL.%u", cfg_emaildir, nextemail++);
     puts(filename);
     destfp = fopen(filename, "wb");
     if (!destfp) {
@@ -526,7 +526,7 @@ void main(void) {
   printf(" %u message(s), %lu total bytes\n", nummsgs, bytes);
 
   for (msg = 1; msg <= nummsgs; ++msg) {
-    sprintf(filename, "%s/EMAIL.%u", cfg_spooldir, msg);
+    sprintf(filename, "%s/SPOOL/EMAIL.%u", cfg_emaildir, msg);
     remove(filename); /// TO MAKE DEBUGGING EASIER - GET RID OF THIS
     fp = fopen(filename, "wb"); 
     if (!fp) {
