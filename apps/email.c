@@ -22,7 +22,7 @@
 #define EMAIL_C
 #include "email_common.h"
 
-#define MSGS_PER_PAGE 16     // Number of messages shown on summary screen
+#define MSGS_PER_PAGE 18     // Number of messages shown on summary screen
 #define MENU_ROW      22     // Row that the menu appears on
 #define PROMPT_ROW    24     // Row that data entry prompt appears on
 #define SCROLLBACK    25*80  // How many bytes to go back when paging up
@@ -113,9 +113,11 @@ void free_headers_list(void) {
 /*
  * Read EMAIL.DB and populate linked list rooted at headers
  * startnum - number of the first message to load (1 is the first)
- * initialize - if set then total_new and total_msgs are calculated
+ * initialize - if 1, then total_new and total_msgs are calculated
+ * change - if 1, then errors are treated as non-fatal (for V)iew command)
+ * Returns 0 if okay, 1 on non-fatal error.
  */
-void read_email_db(uint16_t startnum, uint8_t initialize) {
+uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t change) {
   struct emailhdrs *curr = NULL, *prev = NULL;
   uint16_t count = 0;
   uint16_t l;
@@ -126,10 +128,14 @@ void read_email_db(uint16_t startnum, uint8_t initialize) {
   sprintf(filename, "%s/%s/EMAIL.DB", cfg_emaildir, curr_mbox);
   fp = fopen(filename, "rb");
   if (!fp) {
-    error(ERR_FATAL, "Can't open %s", filename);
+    error(change ? ERR_NONFATAL : ERR_FATAL, "Can't open %s", filename);
+    if (change)
+      return 1;
   }
   if (fseek(fp, (startnum - 1) * (sizeof(struct emailhdrs) - 2), SEEK_SET)) {
-    error(ERR_FATAL, "Can't seek in %s", filename);
+    error(change ? ERR_NONFATAL : ERR_FATAL, "Can't seek in %s", filename);
+    if (change)
+      return 1;
   }
   num_msgs = 0;
   while (1) {
@@ -140,7 +146,7 @@ void read_email_db(uint16_t startnum, uint8_t initialize) {
     if (l != sizeof(struct emailhdrs) - 2) {
       free(curr);
       fclose(fp);
-      return;
+      return 0;
     }
     if (count <= MSGS_PER_PAGE) {
       if (!prev)
@@ -152,7 +158,7 @@ void read_email_db(uint16_t startnum, uint8_t initialize) {
     } else
       if (!initialize) {
         fclose(fp);
-        return;
+        return 0;
       }
     if (initialize) {
       ++total_msgs;
@@ -161,6 +167,7 @@ void read_email_db(uint16_t startnum, uint8_t initialize) {
     }
   }
   fclose(fp);
+  return 0;
 }
 
 /*
@@ -438,9 +445,16 @@ void new_mailbox(char *mbox) {
  * Change current mailbox
  */
 void change_mailbox(char *mbox) {
+  char prev_mbox[80];
+  uint8_t err;
+  strcpy(prev_mbox, curr_mbox);
   strcpy(curr_mbox, mbox);
   first_msg = 1;
-  read_email_db(first_msg, 1);
+  err = read_email_db(first_msg, 1, 1); // Errors non-fatal
+  if (err) {
+    strcpy(curr_mbox, prev_mbox);
+    return;
+  }
   selection = 1;
   email_summary();
 }
@@ -616,6 +630,7 @@ done:
  */
 void keyboard_hdlr(void) {
   struct emailhdrs *h;
+  uint8_t i;
   while (1) {
     char c = cgetc();
     switch (c) {
@@ -628,7 +643,7 @@ void keyboard_hdlr(void) {
         update_highlighted();
       } else if (first_msg > MSGS_PER_PAGE) {
         first_msg -= MSGS_PER_PAGE;
-        read_email_db(first_msg, 0);
+        read_email_db(first_msg, 0, 0);
         selection = num_msgs;
         email_summary();
       }
@@ -642,7 +657,7 @@ void keyboard_hdlr(void) {
         update_highlighted();
       } else if (first_msg + selection + 1 < total_msgs) {
         first_msg += MSGS_PER_PAGE;
-        read_email_db(first_msg, 0);
+        read_email_db(first_msg, 0, 0);
         selection = 1;
         email_summary();
       }
@@ -689,6 +704,9 @@ void keyboard_hdlr(void) {
       break;
     case 'a':
     case 'A':
+      putchar(0x19);                          // HOME
+      for (i = 0; i < PROMPT_ROW - 1; ++i) 
+        putchar(0x0a);                        // CURSOR DOWN
       copy_to_mailbox("RECEIVED", 1);
       break;
     case 'p':
@@ -722,7 +740,7 @@ void main(void) {
   videomode(VIDEOMODE_80COL);
   readconfigfile();
   first_msg = 1;
-  read_email_db(first_msg, 1);
+  read_email_db(first_msg, 1, 0);
   selection = 1;
   email_summary();
   keyboard_hdlr();
