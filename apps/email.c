@@ -5,9 +5,9 @@
 /////////////////////////////////////////////////////////////////
 
 // TODO:
-// - Purging deleted emails
-// - Switching folders
 // - Moving & copying emails between folders
+// - Purging deleted emails
+// - Tagging of emails (and move and copy based on tags)
 // - Email composition (new message, reply and forward)
 // - Better error handling (maybe just clear screen before fatal error?)
 
@@ -207,7 +207,7 @@ void email_summary(void) {
   for (i = 0; i < MENU_ROW - 1; ++i) 
     putchar(0x0a);                        // CURSOR DOWN
   printf("%cUp/K Prev  | Down/J Next  | SPC/CR Read | D)elete | U)ndel | P)urge%c\n", 0x0f, 0x0e);
-  printf("%cC)hng mbox | N)ew mbox    | C)opy       | M)ove   | Q)uit          %c", 0x0f, 0x0e);
+  printf("%cV)iew mbox | N)ew mbox    | A)rchive    | C)opy   | M)ove  | Q)uit          %c", 0x0f, 0x0e);
 }
 
 /*
@@ -425,6 +425,90 @@ void change_mailbox(char *mbox) {
 }
 
 /*
+ * Purge deleted messages from current mailbox
+ */
+void purge_deleted(void) {
+
+  // TODO
+}
+
+/*
+ * Copies the current message to mailbox mbox.  If delete is 1 then
+ * it will be marked as deleted in the source mbox
+ */
+void copy_to_mailbox(char *mbox, uint8_t delete) {
+  struct emailhdrs *h = get_headers(selection);
+  uint16_t num;
+  FILE *fp2;
+  char c;
+
+  // Read next number from dest/NEXT.EMAIL
+  sprintf(filename, "%s/%s/NEXT.EMAIL", cfg_emaildir, mbox);
+  fp = fopen(filename, "rb");
+  if (!fp) {
+    printf("Can't open %s/NEXT.EMAIL for read\n", mbox);
+    return;
+  }
+  fscanf(fp, "%u", &num);
+  fclose(fp);
+
+  // Open source email file
+  sprintf(filename, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, h->emailnum);
+  fp = fopen(filename, "rb");
+  if (!fp) {
+    printf("Can't open %s\n", filename);
+    return;
+  }
+
+  // Open destination email file
+  sprintf(filename, "%s/%s/EMAIL.%u", cfg_emaildir, mbox, num);
+  fp2 = fopen(filename, "wb");
+  if (!fp2) {
+    printf("Can't open %s\n", filename);
+    return;
+  }
+ 
+  // Copy email 
+  // TODO THIS WORKS BUT IT IS WAY TOO SLOW!
+  while (!feof(fp)) {
+    c = fgetc(fp);
+    c = fputc(c, fp2);
+    if (c == EOF) {
+      printf("Can't write %s\n", filename);
+    }
+  }
+  fclose(fp);
+  fclose(fp2);
+
+  // Update dest/EMAIL.DB
+  sprintf(filename, "%s/%s/EMAIL.DB", cfg_emaildir, mbox);
+  fp = fopen(filename, "ab");
+  if (!fp) {
+    printf("Can't open %s/EMAIL.DB for write\n", mbox);
+    return;
+  }
+  h->emailnum = num;
+  fwrite(h, sizeof(struct emailhdrs) - 2, 1, fp);
+  fclose(fp);
+
+  // Update dest/NEXT.EMAIL, incrementing count by 1
+  sprintf(filename, "%s/%s/NEXT.EMAIL", cfg_emaildir, mbox);
+  fp = fopen(filename, "wb");
+  if (!fp) {
+    printf("Can't open %s/NEXT.EMAIL for write\n", mbox);
+    return;
+  }
+  fprintf(fp, "%u", num + 1);
+  fclose(fp);
+
+  if (delete) {
+    h->status = 'D';
+    write_updated_headers(h, first_msg + selection - 1);
+    email_summary_for(selection);
+  }
+}
+
+/*
  * Prompt for a name in the line below the menu, store it in userentry
  */
 char prompt_for_name(void) {
@@ -528,17 +612,31 @@ void keyboard_hdlr(void) {
         email_summary_for(selection);
       }
       break;
+    case 'c':
+    case 'C':
+      prompt_for_name();
+      copy_to_mailbox(userentry, 0);
+      break;
+    case 'm':
+    case 'M':
+      prompt_for_name();
+      copy_to_mailbox(userentry, 1);
+      break;
+    case 'a':
+    case 'A':
+      copy_to_mailbox("RECEIVED", 1);
+      break;
     case 'p':
     case 'P':
-      // TODO: Purge deleted messages
+      purge_deleted();
       break;
     case 'n':
     case 'N':
       prompt_for_name();
       new_mailbox(userentry);
       break;
-    case 'c':
-    case 'C':
+    case 'v':
+    case 'V':
       prompt_for_name();
       change_mailbox(userentry);
       break;
