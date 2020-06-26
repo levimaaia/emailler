@@ -6,6 +6,8 @@
 // Bobbi June 2020
 /////////////////////////////////////////////////////////////////
 
+// TODO: EMAIL.n files should be type TXT
+
 #include <cc65.h>
 #include <errno.h>
 #include <ctype.h>
