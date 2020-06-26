@@ -5,11 +5,11 @@
 /////////////////////////////////////////////////////////////////
 
 // TODO:
-// - Saving updated email status -> EMAIL.DB
 // - Purging deleted emails
 // - Switching folders
 // - Moving & copying emails between folders
 // - Email composition (new message, reply and forward)
+// - Better error handling (maybe just clear screen before fatal error?)
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,7 +29,7 @@ struct emailhdrs *headers;
 uint16_t selection, prevselection;
 uint16_t num_msgs;    // Number of messages shown in current page
 uint16_t total_msgs;  // Total number of message in mailbox
-uint16_t total_new;    // Total number of new messages
+uint16_t total_new;   // Total number of new messages
 uint16_t first_msg;   // Message number of first message on current page
 
 /*
@@ -242,15 +242,13 @@ void email_pager(void) {
     cgetc();
     return;
   }
-  h->status = 'R'; // Mark email read
-  --total_new;
   pos = h->skipbytes;
   fseek(fp, pos, SEEK_SET); // Skip over headers
 restart:
   clrscr();
   line = 6;
   fputs("Date:    ", stdout);
-  printfield(h->date, 0, 70);
+  printfield(h->date, 0, 39);
   fputs("\nFrom:    ", stdout);
   printfield(h->from, 0, 70);
   fputs("\nTo:      ", stdout);
@@ -360,6 +358,29 @@ retry2:
 }
 
 /*
+ * Write updated email headers to EMAIL.DB
+ */
+void write_updated_headers(struct emailhdrs *h, uint16_t pos) {
+  uint16_t l;
+  sprintf(filename, "%s/EMAIL.DB", cfg_inboxdir);
+  fp = fopen(filename, "rb+");
+  if (!fp) {
+    printf("Can't open %s\n", filename);
+    error_exit();
+  }
+  if (fseek(fp, (pos - 1) * (sizeof(struct emailhdrs) - 2), SEEK_SET)) {
+    printf("Can't seek in %s\n", filename);
+    error_exit();
+  }
+  l = fwrite(h, 1, sizeof(struct emailhdrs) - 2, fp);
+  if (l != sizeof(struct emailhdrs) - 2) {
+    printf("Can't write to %s\n", filename);
+    error_exit();
+  }
+  fclose(fp);
+}
+
+/*
  * Keyboard handler
  */
 void keyboard_hdlr(void) {
@@ -397,22 +418,33 @@ void keyboard_hdlr(void) {
       break;
     case 0x0d: // RETURN
     case ' ':
+      h = get_headers(selection);
+      if (h) {
+        if (h->status == 'N')
+          --total_new;
+        h->status = 'R'; // Mark email read
+        write_updated_headers(h, first_msg + selection - 1);
+      }
       email_pager();
       email_summary();
       break;
     case 'd':
     case 'D':
       h = get_headers(selection);
-      if (h)
+      if (h) {
         h->status = 'D';
-      email_summary_for(selection);
+        write_updated_headers(h, first_msg + selection - 1);
+        email_summary_for(selection);
+      }
       break;
     case 'u':
     case 'U':
       h = get_headers(selection);
-      if (h)
+      if (h) {
         h->status = 'R';
-      email_summary_for(selection);
+        write_updated_headers(h, first_msg + selection - 1);
+        email_summary_for(selection);
+      }
       break;
     case 'p':
     case 'P':
