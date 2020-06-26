@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdarg.h>
 #include <unistd.h>
 #include <conio.h>
 #include <string.h>
@@ -40,20 +41,37 @@ uint16_t              first_msg;   // Msg numr: first message current page
 char                  curr_mbox[80] = "INBOX";
 static unsigned char  buf[READSZ];
 
-/*
- * Keypress before quit
- */
-void confirm_exit(void) {
-  printf("\nPress any key ");
-  cgetc();
-  exit(0);
-}
+#define ERR_NONFATAL 0
+#define ERR_FATAL    1
 
 /*
- * Called for all non IP65 errors
+ * Show non fatal error in PROMPT_ROW
+ * Fatal errors are shown on a blank screen
  */
-void error_exit() {
-  confirm_exit();
+void error(uint8_t fatal, const char *fmt, ...) {
+  va_list v;
+  uint8_t i;
+  if (fatal) {
+    clrscr();
+    printf("\n\n%cFATAL ERROR:%c\n\n", 0x0f, 0x0e);
+    va_start(v, fmt);
+    vprintf(fmt, v);
+    va_end(v);
+    printf("\n\n\n\n[Press Any Key To Quit]");
+    cgetc();
+    exit(1);
+  } else {
+    putchar(0x19);                          // HOME
+    for (i = 0; i < PROMPT_ROW - 1; ++i) 
+      putchar(0x0a);                        // CURSOR DOWN
+    putchar(0x1a);                          // CLEAR LINE
+    va_start(v, fmt);
+    vprintf(fmt, v);
+    va_end(v);
+    printf(" - [Press Any Key]");
+    cgetc();
+    putchar(0x1a);                          // CLEAR LINE
+  }
 }
 
 /*
@@ -71,10 +89,8 @@ void spinner(void) {
  */
 void readconfigfile(void) {
   fp = fopen("POP65.CFG", "r");
-  if (!fp) {
-    puts("Can't open config file POP65.CFG");
-    error_exit();
-  }
+  if (!fp)
+    error(ERR_FATAL, "Can't open config file POP65.CFG");
   fscanf(fp, "%s", cfg_server);
   fscanf(fp, "%s", cfg_user);
   fscanf(fp, "%s", cfg_pass);
@@ -110,12 +126,10 @@ void read_email_db(uint16_t startnum, uint8_t initialize) {
   sprintf(filename, "%s/%s/EMAIL.DB", cfg_emaildir, curr_mbox);
   fp = fopen(filename, "rb");
   if (!fp) {
-    printf("Can't open %s\n", filename);
-    error_exit();
+    error(ERR_FATAL, "Can't open %s", filename);
   }
   if (fseek(fp, (startnum - 1) * (sizeof(struct emailhdrs) - 2), SEEK_SET)) {
-    printf("Can't seek in %s\n", filename);
-    error_exit();
+    error(ERR_FATAL, "Can't seek in %s", filename);
   }
   num_msgs = 0;
   while (1) {
@@ -221,8 +235,8 @@ void email_summary(void) {
   putchar(0x19);                          // HOME
   for (i = 0; i < MENU_ROW - 1; ++i) 
     putchar(0x0a);                        // CURSOR DOWN
-  printf("%cUp/K Prev  | Down/J Next  | SPC/CR Read | D)elete | U)ndel | P)urge%c\n", 0x0f, 0x0e);
-  printf("%cV)iew mbox | N)ew mbox    | A)rchive    | C)opy   | M)ove  | Q)uit          %c", 0x0f, 0x0e);
+  printf("%cUp/K Prev  | Down/J Next | SPC/CR Read | D)el  | U)ndel | P)urge%c\n", 0x0f, 0x0e);
+  printf("%cV)iew mbox | N)ew mbox   | A)rchive    | C)opy | M)ove  | Q)uit %c", 0x0f, 0x0e);
 }
 
 /*
@@ -258,9 +272,7 @@ void email_pager(void) {
   sprintf(filename, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, h->emailnum);
   fp = fopen(filename, "rb");
   if (!fp) {
-    printf("Can't open %s\n", filename);
-    printf("[Press any key]");
-    cgetc();
+    error(ERR_NONFATAL, "Can't open %s", filename);
     return;
   }
   pos = h->skipbytes;
@@ -385,19 +397,13 @@ void write_updated_headers(struct emailhdrs *h, uint16_t pos) {
   uint16_t l;
   sprintf(filename, "%s/%s/EMAIL.DB", cfg_emaildir, curr_mbox);
   fp = fopen(filename, "rb+");
-  if (!fp) {
-    printf("Can't open %s\n", filename);
-    error_exit();
-  }
-  if (fseek(fp, (pos - 1) * (sizeof(struct emailhdrs) - 2), SEEK_SET)) {
-    printf("Can't seek in %s\n", filename);
-    error_exit();
-  }
+  if (!fp)
+    error(ERR_FATAL, "Can't open %s", filename);
+  if (fseek(fp, (pos - 1) * (sizeof(struct emailhdrs) - 2), SEEK_SET))
+    error(ERR_FATAL, "Can't seek in %s", filename);
   l = fwrite(h, 1, sizeof(struct emailhdrs) - 2, fp);
-  if (l != sizeof(struct emailhdrs) - 2) {
-    printf("Can't write to %s\n", filename);
-    error_exit();
-  }
+  if (l != sizeof(struct emailhdrs) - 2)
+    error(ERR_FATAL, "Can't write to %s", filename);
   fclose(fp);
 }
 
@@ -408,20 +414,20 @@ void write_updated_headers(struct emailhdrs *h, uint16_t pos) {
 void new_mailbox(char *mbox) {
   sprintf(filename, "%s/%s", cfg_emaildir, mbox);
   if (mkdir(filename)) {
-    printf("Can't create dir %s\n", filename);
+    error(ERR_NONFATAL, "Can't create dir %s", filename);
     return;
   }
   sprintf(filename, "%s/%s/EMAIL.DB", cfg_emaildir, mbox);
   fp = fopen(filename, "wb");
   if (!fp) {
-    printf("Can't create EMAIL.DB\n");
+    error(ERR_NONFATAL, "Can't create EMAIL.DB");
     return;
   }
   fclose(fp);
   sprintf(filename, "%s/%s/NEXT.EMAIL", cfg_emaildir, mbox);
   fp = fopen(filename, "wb");
   if (!fp) {
-    printf("Can't create NEXT.EMAIL\n");
+    error(ERR_NONFATAL, "Can't create NEXT.EMAIL");
     return;
   }
   fprintf(fp, "1");
@@ -455,13 +461,12 @@ void copy_to_mailbox(char *mbox, uint8_t delete) {
   struct emailhdrs *h = get_headers(selection);
   uint16_t num, buflen, written;
   FILE *fp2;
-  char c;
 
   // Read next number from dest/NEXT.EMAIL
   sprintf(filename, "%s/%s/NEXT.EMAIL", cfg_emaildir, mbox);
   fp = fopen(filename, "rb");
   if (!fp) {
-    printf("Can't open %s/NEXT.EMAIL for read\n", mbox);
+    error(ERR_NONFATAL, "Can't open %s/NEXT.EMAIL for read", mbox);
     return;
   }
   fscanf(fp, "%u", &num);
@@ -471,7 +476,7 @@ void copy_to_mailbox(char *mbox, uint8_t delete) {
   sprintf(filename, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, h->emailnum);
   fp = fopen(filename, "rb");
   if (!fp) {
-    printf("Can't open %s\n", filename);
+    error(ERR_NONFATAL, "Can't open %s", filename);
     return;
   }
 
@@ -479,7 +484,7 @@ void copy_to_mailbox(char *mbox, uint8_t delete) {
   sprintf(filename, "%s/%s/EMAIL.%u", cfg_emaildir, mbox, num);
   fp2 = fopen(filename, "wb");
   if (!fp2) {
-    printf("Can't open %s\n", filename);
+    error(ERR_NONFATAL, "Can't open %s", filename);
     return;
   }
  
@@ -492,7 +497,7 @@ void copy_to_mailbox(char *mbox, uint8_t delete) {
       break;
     written = fwrite(buf, 1, buflen, fp2);
     if (written != buflen) {
-      printf("Write error\n");
+      error(ERR_NONFATAL, "Write error");
       fclose(fp);
       fclose(fp2);
       return;
@@ -509,7 +514,7 @@ void copy_to_mailbox(char *mbox, uint8_t delete) {
   sprintf(filename, "%s/%s/EMAIL.DB", cfg_emaildir, mbox);
   fp = fopen(filename, "ab");
   if (!fp) {
-    printf("Can't open %s/EMAIL.DB for write\n", mbox);
+    error(ERR_NONFATAL, "Can't open %s/EMAIL.DB for write", mbox);
     return;
   }
   buflen = h->emailnum; // Just reusing buflen as a temporary
@@ -522,7 +527,7 @@ void copy_to_mailbox(char *mbox, uint8_t delete) {
   sprintf(filename, "%s/%s/NEXT.EMAIL", cfg_emaildir, mbox);
   fp = fopen(filename, "wb");
   if (!fp) {
-    printf("Can't open %s/NEXT.EMAIL for write\n", mbox);
+    error(ERR_NONFATAL, "Can't open %s/NEXT.EMAIL for write", mbox);
     return;
   }
   fprintf(fp, "%u", num + 1);
@@ -601,7 +606,7 @@ done:
   userentry[i] = '\0';
   putchar(0x1a);                          // CLEAR LINE
   putchar(0x19);                          // HOME
-  for (i = 0; i < PROMPT_ROW - 1; ++i) 
+  for (c = 0; c < PROMPT_ROW - 1; ++c) 
     putchar(0x0a);                        // CURSOR DOWN
   return i;
 }
