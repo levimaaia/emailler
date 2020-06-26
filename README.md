@@ -8,8 +8,13 @@ I have made the following changes:
  - Automatically determine if it is DST or not (using North American rules) and choose timezone accordingly.
  - Support for ProDOS 2.5 extended date format.
 
+The following programs are completely new:
 
-*The original `README.md` follows ...*
+ - `POP65` is a Post Office Protocol version 3 (POP3) client for the Apple II with Uthernet-II card.
+ - `EMAIL` is a simple user interface for reading and managing email.  It works together with `POP65`.
+ - `SMTP65` - not started this yet!
+
+## The original `README.md` follows ...
 
 IP65 consists of three parts:
 - A [TCP/IP library to be used by 6502 asm programmers](https://github.com/cc65/ip65/wiki/Library-for-asm-programs) using the [ca65](https://cc65.github.io/doc/ca65.html) macro assembler
