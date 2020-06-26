@@ -8,6 +8,8 @@ I have made the following changes:
  - Automatically determine if it is DST or not (using North American rules) and choose timezone accordingly.
  - Support for ProDOS 2.5 extended date format.
 
+## Apple II Email Suite
+
 The following programs are completely new:
 
  - `POP65` is a Post Office Protocol version 3 (POP3) client for the Apple II with Uthernet-II card.
