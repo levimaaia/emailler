@@ -4,6 +4,13 @@
 // Bobbi June 2020
 /////////////////////////////////////////////////////////////////
 
+// TODO:
+// - Saving updated email status -> EMAIL.DB
+// - Purging deleted emails
+// - Switching folders
+// - Moving & copying emails between folders
+// - Email composition (reply and forward)
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -13,19 +20,21 @@
 #define EMAIL_C
 #include "email_common.h"
 
-#define SCROLLBACK 25*80
+#define MSGS_PER_PAGE 20  // Number of messages shown on summary screen
+#define SCROLLBACK 25*80  // How many bytes to go back when paging up
 
 char filename[80];
 FILE *fp;
 struct emailhdrs *headers;
 uint16_t selection, prevselection;
-uint16_t num_msgs;
+uint16_t num_msgs;    // Number of messages shown in current page
+uint16_t total_msgs;  // Total number of message in mailbox
+uint16_t first_msg;   // Message number of first message on current page
 
 /*
  * Keypress before quit
  */
-void confirm_exit(void)
-{
+void confirm_exit(void) {
   printf("\nPress any key ");
   cgetc();
   exit(0);
@@ -34,8 +43,7 @@ void confirm_exit(void)
 /*
  * Called for all non IP65 errors
  */
-void error_exit()
-{
+void error_exit() {
   confirm_exit();
 }
 
@@ -57,34 +65,56 @@ void readconfigfile(void) {
 }
 
 /*
- * Read EMAIL.DB and populate linked list rooted at headers
+ * Free linked list rooted at headers
  */
-void read_email_db(void) {
-  struct emailhdrs *curr = NULL, *prev = NULL;
-  uint16_t l;
+void free_headers_list(void) {
+  struct emailhdrs *h = headers;
+  while (h) {
+    free(h);
+    h = h->next; // Not strictly legal, but will work
+  }
   headers = NULL;
+}
+
+/*
+ * Read EMAIL.DB and populate linked list rooted at headers
+ * startnum - number of the first message to load (1 is the first)
+ */
+void read_email_db(uint16_t startnum) {
+  struct emailhdrs *curr = NULL, *prev = NULL;
+  uint16_t count = 0;
+  uint16_t l;
+  free_headers_list();
   sprintf(filename, "%s/EMAIL.DB", cfg_inboxdir);
   fp = fopen(filename, "rb");
   if (!fp) {
     printf("Can't open %s\n", filename);
     error_exit();
   }
-  num_msgs = 0;
+  if (fseek(fp, (startnum - 1) * (sizeof(struct emailhdrs) - 2), SEEK_SET)) {
+    printf("Can't seek in %s\n", filename);
+    error_exit();
+  }
+  total_msgs = num_msgs = 0;
   while (1) {
     curr = (struct emailhdrs*)malloc(sizeof(struct emailhdrs));
     curr->next = NULL;
     l = fread(curr, 1, sizeof(struct emailhdrs) - 2, fp);
+    ++count;
     if (l != sizeof(struct emailhdrs) - 2) {
       free(curr);
       fclose(fp);
       return;
     }
-    if (!prev)
-      headers = curr;
-    else
-      prev->next = curr;
-    prev = curr;
-    ++num_msgs;
+    if (count < MSGS_PER_PAGE) {
+      if (!prev)
+        headers = curr;
+      else
+        prev->next = curr;
+      prev = curr;
+      ++num_msgs;
+    }
+    ++total_msgs;
   }
 }
 
@@ -104,12 +134,23 @@ void printfield(char *s, uint8_t start, uint8_t end) {
  */
 void print_one_email_summary(struct emailhdrs *h, uint8_t inverse) {
   putchar(inverse ? 0xf : 0xe); // INVERSE or NORMAL
+  switch(h->status) {
+  case 'N':
+    putchar('*'); // New
+    break;
+  case 'R':
+    putchar(' '); // Read
+    break;
+  case 'D':
+    putchar('D'); // Deleted
+    break;
+  }
   printf("%02d|", h->emailnum);
   printfield(h->date, 0, 16);
   putchar('|');
   printfield(h->from, 0, 20);
   putchar('|');
-  printfield(h->subject, 0, 39);
+  printfield(h->subject, 0, 38);
   //putchar('\r');
   putchar(0xe); // NORMAL
 }
@@ -120,7 +161,7 @@ void print_one_email_summary(struct emailhdrs *h, uint8_t inverse) {
 struct emailhdrs *get_headers(uint16_t n) {
   uint16_t i = 1;
   struct emailhdrs *h = headers;
-  while (i < n) {
+  while (h && (i < n)) {
     ++i;
     h = h->next;
   }
@@ -131,14 +172,21 @@ struct emailhdrs *get_headers(uint16_t n) {
  * Show email summary
  */
 void email_summary(void) {
-  uint16_t i = 1;
+  uint8_t i = 1;
   struct emailhdrs *h = headers;
   clrscr();
+  printf("%c%u messages, displaying %u-%u%c",
+         0x0f, total_msgs, first_msg, first_msg + num_msgs - 1, 0x0e);
+  printf("\n\n");
   while (h) {
     print_one_email_summary(h, (i == selection));
     ++i;
     h = h->next;
   }
+  putchar(0x19);                          // HOME
+  for (i = 0; i < 22; ++i) 
+    putchar(0x0a);                        // CURSOR DOWN
+  printf("%cUp/K Prev | Down/J Next | SPACE/CR Read | D)elete | U)ndel | Q)uit%c", 0x0f, 0x0e);
 }
 
 /*
@@ -148,9 +196,9 @@ void email_summary_for(uint16_t n) {
   struct emailhdrs *h = headers;
   uint16_t j;
   h = get_headers(n);
-  putchar(0x19);   // HOME
-  for (j = 0; j < n - 1; ++j)
-    putchar(0x0a); // CURSOR DOWN
+  putchar(0x19);                          // HOME
+  for (j = 0; j < n + 1; ++j) 
+    putchar(0x0a);                        // CURSOR DOWN
   print_one_email_summary(h, (n == selection));
 }
 
@@ -179,6 +227,7 @@ void email_pager(void) {
     cgetc();
     return;
   }
+  h->status = 'R'; // Mark email read
   pos = h->skipbytes;
   fseek(fp, pos, SEEK_SET); // Skip over headers
 restart:
@@ -298,6 +347,7 @@ retry2:
  * Keyboard handler
  */
 void keyboard_hdlr(void) {
+  struct emailhdrs *h;
   while (1) {
     char c = cgetc();
     switch (c) {
@@ -308,6 +358,11 @@ void keyboard_hdlr(void) {
         prevselection = selection;
         --selection;
         update_highlighted();
+      } else if (first_msg > MSGS_PER_PAGE) {
+        first_msg -= MSGS_PER_PAGE;
+        read_email_db(first_msg);
+        selection = num_msgs;
+        email_summary();
       }
       break;
     case 'j':
@@ -317,12 +372,35 @@ void keyboard_hdlr(void) {
         prevselection = selection;
         ++selection;
         update_highlighted();
+      } else if (first_msg + selection + 1 < total_msgs) {
+        first_msg += MSGS_PER_PAGE;
+        read_email_db(first_msg);
+        selection = 1;
+        email_summary();
       }
       break;
     case 0x0d: // RETURN
     case ' ':
       email_pager();
       email_summary();
+      break;
+    case 'd':
+    case 'D':
+      h = get_headers(selection);
+      if (h)
+        h->status = 'D';
+      email_summary_for(selection);
+      break;
+    case 'u':
+    case 'U':
+      h = get_headers(selection);
+      if (h)
+        h->status = 'R';
+      email_summary_for(selection);
+      break;
+    case 'p':
+    case 'P':
+      // TODO: Purge deleted messages
       break;
     case 'q':
     case 'Q':
@@ -338,7 +416,8 @@ void keyboard_hdlr(void) {
 void main(void) {
   videomode(VIDEOMODE_80COL);
   readconfigfile();
-  read_email_db();
+  first_msg = 1;
+  read_email_db(first_msg);
   selection = 1;
   email_summary();
   keyboard_hdlr();

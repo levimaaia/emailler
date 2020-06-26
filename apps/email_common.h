@@ -14,6 +14,7 @@ char cfg_inboxdir[80];       // ProDOS directory for email inbox
 // Represents the email headers for one message
 struct emailhdrs {
   uint16_t emailnum;         // Name of file is EMAIL.n (n=emailnum)
+  char     status;           // 'N' new, 'R' read, 'D' deleted
   uint16_t skipbytes;        // How many bytes to skip over the headers
   char     date[40];
   char     from[80];

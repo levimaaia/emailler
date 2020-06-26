@@ -413,6 +413,7 @@ void update_inbox(uint16_t nummsgs) {
     headers = 1;
     headerchars = 0;
     hdrs.skipbytes = 0; // Just in case it doesn't get set
+    hdrs.status = 'N';
     while ((chars = get_line(fp)) != -1) {
       if (headers) {
         headerchars += chars + 1;  // Don't forget the LF we deleted
