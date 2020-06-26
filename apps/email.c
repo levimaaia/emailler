@@ -14,14 +14,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <unistd.h>
 #include <conio.h>
 #include <string.h>
 
 #define EMAIL_C
 #include "email_common.h"
 
-#define MSGS_PER_PAGE 18  // Number of messages shown on summary screen
-#define MENU_ROW      23  // Row that the menu appears on
+#define MSGS_PER_PAGE 16  // Number of messages shown on summary screen
+#define MENU_ROW      22  // Row that the menu appears on
+#define PROMPT_ROW    24  // Row that data entry prompt appears on
 #define SCROLLBACK 25*80  // How many bytes to go back when paging up
 
 char filename[80];
@@ -202,7 +204,8 @@ void email_summary(void) {
   putchar(0x19);                          // HOME
   for (i = 0; i < MENU_ROW - 1; ++i) 
     putchar(0x0a);                        // CURSOR DOWN
-  printf("%cUp/K Prev | Down/J Next | SPACE/CR Read | D)elete | U)ndel | Q)uit%c", 0x0f, 0x0e);
+  printf("%cUp/K Prev  | Down/J Next  | SPC/CR Read | D)elete | U)ndel | P)urge%c\n", 0x0f, 0x0e);
+  printf("%cC)hng mbox | N)ew mbox    | C)opy       | M)ove   | Q)uit          %c", 0x0f, 0x0e);
 }
 
 /*
@@ -382,6 +385,33 @@ void write_updated_headers(struct emailhdrs *h, uint16_t pos) {
 }
 
 /*
+ * Create new mailbox
+ * Create directory, EMAIL.DB and NEXT.EMAIL files
+ */
+void new_mailbox(char *mbox) {
+  sprintf(filename, "%s/%s", cfg_emaildir, mbox);
+  if (mkdir(filename)) {
+    printf("Can't create dir %s\n", filename);
+    return;
+  }
+  sprintf(filename, "%s/%s/EMAIL.DB", cfg_emaildir, mbox);
+  fp = fopen(filename, "wb");
+  if (!fp) {
+    printf("Can't create EMAIL.DB\n");
+    return;
+  }
+  fclose(fp);
+  sprintf(filename, "%s/%s/NEXT.EMAIL", cfg_emaildir, mbox);
+  fp = fopen(filename, "wb");
+  if (!fp) {
+    printf("Can't create NEXT.EMAIL\n");
+    return;
+  }
+  fprintf(fp, "1");
+  fclose(fp);
+}
+
+/*
  * Change current mailbox
  */
 void change_mailbox(char *mbox) {
@@ -462,9 +492,13 @@ void keyboard_hdlr(void) {
     case 'P':
       // TODO: Purge deleted messages
       break;
+    case 'n':
+    case 'N':
+      // TODO: Prompt for mailbox name
+      new_mailbox("RECEIVED");
     case 'c':
     case 'C':
-      // TODO: Prompt for mailbox
+      // TODO: Prompt for mailbox name
       if (!strcmp(curr_mbox, "INBOX"))
         change_mailbox("RECEIVED");
       else

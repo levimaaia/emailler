@@ -339,7 +339,7 @@ int16_t get_line(FILE *fp) {
 void update_email_db(struct emailhdrs *h) {
   FILE *fp;
   sprintf(filename, "%s/INBOX/EMAIL.DB", cfg_emaildir);
-  fp = fopen(filename, "a");
+  fp = fopen(filename, "ab");
   if (!fp) {
     printf("Can't open %s\n", filename);
     error_exit();
