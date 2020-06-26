@@ -5,9 +5,10 @@
 /////////////////////////////////////////////////////////////////
 
 // TODO:
-// - Moving & copying emails between folders
 // - Purging deleted emails
 // - Tagging of emails (and move and copy based on tags)
+// - Spinner file copies
+// - BUG: Empty mbox 'Displaying 1-0'
 // - Email composition (new message, reply and forward)
 // - Better error handling (maybe just clear screen before fatal error?)
 
@@ -22,21 +23,24 @@
 #define EMAIL_C
 #include "email_common.h"
 
-#define MSGS_PER_PAGE 16  // Number of messages shown on summary screen
-#define MENU_ROW      22  // Row that the menu appears on
-#define PROMPT_ROW    24  // Row that data entry prompt appears on
-#define SCROLLBACK 25*80  // How many bytes to go back when paging up
+#define MSGS_PER_PAGE 16     // Number of messages shown on summary screen
+#define MENU_ROW      22     // Row that the menu appears on
+#define PROMPT_ROW    24     // Row that data entry prompt appears on
+#define SCROLLBACK    25*80  // How many bytes to go back when paging up
+#define READSZ        1024   // Size of buffer for copying files
 
-char filename[80];
-char userentry[80];
-FILE *fp;
-struct emailhdrs *headers;
-uint16_t selection, prevselection;
-uint16_t num_msgs;    // Number of messages shown in current page
-uint16_t total_msgs;  // Total number of message in mailbox
-uint16_t total_new;   // Total number of new messages
-uint16_t first_msg;   // Message number of first message on current page
-char curr_mbox[80] = "INBOX";
+
+char                     filename[80];
+char                     userentry[80];
+FILE                     *fp;
+struct emailhdrs         *headers;
+uint16_t                 selection, prevselection;
+uint16_t                 num_msgs;    // Num of msgs shown in current page
+uint16_t                 total_msgs;  // Total number of message in mailbox
+uint16_t                 total_new;   // Total number of new messages
+uint16_t                 first_msg;   // Msg numr: first message current page
+char                     curr_mbox[80] = "INBOX";
+static unsigned char     buf[READSZ];
 
 /*
  * Keypress before quit
@@ -438,7 +442,7 @@ void purge_deleted(void) {
  */
 void copy_to_mailbox(char *mbox, uint8_t delete) {
   struct emailhdrs *h = get_headers(selection);
-  uint16_t num;
+  uint16_t num, buflen, written;
   FILE *fp2;
   char c;
 
@@ -469,14 +473,19 @@ void copy_to_mailbox(char *mbox, uint8_t delete) {
   }
  
   // Copy email 
-  // TODO THIS WORKS BUT IT IS WAY TOO SLOW!
-  while (!feof(fp)) {
-    c = fgetc(fp);
-    c = fputc(c, fp2);
-    if (c == EOF) {
-      printf("Can't write %s\n", filename);
+  while (1) {
+    buflen = fread(buf, 1, READSZ, fp);
+    if (buflen == 0)
+      break;
+    written = fwrite(buf, 1, buflen, fp2);
+    if (written != buflen) {
+      printf("Write error\n");
+      fclose(fp);
+      fclose(fp2);
+      return;
     }
   }
+
   fclose(fp);
   fclose(fp2);
 
@@ -487,8 +496,10 @@ void copy_to_mailbox(char *mbox, uint8_t delete) {
     printf("Can't open %s/EMAIL.DB for write\n", mbox);
     return;
   }
+  buflen = h->emailnum; // Just reusing buflen as a temporary
   h->emailnum = num;
   fwrite(h, sizeof(struct emailhdrs) - 2, 1, fp);
+  h->emailnum = buflen;
   fclose(fp);
 
   // Update dest/NEXT.EMAIL, incrementing count by 1
