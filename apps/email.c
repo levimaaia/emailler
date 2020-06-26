@@ -7,8 +7,6 @@
 // TODO:
 // - Purging deleted emails
 // - Tagging of emails (and move and copy based on tags)
-// - Spinner file copies
-// - BUG: Empty mbox 'Displaying 1-0'
 // - Email composition (new message, reply and forward)
 // - Better error handling (maybe just clear screen before fatal error?)
 
@@ -30,17 +28,17 @@
 #define READSZ        1024   // Size of buffer for copying files
 
 
-char                     filename[80];
-char                     userentry[80];
-FILE                     *fp;
-struct emailhdrs         *headers;
-uint16_t                 selection, prevselection;
-uint16_t                 num_msgs;    // Num of msgs shown in current page
-uint16_t                 total_msgs;  // Total number of message in mailbox
-uint16_t                 total_new;   // Total number of new messages
-uint16_t                 first_msg;   // Msg numr: first message current page
-char                     curr_mbox[80] = "INBOX";
-static unsigned char     buf[READSZ];
+char                  filename[80];
+char                  userentry[80];
+FILE                  *fp;
+struct emailhdrs      *headers;
+uint16_t              selection, prevselection;
+uint16_t              num_msgs;    // Num of msgs shown in current page
+uint16_t              total_msgs;  // Total number of message in mailbox
+uint16_t              total_new;   // Total number of new messages
+uint16_t              first_msg;   // Msg numr: first message current page
+char                  curr_mbox[80] = "INBOX";
+static unsigned char  buf[READSZ];
 
 /*
  * Keypress before quit
@@ -59,19 +57,29 @@ void error_exit() {
 }
 
 /*
+ * Busy spinner
+ */
+void spinner(void) {
+  static char chars[] = "|/-\\";
+  static uint8_t i = 0;
+  putchar(0x08); // BACKSPACE
+  putchar(chars[(i++) % 4]);
+}
+
+/*
  * Read parms from POP65.CFG
  */
 void readconfigfile(void) {
-    fp = fopen("POP65.CFG", "r");
-    if (!fp) {
-      puts("Can't open config file POP65.CFG");
-      error_exit();
-    }
-    fscanf(fp, "%s", cfg_server);
-    fscanf(fp, "%s", cfg_user);
-    fscanf(fp, "%s", cfg_pass);
-    fscanf(fp, "%s", cfg_emaildir);
-    fclose(fp);
+  fp = fopen("POP65.CFG", "r");
+  if (!fp) {
+    puts("Can't open config file POP65.CFG");
+    error_exit();
+  }
+  fscanf(fp, "%s", cfg_server);
+  fscanf(fp, "%s", cfg_user);
+  fscanf(fp, "%s", cfg_pass);
+  fscanf(fp, "%s", cfg_emaildir);
+  fclose(fp);
 }
 
 /*
@@ -198,9 +206,12 @@ void email_summary(void) {
   uint8_t i = 1;
   struct emailhdrs *h = headers;
   clrscr();
-  printf("%c[%s] %u messages, %u new. Displaying %u-%u%c",
-         0x0f, curr_mbox, total_msgs, total_new, first_msg,
-         first_msg + num_msgs - 1, 0x0e);
+  if (num_msgs == 0)
+    printf("%c[%s] No messages%c", 0x0f, curr_mbox, 0x0e);
+  else
+    printf("%c[%s] %u messages, %u new. Displaying %u-%u%c",
+           0x0f, curr_mbox, total_msgs, total_new, first_msg,
+           first_msg + num_msgs - 1, 0x0e);
   printf("\n\n");
   while (h) {
     print_one_email_summary(h, (i == selection));
@@ -472,9 +483,11 @@ void copy_to_mailbox(char *mbox, uint8_t delete) {
     return;
   }
  
-  // Copy email 
+  // Copy email
+  putchar(' '); // For spinner
   while (1) {
     buflen = fread(buf, 1, READSZ, fp);
+    spinner();
     if (buflen == 0)
       break;
     written = fwrite(buf, 1, buflen, fp2);
@@ -485,6 +498,9 @@ void copy_to_mailbox(char *mbox, uint8_t delete) {
       return;
     }
   }
+  putchar(0x08); // Erase spinner
+  putchar(' ');
+  putchar(0x08);
 
   fclose(fp);
   fclose(fp2);
@@ -520,9 +536,34 @@ void copy_to_mailbox(char *mbox, uint8_t delete) {
 }
 
 /*
- * Prompt for a name in the line below the menu, store it in userentry
+ * Prompt ok?
  */
-char prompt_for_name(void) {
+char prompt_okay(void) {
+  uint16_t i;
+  char c;
+  putchar(0x19);                          // HOME
+  for (i = 0; i < PROMPT_ROW - 1; ++i) 
+    putchar(0x0a);                        // CURSOR DOWN
+  printf("Sure? (y/n)");
+  while (1) {
+    c = cgetc();
+    if ((c == 'y') || (c == 'Y') || (c == 'n') || (c == 'N'))
+      break;
+    putchar(7); // BELL
+  } 
+  if ((c == 'y') || (c == 'Y'))
+    c = 1;
+  else
+    c = 0;
+  putchar(0x1a);                          // CLEAR LINE
+  return c;
+}
+
+/*
+ * Prompt for a name in the line below the menu, store it in userentry
+ * Returns number of chars read.
+ */
+uint8_t prompt_for_name(void) {
   uint16_t i;
   char c;
   putchar(0x19);                          // HOME
@@ -532,7 +573,7 @@ char prompt_for_name(void) {
   i = 0;
   while (1) {
     c = cgetc();
-    if (!isalnum(c) && c != 0x0d && c != '.') {
+    if (!isalnum(c) && (c != 0x0d) && (c != 0x08) && (c != 0x7f) && (c != '.')) {
       putchar(7); // BELL
       continue;
     }
@@ -540,10 +581,14 @@ char prompt_for_name(void) {
     case 0x0d:                            // RETURN KEY
       goto done;
     case 0x08:                            // BACKSPACE
-      putchar(0x08);
-      putchar(' ');
-      putchar(0x08);
-      --i;
+    case 0x7f:                            // DELETE
+      if (i > 0) {
+        putchar(0x08);
+        putchar(' ');
+        putchar(0x08);
+        --i;
+      } else
+        putchar(7); // BELL
       break;
     default:
       putchar(c);
@@ -555,6 +600,10 @@ char prompt_for_name(void) {
 done:
   userentry[i] = '\0';
   putchar(0x1a);                          // CLEAR LINE
+  putchar(0x19);                          // HOME
+  for (i = 0; i < PROMPT_ROW - 1; ++i) 
+    putchar(0x0a);                        // CURSOR DOWN
+  return i;
 }
 
 /*
@@ -625,13 +674,13 @@ void keyboard_hdlr(void) {
       break;
     case 'c':
     case 'C':
-      prompt_for_name();
-      copy_to_mailbox(userentry, 0);
+      if (prompt_for_name())
+        copy_to_mailbox(userentry, 0);
       break;
     case 'm':
     case 'M':
-      prompt_for_name();
-      copy_to_mailbox(userentry, 1);
+      if (prompt_for_name())
+        copy_to_mailbox(userentry, 1);
       break;
     case 'a':
     case 'A':
@@ -643,18 +692,20 @@ void keyboard_hdlr(void) {
       break;
     case 'n':
     case 'N':
-      prompt_for_name();
-      new_mailbox(userentry);
+      if (prompt_for_name())
+        new_mailbox(userentry);
       break;
     case 'v':
     case 'V':
-      prompt_for_name();
-      change_mailbox(userentry);
+      if (prompt_for_name())
+        change_mailbox(userentry);
       break;
     case 'q':
     case 'Q':
-      clrscr();
-      exit(0);
+      if (prompt_okay()) {
+        clrscr();
+        exit(0);
+      }
     default:
       //printf("[%02x]", c);
       putchar(7); // BELL
