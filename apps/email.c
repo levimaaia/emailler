@@ -496,6 +496,7 @@ void keyboard_hdlr(void) {
     case 'N':
       // TODO: Prompt for mailbox name
       new_mailbox("RECEIVED");
+      break;
     case 'c':
     case 'C':
       // TODO: Prompt for mailbox name
