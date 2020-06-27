@@ -634,7 +634,7 @@ uint8_t copy_to_mailbox_tagged(char *mbox, uint8_t delete) {
       return 0;
     }
     if (h->tag == 'T') {
-      h->tag = ' '; // Don't wan't it tagged in the destination
+      h->tag = ' '; // Don't want it tagged in the destination
       putchar(0x19);                          // HOME
       for (l = 0; l < PROMPT_ROW - 1; ++l) 
         putchar(0x0a);                        // CURSOR DOWN
@@ -719,6 +719,22 @@ void keyboard_hdlr(void) {
         email_summary();
       }
       break;
+    case 't':
+    case 'T':
+      h = get_headers(selection);
+      if (h) {
+        if (h->tag == 'T') {
+          h->tag = ' ';
+          --total_tag;
+        } else {
+          h->tag = 'T';
+          ++total_tag;
+        }
+        write_updated_headers(h, first_msg + selection - 1);
+        email_summary_for(selection);
+        status_bar();
+      }
+      // Fallthrough so tagging also moves down!!!
     case 'j':
     case 'J':
     case 0xa: // DOWN-ARROW
@@ -793,22 +809,6 @@ void keyboard_hdlr(void) {
     case 'S':
       if (prompt_for_name())
         switch_mailbox(userentry);
-      break;
-    case 't':
-    case 'T':
-      h = get_headers(selection);
-      if (h) {
-        if (h->tag == 'T') {
-          h->tag = ' ';
-          --total_tag;
-        } else {
-          h->tag = 'T';
-          ++total_tag;
-        }
-        write_updated_headers(h, first_msg + selection - 1);
-        email_summary_for(selection);
-        status_bar();
-      }
       break;
     case 'w':
     case 'W':
