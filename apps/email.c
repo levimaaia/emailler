@@ -5,8 +5,9 @@
 /////////////////////////////////////////////////////////////////
 
 // TODO:
+// - BUG: When doing copy of tagged message, need to update status area
+//   to control where spinner goes. Would be nice to see file count or something.
 // - Purging deleted emails
-// - Tagging of emails (and move and copy based on tags)
 // - Email composition (write, reply and forward)
 
 #include <stdio.h>
@@ -36,6 +37,7 @@ uint16_t              selection, prevselection;
 uint16_t              num_msgs;    // Num of msgs shown in current page
 uint16_t              total_msgs;  // Total number of message in mailbox
 uint16_t              total_new;   // Total number of new messages
+uint16_t              total_tag;   // Total number of tagged messages
 uint16_t              first_msg;   // Msg numr: first message current page
 char                  curr_mbox[80] = "INBOX";
 static unsigned char  buf[READSZ];
@@ -121,7 +123,7 @@ uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox)
   uint16_t count = 0;
   uint16_t l;
   if (initialize) {
-    total_new = total_msgs = 0;
+    total_new = total_msgs = total_tag = 0;
   }
   free_headers_list();
   sprintf(filename, "%s/%s/EMAIL.DB", cfg_emaildir, curr_mbox);
@@ -139,6 +141,8 @@ uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox)
   num_msgs = 0;
   while (1) {
     curr = (struct emailhdrs*)malloc(sizeof(struct emailhdrs));
+    if (!curr)
+      error(ERR_FATAL, "Can't malloc()");
     curr->next = NULL;
     curr->tag = ' ';
     l = fread(curr, 1, EMAILHDRS_SZ_ON_DISK, fp);
@@ -164,6 +168,8 @@ uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox)
       ++total_msgs;
       if (curr->status == 'N')
         ++total_new;
+      if (curr->tag == 'T')
+        ++total_tag;
     }
   }
   fclose(fp);
@@ -221,6 +227,17 @@ struct emailhdrs *get_headers(uint16_t n) {
   return h;
 }
 
+void status_bar(void) {
+  putchar(0x19);                          // HOME
+  if (num_msgs == 0)
+    printf("%cemai//er v0.1 [%s] No messages%c", 0x0f, curr_mbox, 0x0e);
+  else
+    printf("%cemai//er v0.1 [%s] %u messages, %u new, %u tagged. Displaying %u-%u%c",
+           0x0f, curr_mbox, total_msgs, total_new, total_tag, first_msg,
+           first_msg + num_msgs - 1, 0x0e);
+  printf("\n\n");
+}
+
 /*
  * Show email summary
  */
@@ -228,13 +245,7 @@ void email_summary(void) {
   uint8_t i = 1;
   struct emailhdrs *h = headers;
   clrscr();
-  if (num_msgs == 0)
-    printf("%c[%s] No messages%c", 0x0f, curr_mbox, 0x0e);
-  else
-    printf("%c[%s] %u messages, %u new. Displaying %u-%u%c",
-           0x0f, curr_mbox, total_msgs, total_new, first_msg,
-           first_msg + num_msgs - 1, 0x0e);
-  printf("\n\n");
+  status_bar();
   while (h) {
     print_one_email_summary(h, (i == selection));
     ++i;
@@ -243,7 +254,7 @@ void email_summary(void) {
   putchar(0x19);                          // HOME
   for (i = 0; i < MENU_ROW - 1; ++i) 
     putchar(0x0a);                        // CURSOR DOWN
-  printf("%cUp/K Prev | SPC/CR Read  | A)rchive | C)opy | M)ove  | D)el   | U)ndel | P)urge %c", 0x0f, 0x0e);
+  printf("%cUp/K Prev | SPC/RET Read | A)rchive | C)opy | M)ove  | D)el   | U)ndel | P)urge %c", 0x0f, 0x0e);
   printf("%cDn/J Next | S)witch mbox | N)ew mbox| T)ag  | W)rite | R)eply | F)wd   | Q)uit  %c", 0x0f, 0x0e);
 }
 
@@ -469,11 +480,13 @@ void purge_deleted(void) {
 }
 
 /*
- * Copies the current message to mailbox mbox.  If delete is 1 then
- * it will be marked as deleted in the source mbox
+ * Copies the current message to mailbox mbox.
+ * h is a pointer to the emailheaders for the message to copy
+ * idx is the index of the message in EMAIL.DB in the source mailbox (1-based)
+ * mbox is the name of the destination mailbox
+ * delete - if set to 1 then the message will be marked as deleted in the source mbox
  */
-void copy_to_mailbox(char *mbox, uint8_t delete) {
-  struct emailhdrs *h = get_headers(selection);
+void copy_to_mailbox(struct emailhdrs *h, uint16_t idx, char *mbox, uint8_t delete) {
   uint16_t num, buflen, written;
   FILE *fp2;
 
@@ -499,6 +512,7 @@ void copy_to_mailbox(char *mbox, uint8_t delete) {
   sprintf(filename, "%s/%s/EMAIL.%u", cfg_emaildir, mbox, num);
   fp2 = fopen(filename, "wb");
   if (!fp2) {
+    fclose(fp);
     error(ERR_NONFATAL, "Can't open %s", filename);
     return;
   }
@@ -548,23 +562,23 @@ void copy_to_mailbox(char *mbox, uint8_t delete) {
   fprintf(fp, "%u", num + 1);
   fclose(fp);
 
-  if (delete) {
+  if (delete)
     h->status = 'D';
-    write_updated_headers(h, first_msg + selection - 1);
-    email_summary_for(selection);
-  }
+  h->tag = ' '; // Untag files after copy or move
+  write_updated_headers(h, idx);
+  email_summary_for(selection);
 }
 
 /*
  * Prompt ok?
  */
-char prompt_okay(void) {
+char prompt_okay(char *msg) {
   uint16_t i;
   char c;
   putchar(0x19);                          // HOME
   for (i = 0; i < PROMPT_ROW - 1; ++i) 
     putchar(0x0a);                        // CURSOR DOWN
-  printf("Sure? (y/n)");
+  printf("%sSure? (y/n)", msg);
   while (1) {
     c = cgetc();
     if ((c == 'y') || (c == 'Y') || (c == 'n') || (c == 'N'))
@@ -577,6 +591,57 @@ char prompt_okay(void) {
     c = 0;
   putchar(0x1a);                          // CLEAR LINE
   return c;
+}
+
+/*
+ * Check if there are tagged messages.  If not, just call copy_to_mailbox()
+ * on the current message.  If they are, prompt the user and, if affirmative,
+ * iterate through the tagged messages calling copy_to_mailbox() on each.
+ */
+uint8_t copy_to_mailbox_tagged(char *mbox, uint8_t delete) {
+  struct emailhdrs *h;
+  uint16_t count = 0;
+  uint16_t l;
+  if (total_tag == 0) {
+    h = get_headers(selection);
+    copy_to_mailbox(h, first_msg + selection - 1, mbox, delete);
+    return 0;
+  }
+  sprintf(filename, "%u tagged. ", total_tag);
+  if (!prompt_okay(filename))
+    return 0;
+  h = (struct emailhdrs*)malloc(sizeof(struct emailhdrs));
+  if (!h)
+    error(ERR_FATAL, "Can't malloc()");
+  while (1) {
+    sprintf(filename, "%s/%s/EMAIL.DB", cfg_emaildir, curr_mbox);
+    fp = fopen(filename, "rb+");
+    if (!fp) {
+      error(ERR_NONFATAL, "Can't open %s", filename);
+      return 1;
+    }
+    if (fseek(fp, count * EMAILHDRS_SZ_ON_DISK, SEEK_SET)) {
+      error(ERR_NONFATAL, "Can't seek in %s", filename);
+      goto err;
+    }
+    l = fread(h, 1, EMAILHDRS_SZ_ON_DISK, fp);
+    fclose(fp);
+    ++count;
+    if (l != EMAILHDRS_SZ_ON_DISK) {
+      free(h);
+      read_email_db(first_msg, 1, 0);
+      email_summary();
+      return 0;
+    }
+    if (h->tag == 'T') {
+      h->tag = ' '; // Don't wan't it tagged in the destination
+      copy_to_mailbox(h, count, mbox, delete);
+    }
+  }
+err:
+  free(h);
+  fclose(fp);
+  return 1;
 }
 
 /*
@@ -696,19 +761,19 @@ void keyboard_hdlr(void) {
     case 'c':
     case 'C':
       if (prompt_for_name())
-        copy_to_mailbox(userentry, 0);
+        copy_to_mailbox_tagged(userentry, 0);
       break;
     case 'm':
     case 'M':
       if (prompt_for_name())
-        copy_to_mailbox(userentry, 1);
+        copy_to_mailbox_tagged(userentry, 1);
       break;
     case 'a':
     case 'A':
       putchar(0x19);                          // HOME
       for (i = 0; i < PROMPT_ROW - 1; ++i) 
         putchar(0x0a);                        // CURSOR DOWN
-      copy_to_mailbox("RECEIVED", 1);
+      copy_to_mailbox_tagged("RECEIVED", 1);
       break;
     case 'p':
     case 'P':
@@ -728,9 +793,16 @@ void keyboard_hdlr(void) {
     case 'T':
       h = get_headers(selection);
       if (h) {
-        h->tag = h->tag == 'T' ? ' ' : 'T';
+        if (h->tag == 'T') {
+          h->tag = ' ';
+          --total_tag;
+        } else {
+          h->tag = 'T';
+          ++total_tag;
+        }
         write_updated_headers(h, first_msg + selection - 1);
         email_summary_for(selection);
+        status_bar();
       }
       break;
     case 'w':
@@ -747,7 +819,7 @@ void keyboard_hdlr(void) {
       break;
     case 'q':
     case 'Q':
-      if (prompt_okay()) {
+      if (prompt_okay("")) {
         clrscr();
         exit(0);
       }
