@@ -8,6 +8,8 @@
 
 // TODO: EMAIL.n files should be type TXT
 // TODO: The way CRLF.CRLF is detected will not work if split across packets
+//       We can probably fix this by copying the last 4 bytes of each buffer
+//       to before the beginning of the next
 
 #include <cc65.h>
 #include <errno.h>

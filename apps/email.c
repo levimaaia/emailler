@@ -5,7 +5,6 @@
 /////////////////////////////////////////////////////////////////
 
 // TODO:
-// - Purging deleted emails
 // - Email composition (write, reply and forward)
 
 #include <stdio.h>
@@ -473,8 +472,67 @@ void switch_mailbox(char *mbox) {
  * Purge deleted messages from current mailbox
  */
 void purge_deleted(void) {
-
-  // TODO
+  uint16_t count = 0, delcount = 0;
+  struct emailhdrs *h;
+  FILE *fp2;
+  uint16_t l;
+  h = (struct emailhdrs*)malloc(sizeof(struct emailhdrs));
+  if (!h)
+    error(ERR_FATAL, "Can't malloc()");
+  sprintf(filename, "%s/%s/EMAIL.DB", cfg_emaildir, curr_mbox);
+  fp = fopen(filename, "rb");
+  if (!fp) {
+    error(ERR_NONFATAL, "Can't open %s", filename);
+    return;
+  }
+  sprintf(filename, "%s/%s/EMAIL.DB.NEW", cfg_emaildir, curr_mbox);
+  fp2 = fopen(filename, "wb");
+  if (!fp2) {
+    error(ERR_NONFATAL, "Can't open %s", filename);
+    return;
+  }
+  while (1) {
+    l = fread(h, 1, EMAILHDRS_SZ_ON_DISK, fp);
+    ++count;
+    if (l != EMAILHDRS_SZ_ON_DISK)
+      goto done;
+    if (h->status == 'D') {
+      sprintf(filename, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, h->emailnum);
+      if (unlink(filename)) {
+        error(ERR_NONFATAL, "Can't delete %s", filename);
+      }
+      putchar(0x19);                          // HOME
+      for (l = 0; l < PROMPT_ROW - 1; ++l) 
+        putchar(0x0a);                        // CURSOR DOWN
+      putchar(0x1a);                          // CLEAR LINE
+      printf("%u msgs deleted", ++delcount);
+    } else {
+      l = fwrite(h, 1, EMAILHDRS_SZ_ON_DISK, fp2);
+      if (l != EMAILHDRS_SZ_ON_DISK) {
+        error(ERR_NONFATAL, "Can't write to %s", filename);
+        free(h);
+        fclose(fp);
+        fclose(fp2);
+        return;
+      }
+    }
+  }
+done:
+  free(h);
+  fclose(fp);
+  fclose(fp2);
+  sprintf(filename, "%s/%s/EMAIL.DB", cfg_emaildir, curr_mbox);
+  if (unlink(filename)) {
+    error(ERR_NONFATAL, "Can't delete %s", filename);
+    return;
+  }
+  sprintf(userentry, "%s/%s/EMAIL.DB.NEW", cfg_emaildir, curr_mbox);
+  if (rename(userentry, filename)) {
+    error(ERR_NONFATAL, "Can't rename %s", userentry);
+    return;
+  }
+  read_email_db(first_msg, 1, 0);
+  email_summary();
 }
 
 /*
@@ -485,14 +543,14 @@ void purge_deleted(void) {
  * delete - if set to 1 then the message will be marked as deleted in the source mbox
  */
 void copy_to_mailbox(struct emailhdrs *h, uint16_t idx, char *mbox, uint8_t delete) {
-  uint16_t num, buflen, written;
+  uint16_t num, buflen, written, l;
   FILE *fp2;
 
   // Read next number from dest/NEXT.EMAIL
   sprintf(filename, "%s/%s/NEXT.EMAIL", cfg_emaildir, mbox);
   fp = fopen(filename, "rb");
   if (!fp) {
-    error(ERR_NONFATAL, "Can't open %s/NEXT.EMAIL for read", mbox);
+    error(ERR_NONFATAL, "Can't open %s/NEXT.EMAIL", mbox);
     return;
   }
   fscanf(fp, "%u", &num);
@@ -541,20 +599,24 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx, char *mbox, uint8_t dele
   sprintf(filename, "%s/%s/EMAIL.DB", cfg_emaildir, mbox);
   fp = fopen(filename, "ab");
   if (!fp) {
-    error(ERR_NONFATAL, "Can't open %s/EMAIL.DB for write", mbox);
+    error(ERR_NONFATAL, "Can't open %s/EMAIL.DB", mbox);
     return;
   }
   buflen = h->emailnum; // Just reusing buflen as a temporary
   h->emailnum = num;
-  fwrite(h, EMAILHDRS_SZ_ON_DISK, 1, fp);
-  h->emailnum = buflen;
+  l = fwrite(h, 1, EMAILHDRS_SZ_ON_DISK, fp);
+  if (l != EMAILHDRS_SZ_ON_DISK) {
+    error(ERR_NONFATAL, "Can't write to %s/EMAIL.DB %u %u", mbox);
+    return;
+  }
+  h->emailnum = buflen ;
   fclose(fp);
 
   // Update dest/NEXT.EMAIL, incrementing count by 1
   sprintf(filename, "%s/%s/NEXT.EMAIL", cfg_emaildir, mbox);
   fp = fopen(filename, "wb");
   if (!fp) {
-    error(ERR_NONFATAL, "Can't open %s/NEXT.EMAIL for write", mbox);
+    error(ERR_NONFATAL, "Can't open %s/NEXT.EMAIL", mbox);
     return;
   }
   fprintf(fp, "%u", num + 1);
@@ -605,7 +667,7 @@ uint8_t copy_to_mailbox_tagged(char *mbox, uint8_t delete) {
     copy_to_mailbox(h, first_msg + selection - 1, mbox, delete);
     return 0;
   }
-  sprintf(filename, "%u tagged. ", total_tag);
+  sprintf(filename, "%u tagged - ", total_tag);
   if (!prompt_okay(filename))
     return 0;
   h = (struct emailhdrs*)malloc(sizeof(struct emailhdrs));
@@ -796,7 +858,8 @@ void keyboard_hdlr(void) {
       break;
     case 'p':
     case 'P':
-      purge_deleted();
+      if (prompt_okay("Purge - "))
+        purge_deleted();
       break;
     case 'n':
     case 'N':
@@ -822,7 +885,7 @@ void keyboard_hdlr(void) {
       break;
     case 'q':
     case 'Q':
-      if (prompt_okay("")) {
+      if (prompt_okay("Quit - ")) {
         clrscr();
         exit(0);
       }
