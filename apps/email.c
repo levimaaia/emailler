@@ -7,8 +7,7 @@
 // TODO:
 // - Purging deleted emails
 // - Tagging of emails (and move and copy based on tags)
-// - Email composition (new message, reply and forward)
-// - Better error handling (maybe just clear screen before fatal error?)
+// - Email composition (write, reply and forward)
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -114,10 +113,10 @@ void free_headers_list(void) {
  * Read EMAIL.DB and populate linked list rooted at headers
  * startnum - number of the first message to load (1 is the first)
  * initialize - if 1, then total_new and total_msgs are calculated
- * change - if 1, then errors are treated as non-fatal (for V)iew command)
+ * switchmbox - if 1, then errors are treated as non-fatal (for S)witch command)
  * Returns 0 if okay, 1 on non-fatal error.
  */
-uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t change) {
+uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox) {
   struct emailhdrs *curr = NULL, *prev = NULL;
   uint16_t count = 0;
   uint16_t l;
@@ -128,22 +127,23 @@ uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t change) {
   sprintf(filename, "%s/%s/EMAIL.DB", cfg_emaildir, curr_mbox);
   fp = fopen(filename, "rb");
   if (!fp) {
-    error(change ? ERR_NONFATAL : ERR_FATAL, "Can't open %s", filename);
-    if (change)
+    error(switchmbox ? ERR_NONFATAL : ERR_FATAL, "Can't open %s", filename);
+    if (switchmbox)
       return 1;
   }
-  if (fseek(fp, (startnum - 1) * (sizeof(struct emailhdrs) - 2), SEEK_SET)) {
-    error(change ? ERR_NONFATAL : ERR_FATAL, "Can't seek in %s", filename);
-    if (change)
+  if (fseek(fp, (startnum - 1) * EMAILHDRS_SZ_ON_DISK, SEEK_SET)) {
+    error(switchmbox ? ERR_NONFATAL : ERR_FATAL, "Can't seek in %s", filename);
+    if (switchmbox)
       return 1;
   }
   num_msgs = 0;
   while (1) {
     curr = (struct emailhdrs*)malloc(sizeof(struct emailhdrs));
     curr->next = NULL;
-    l = fread(curr, 1, sizeof(struct emailhdrs) - 2, fp);
+    curr->tag = ' ';
+    l = fread(curr, 1, EMAILHDRS_SZ_ON_DISK, fp);
     ++count;
-    if (l != sizeof(struct emailhdrs) - 2) {
+    if (l != EMAILHDRS_SZ_ON_DISK) {
       free(curr);
       fclose(fp);
       return 0;
@@ -186,6 +186,7 @@ void printfield(char *s, uint8_t start, uint8_t end) {
  */
 void print_one_email_summary(struct emailhdrs *h, uint8_t inverse) {
   putchar(inverse ? 0xf : 0xe); // INVERSE or NORMAL
+  putchar(h->tag == 'T' ? 'T' : ' ');
   switch(h->status) {
   case 'N':
     putchar('*'); // New
@@ -202,7 +203,7 @@ void print_one_email_summary(struct emailhdrs *h, uint8_t inverse) {
   putchar('|');
   printfield(h->from, 0, 20);
   putchar('|');
-  printfield(h->subject, 0, 38);
+  printfield(h->subject, 0, 37);
   //putchar('\r');
   putchar(0xe); // NORMAL
 }
@@ -242,8 +243,8 @@ void email_summary(void) {
   putchar(0x19);                          // HOME
   for (i = 0; i < MENU_ROW - 1; ++i) 
     putchar(0x0a);                        // CURSOR DOWN
-  printf("%cUp/K Prev  | Down/J Next | SPC/CR Read | D)el  | U)ndel | P)urge%c\n", 0x0f, 0x0e);
-  printf("%cV)iew mbox | N)ew mbox   | A)rchive    | C)opy | M)ove  | Q)uit %c", 0x0f, 0x0e);
+  printf("%cUp/K Prev | SPC/CR Read  | A)rchive | C)opy | M)ove  | D)el   | U)ndel | P)urge %c", 0x0f, 0x0e);
+  printf("%cDn/J Next | S)witch mbox | N)ew mbox| T)ag  | W)rite | R)eply | F)wd   | Q)uit  %c", 0x0f, 0x0e);
 }
 
 /*
@@ -406,10 +407,10 @@ void write_updated_headers(struct emailhdrs *h, uint16_t pos) {
   fp = fopen(filename, "rb+");
   if (!fp)
     error(ERR_FATAL, "Can't open %s", filename);
-  if (fseek(fp, (pos - 1) * (sizeof(struct emailhdrs) - 2), SEEK_SET))
+  if (fseek(fp, (pos - 1) * EMAILHDRS_SZ_ON_DISK, SEEK_SET))
     error(ERR_FATAL, "Can't seek in %s", filename);
-  l = fwrite(h, 1, sizeof(struct emailhdrs) - 2, fp);
-  if (l != sizeof(struct emailhdrs) - 2)
+  l = fwrite(h, 1, EMAILHDRS_SZ_ON_DISK, fp);
+  if (l != EMAILHDRS_SZ_ON_DISK)
     error(ERR_FATAL, "Can't write to %s", filename);
   fclose(fp);
 }
@@ -444,7 +445,7 @@ void new_mailbox(char *mbox) {
 /*
  * Change current mailbox
  */
-void change_mailbox(char *mbox) {
+void switch_mailbox(char *mbox) {
   char prev_mbox[80];
   uint8_t err;
   strcpy(prev_mbox, curr_mbox);
@@ -533,7 +534,7 @@ void copy_to_mailbox(char *mbox, uint8_t delete) {
   }
   buflen = h->emailnum; // Just reusing buflen as a temporary
   h->emailnum = num;
-  fwrite(h, sizeof(struct emailhdrs) - 2, 1, fp);
+  fwrite(h, EMAILHDRS_SZ_ON_DISK, 1, fp);
   h->emailnum = buflen;
   fclose(fp);
 
@@ -718,10 +719,31 @@ void keyboard_hdlr(void) {
       if (prompt_for_name())
         new_mailbox(userentry);
       break;
-    case 'v':
-    case 'V':
+    case 's':
+    case 'S':
       if (prompt_for_name())
-        change_mailbox(userentry);
+        switch_mailbox(userentry);
+      break;
+    case 't':
+    case 'T':
+      h = get_headers(selection);
+      if (h) {
+        h->tag = h->tag == 'T' ? ' ' : 'T';
+        write_updated_headers(h, first_msg + selection - 1);
+        email_summary_for(selection);
+      }
+      break;
+    case 'w':
+    case 'W':
+      // TODO
+      break;
+    case 'r':
+    case 'R':
+      // TODO
+      break;
+    case 'f':
+    case 'F':
+      // TODO
       break;
     case 'q':
     case 'Q':
