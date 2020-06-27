@@ -5,8 +5,6 @@
 /////////////////////////////////////////////////////////////////
 
 // TODO:
-// - BUG: When doing copy of tagged message, need to update status area
-//   to control where spinner goes. Would be nice to see file count or something.
 // - Purging deleted emails
 // - Email composition (write, reply and forward)
 
