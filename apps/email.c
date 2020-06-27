@@ -281,6 +281,7 @@ void update_highlighted(void) {
  */
 void email_pager(void) {
   uint32_t pos = 0;
+  uint8_t *p = 0x25; // CURSOR ROW!!
   struct emailhdrs *h = get_headers(selection);
   uint8_t line, eof;
   char c;
@@ -319,7 +320,8 @@ restart:
     }
     if (c == '\r') {
       ++line;
-      if (line == 22) {
+      if ((*p) == 22) { // Use the CURSOR ROW location
+      //if (line == 22) {
         putchar(0x0f); // INVERSE
         printf("[%05lu] SPACE continue reading | B)ack | T)op | H)drs | Q)uit", pos);
         putchar(0x0e); // NORMAL
