@@ -10,6 +10,8 @@ I have made the following changes:
 
 ## Apple II Email Suite
 
+<p align="center"><img src="apps/emailler-logo.png" alt="emai//er-logo" height="200px"></p>
+
 The following programs are completely new:
 
  - `POP65` is a Post Office Protocol version 3 (POP3) client for the Apple II with Uthernet-II card.
