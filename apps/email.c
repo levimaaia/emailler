@@ -1,5 +1,5 @@
 /////////////////////////////////////////////////////////////////
-// Simple Email User Agent
+// emai//er - Simple Email User Agent vaguely inspired by Elm
 // Handles INBOX in the format created by POP65
 // Bobbi June 2020
 /////////////////////////////////////////////////////////////////
@@ -599,8 +599,8 @@ char prompt_okay(char *msg) {
  * iterate through the tagged messages calling copy_to_mailbox() on each.
  */
 uint8_t copy_to_mailbox_tagged(char *mbox, uint8_t delete) {
+  uint16_t count = 0, tagcount = 0;
   struct emailhdrs *h;
-  uint16_t count = 0;
   uint16_t l;
   if (total_tag == 0) {
     h = get_headers(selection);
@@ -635,6 +635,11 @@ uint8_t copy_to_mailbox_tagged(char *mbox, uint8_t delete) {
     }
     if (h->tag == 'T') {
       h->tag = ' '; // Don't wan't it tagged in the destination
+      putchar(0x19);                          // HOME
+      for (l = 0; l < PROMPT_ROW - 1; ++l) 
+        putchar(0x0a);                        // CURSOR DOWN
+      putchar(0x1a);                          // CLEAR LINE
+      printf("%u/%u:", ++tagcount, total_tag);
       copy_to_mailbox(h, count, mbox, delete);
     }
   }
