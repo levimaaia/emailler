@@ -5,6 +5,7 @@
 /////////////////////////////////////////////////////////////////
 
 // TODO:
+// - Fix terrible scrollback algorithm!!
 // - Email composition (write, reply and forward)
 
 #include <stdio.h>
@@ -201,12 +202,13 @@ void print_one_email_summary(struct emailhdrs *h, uint8_t inverse) {
     putchar('D'); // Deleted
     break;
   }
-  printf("%02d|", h->emailnum);
+  //printf("%02d|", h->emailnum);
+  putchar('|');
   printfield(h->date, 0, 16);
   putchar('|');
   printfield(h->from, 0, 20);
   putchar('|');
-  printfield(h->subject, 0, 37);
+  printfield(h->subject, 0, 39);
   //putchar('\r');
   putchar(0xe); // NORMAL
 }
