@@ -5,8 +5,11 @@
 /////////////////////////////////////////////////////////////////
 
 // TODO:
+// - Automatically insert date
 // - Fix terrible scrollback algorithm!!
-// - Email composition (write, reply and forward)
+// - Editor for email composition functions
+
+#define PROGNAME "emai//er v0.1"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -230,10 +233,11 @@ struct emailhdrs *get_headers(uint16_t n) {
 void status_bar(void) {
   putchar(0x19);                          // HOME
   if (num_msgs == 0)
-    printf("%cemai//er v0.1 [%s] No messages%c", 0x0f, curr_mbox, 0x0e);
+    printf("%c%s [%s] No messages%c",
+           0x0f, PROGNAME, curr_mbox, 0x0e);
   else
-    printf("%cemai//er v0.1 [%s] %u messages, %u new, %u tagged. Displaying %u-%u%c",
-           0x0f, curr_mbox, total_msgs, total_new, total_tag, first_msg,
+    printf("%c%s [%s] %u messages, %u new, %u tagged. Displaying %u-%u%c",
+           0x0f, PROGNAME, curr_mbox, total_msgs, total_new, total_tag, first_msg,
            first_msg + num_msgs - 1, 0x0e);
   printf("\n\n");
 }
@@ -566,13 +570,65 @@ uint8_t update_next_email(char *mbox, uint16_t num) {
 }
 
 /*
+ * Copy string p to q truncating any trailing spaces.
+ */
+void truncate_header(char *p, char *q, uint8_t l) {
+  int16_t last_char = -1;
+  uint8_t i;
+  for (i = 0; i < l; ++i) {
+    q[i] = p[i];
+    if ((p[i] != ' ') && (p[i] != '\0'))
+      last_char = i;
+  }
+  q[last_char + 1] = '\0';
+}
+
+/*
+ * Write email headers for replies and forwarded messages
+ * fp1 - File handle of the mail message being replied/forwarded
+ * fp2 - File handle of the destination mail message
+ * h - headers of the message being replied/forwarded
+ * mode - 'R' for reply, 'F' for forward
+ */
+void write_email_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h, char mode) {
+  fprintf(fp2, "From: %s\r", cfg_emailaddr);
+  truncate_header(h->subject, buf, 80);
+  fprintf(fp2, "Subject: %s: %s\r", (mode == 'F' ? "Fwd" : "Re"), buf);
+  fprintf(fp2, "Date: TODO: put date in here!!\r"); // TODO
+  truncate_header(h->from, buf, 80);
+  fprintf(fp2, "To: %s\r", (mode == 'R' ? buf : ""), buf);
+  fprintf(fp2, "cc: \r");
+  fprintf(fp2, "X-Mailer: %s - Apple ][ Forever!\r\r", PROGNAME);
+  if (mode == 'R') {
+    truncate_header(h->date, buf, 40);
+    fprintf(fp2, "On %s, ", buf);
+    truncate_header(h->from, buf, 80);
+    fprintf(fp2, "%s wrote:\r\r", buf);
+  } else {
+    fprintf(fp2, "-------- Forwarded Message --------\n");
+    truncate_header(h->subject, buf, 80);
+    fprintf(fp2, "Subject: %s\r", buf);
+    truncate_header(h->date, buf, 40);
+    fprintf(fp2, "Date: %s\r", buf);
+    truncate_header(h->from, buf, 80);
+    fprintf(fp2, "From: %s\r", buf);
+    truncate_header(h->to, buf, 80);
+    fprintf(fp2, "To: %s\r\r", buf);
+  }
+  fseek(fp1, h->skipbytes, SEEK_SET); // Skip headers when copying
+}
+
+/*
  * Copies the current message to mailbox mbox.
  * h is a pointer to the emailheaders for the message to copy
  * idx is the index of the message in EMAIL.DB in the source mailbox (1-based)
  * mbox is the name of the destination mailbox
- * delete - if set to 1 then the message will be marked as deleted in the source mbox
+ * delete - if set to 1 then the message will be marked as deleted in the
+ *          source mbox
+ * mode - 'R' for reply, 'F' for forward, otherwise ' '
  */
-void copy_to_mailbox(struct emailhdrs *h, uint16_t idx, char *mbox, uint8_t delete) {
+void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
+                     char *mbox, uint8_t delete, char mode) {
   uint16_t num, buflen, written, l;
   FILE *fp2;
 
@@ -596,7 +652,17 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx, char *mbox, uint8_t dele
     error(ERR_NONFATAL, "Can't open %s", filename);
     return;
   }
- 
+
+  if (mode != ' ')
+    write_email_headers(fp, fp2, h, mode);
+
+  // Make sure spinner is in the right place
+  if ((mode == 'R') || (mode == 'F')) {
+    putchar(0x19);                          // HOME
+    for (l = 0; l < PROMPT_ROW - 1; ++l) 
+      putchar(0x0a);                        // CURSOR DOWN
+  }
+
   // Copy email
   putchar(' '); // For spinner
   while (1) {
@@ -606,7 +672,7 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx, char *mbox, uint8_t dele
       break;
     written = fwrite(buf, 1, buflen, fp2);
     if (written != buflen) {
-      error(ERR_NONFATAL, "Write error");
+      error(ERR_NONFATAL, "Write error during copy");
       fclose(fp);
       fclose(fp2);
       return;
@@ -645,6 +711,13 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx, char *mbox, uint8_t dele
   h->tag = ' '; // Untag files after copy or move
   write_updated_headers(h, idx);
   email_summary_for(selection);
+
+  if (mode != ' ') {
+    // Not really an error but useful to have an alert
+    sprintf(filename, "Created %s %s/OUTBOX/EMAIL.%u",
+            (mode == 'R' ? "reply" : "fwded msg"), cfg_emaildir, num);
+    error(ERR_NONFATAL, filename);
+  }
 }
 
 /*
@@ -682,7 +755,7 @@ uint8_t copy_to_mailbox_tagged(char *mbox, uint8_t delete) {
   uint16_t l;
   if (total_tag == 0) {
     h = get_headers(selection);
-    copy_to_mailbox(h, first_msg + selection - 1, mbox, delete);
+    copy_to_mailbox(h, first_msg + selection - 1, mbox, delete, ' ');
     return 0;
   }
   sprintf(filename, "%u tagged - ", total_tag);
@@ -718,7 +791,7 @@ uint8_t copy_to_mailbox_tagged(char *mbox, uint8_t delete) {
         putchar(0x0a);                        // CURSOR DOWN
       putchar(0x1a);                          // CLEAR LINE
       printf("%u/%u:", ++tagcount, total_tag);
-      copy_to_mailbox(h, count, mbox, delete);
+      copy_to_mailbox(h, count, mbox, delete, ' ');
     }
   }
 err:
@@ -782,11 +855,11 @@ void create_blank_outgoing() {
   uint16_t num;
 
   // Read next number from dest/NEXT.EMAIL
-  if (get_next_email("OUTGOING", &num))
+  if (get_next_email("OUTBOX", &num))
     return;
 
   // Open destination email file
-  sprintf(filename, "%s/OUTGOING/EMAIL.%u", cfg_emaildir, num);
+  sprintf(filename, "%s/OUTBOX/EMAIL.%u", cfg_emaildir, num);
   fp = fopen(filename, "wb");
   if (!fp) {
     error(ERR_NONFATAL, "Can't open %s", filename);
@@ -795,17 +868,17 @@ void create_blank_outgoing() {
 
   fprintf(fp, "From: %s\n", cfg_emailaddr);
   fprintf(fp, "Subject: \n");
-  fprintf(fp, "Date: TODO: put date in here!!\n");
+  fprintf(fp, "Date: TODO: put date in here!!\n"); // TODO
   fprintf(fp, "To: \n");
   fprintf(fp, "cc: \n\n");
   fclose(fp);
 
   // Update dest/NEXT.EMAIL, incrementing count by 1
-  if (update_next_email("OUTGOING", num + 1))
+  if (update_next_email("OUTBOX", num + 1))
     return;
 
   // Not really an error but useful to have an alert
-  sprintf(filename, "Created file %s/OUTGOING/EMAIL.%u", cfg_emaildir, num);
+  sprintf(filename, "Created file %s/OUTBOX/EMAIL.%u", cfg_emaildir, num);
   error(ERR_NONFATAL, filename);
 }
 
@@ -930,11 +1003,13 @@ void keyboard_hdlr(void) {
       break;
     case 'r':
     case 'R':
-      // TODO
+      h = get_headers(selection);
+      copy_to_mailbox(h, first_msg + selection - 1, "OUTBOX", 0, 'R');
       break;
     case 'f':
     case 'F':
-      // TODO
+      h = get_headers(selection);
+      copy_to_mailbox(h, first_msg + selection - 1, "OUTBOX", 0, 'F');
       break;
     case 'q':
     case 'Q':

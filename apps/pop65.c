@@ -424,7 +424,7 @@ void update_inbox(uint16_t nummsgs) {
         headerchars += chars + 1;  // Don't forget the LF we deleted
         if (!strncmp(linebuf, "Date: ", 6)) {
           copyheader(hdrs.date, linebuf + 6, 39);
-          hdrs.date[79] = '\0';
+          hdrs.date[39] = '\0';
         }
         if (!strncmp(linebuf, "From: ", 6)) {
           copyheader(hdrs.from, linebuf + 6, 79);
