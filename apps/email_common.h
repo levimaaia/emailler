@@ -5,9 +5,11 @@
 /////////////////////////////////////////////////////////////////
 
 // Configuration params from POP65.CFG
-char cfg_server[80];         // IP of POP3 server
-char cfg_user[80];           // Username
-char cfg_pass[80];           // Password
+char cfg_server[40];         // IP of POP3 server
+char cfg_user[40];           // Username
+char cfg_pass[40];           // Password
+char cfg_smtp_server[40];    // IP of SMTP server
+char cfg_smtp_domain[40];    // Our domain
 char cfg_emaildir[80];       // ProDOS directory at root of email tree
 char cfg_emailaddr[80];      // Our email address
 

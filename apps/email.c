@@ -6,6 +6,7 @@
 
 // TODO:
 // - Automatically insert date
+// - Parse email addresses in < angle brackets >
 // - Fix terrible scrollback algorithm!!
 // - Editor for email composition functions
 
@@ -96,6 +97,8 @@ void readconfigfile(void) {
   fscanf(fp, "%s", cfg_server);
   fscanf(fp, "%s", cfg_user);
   fscanf(fp, "%s", cfg_pass);
+  fscanf(fp, "%s", cfg_smtp_server);
+  fscanf(fp, "%s", cfg_smtp_domain);
   fscanf(fp, "%s", cfg_emaildir);
   fscanf(fp, "%s", cfg_emailaddr);
   fclose(fp);
