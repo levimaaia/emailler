@@ -285,7 +285,7 @@ void email_pager(void) {
   uint32_t pos = 0;
   uint8_t *p = 0x25; // CURSOR ROW!!
   struct emailhdrs *h = get_headers(selection);
-  uint8_t line, eof;
+  uint8_t eof;
   char c;
   clrscr();
   sprintf(filename, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, h->emailnum);
@@ -298,7 +298,6 @@ void email_pager(void) {
   fseek(fp, pos, SEEK_SET); // Skip over headers
 restart:
   clrscr();
-  line = 6;
   fputs("Date:    ", stdout);
   printfield(h->date, 0, 39);
   fputs("\nFrom:    ", stdout);
@@ -308,7 +307,6 @@ restart:
   if (h->cc[0] != '\0') {
     fputs("\nCC:      ", stdout);
     printfield(h->cc, 0, 70);
-    ++line;
   }
   fputs("\nSubject: ", stdout);
   printfield(h->subject, 0, 70);
@@ -321,9 +319,7 @@ restart:
       ++pos;
     }
     if (c == '\r') {
-      ++line;
       if ((*p) == 22) { // Use the CURSOR ROW location
-      //if (line == 22) {
         putchar(0x0f); // INVERSE
         printf("[%05lu] SPACE continue reading | B)ack | T)op | H)drs | Q)uit", pos);
         putchar(0x0e); // NORMAL
@@ -364,7 +360,6 @@ retry1:
           goto retry1;
         }
         clrscr();
-        line = 0;
       }
     } else if (eof) {
       putchar(0x0f); // INVERSE
@@ -405,7 +400,6 @@ retry2:
         goto retry2;
       }
       clrscr();
-      line = 0;
     }
   }
 }
