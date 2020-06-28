@@ -94,6 +94,7 @@ void readconfigfile(void) {
   fscanf(fp, "%s", cfg_user);
   fscanf(fp, "%s", cfg_pass);
   fscanf(fp, "%s", cfg_emaildir);
+  fscanf(fp, "%s", cfg_emailaddr);
   fclose(fp);
 }
 
@@ -283,7 +284,7 @@ void update_highlighted(void) {
  */
 void email_pager(void) {
   uint32_t pos = 0;
-  uint8_t *p = 0x25; // CURSOR ROW!!
+  uint8_t *p = (uint8_t*)0x25; // CURSOR ROW!!
   struct emailhdrs *h = get_headers(selection);
   uint8_t eof;
   char c;
@@ -534,6 +535,37 @@ done:
 }
 
 /*
+ * Get next email number from NEXT.EMAIL
+ * Returns 1 on error, 0 if all is good
+ */
+uint8_t get_next_email(char *mbox, uint16_t *num) {
+  sprintf(filename, "%s/%s/NEXT.EMAIL", cfg_emaildir, mbox);
+  fp = fopen(filename, "rb");
+  if (!fp) {
+    error(ERR_NONFATAL, "Can't open %s/NEXT.EMAIL", mbox);
+    return 1;
+  }
+  fscanf(fp, "%u", num);
+  fclose(fp);
+  return 0;
+}
+
+/*
+ * Update NEXT.EMAIL file
+ */
+uint8_t update_next_email(char *mbox, uint16_t num) {
+  sprintf(filename, "%s/%s/NEXT.EMAIL", cfg_emaildir, mbox);
+  fp = fopen(filename, "wb");
+  if (!fp) {
+    error(ERR_NONFATAL, "Can't open %s/NEXT.EMAIL", mbox);
+    return 1;
+  }
+  fprintf(fp, "%u", num);
+  fclose(fp);
+  return 0;
+}
+
+/*
  * Copies the current message to mailbox mbox.
  * h is a pointer to the emailheaders for the message to copy
  * idx is the index of the message in EMAIL.DB in the source mailbox (1-based)
@@ -545,14 +577,8 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx, char *mbox, uint8_t dele
   FILE *fp2;
 
   // Read next number from dest/NEXT.EMAIL
-  sprintf(filename, "%s/%s/NEXT.EMAIL", cfg_emaildir, mbox);
-  fp = fopen(filename, "rb");
-  if (!fp) {
-    error(ERR_NONFATAL, "Can't open %s/NEXT.EMAIL", mbox);
+  if (get_next_email(mbox, &num))
     return;
-  }
-  fscanf(fp, "%u", &num);
-  fclose(fp);
 
   // Open source email file
   sprintf(filename, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, h->emailnum);
@@ -611,14 +637,8 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx, char *mbox, uint8_t dele
   fclose(fp);
 
   // Update dest/NEXT.EMAIL, incrementing count by 1
-  sprintf(filename, "%s/%s/NEXT.EMAIL", cfg_emaildir, mbox);
-  fp = fopen(filename, "wb");
-  if (!fp) {
-    error(ERR_NONFATAL, "Can't open %s/NEXT.EMAIL", mbox);
+  if (update_next_email(mbox, num + 1))
     return;
-  }
-  fprintf(fp, "%u", num + 1);
-  fclose(fp);
 
   if (delete)
     h->status = 'D';
@@ -755,6 +775,41 @@ done:
 }
 
 /*
+ * Create a blank outgoing message and put it in OUTBOX.
+ * OUTBOX is not a 'proper' mailbox (no EMAIL.DB)
+ */
+void create_blank_outgoing() {
+  uint16_t num;
+
+  // Read next number from dest/NEXT.EMAIL
+  if (get_next_email("OUTGOING", &num))
+    return;
+
+  // Open destination email file
+  sprintf(filename, "%s/OUTGOING/EMAIL.%u", cfg_emaildir, num);
+  fp = fopen(filename, "wb");
+  if (!fp) {
+    error(ERR_NONFATAL, "Can't open %s", filename);
+    return;
+  }
+
+  fprintf(fp, "From: %s\n", cfg_emailaddr);
+  fprintf(fp, "Subject: \n");
+  fprintf(fp, "Date: TODO: put date in here!!\n");
+  fprintf(fp, "To: \n");
+  fprintf(fp, "cc: \n\n");
+  fclose(fp);
+
+  // Update dest/NEXT.EMAIL, incrementing count by 1
+  if (update_next_email("OUTGOING", num + 1))
+    return;
+
+  // Not really an error but useful to have an alert
+  sprintf(filename, "Created file %s/OUTGOING/EMAIL.%u", cfg_emaildir, num);
+  error(ERR_NONFATAL, filename);
+}
+
+/*
  * Keyboard handler
  */
 void keyboard_hdlr(void) {
@@ -871,7 +926,7 @@ void keyboard_hdlr(void) {
       break;
     case 'w':
     case 'W':
-      // TODO
+      create_blank_outgoing();
       break;
     case 'r':
     case 'R':
