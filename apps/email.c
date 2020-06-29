@@ -5,8 +5,8 @@
 /////////////////////////////////////////////////////////////////
 
 // TODO:
+// - Update To/From if reply or forward
 // - Automatically insert date
-// - Parse email addresses in < angle brackets >
 // - Fix terrible scrollback algorithm!!
 // - Editor for email composition functions
 
@@ -20,6 +20,7 @@
 #include <conio.h>
 #include <string.h>
 #include <ctype.h>
+#include <apple2_filetype.h>
 
 #define EMAIL_C
 #include "email_common.h"
@@ -418,6 +419,8 @@ retry2:
 void write_updated_headers(struct emailhdrs *h, uint16_t pos) {
   uint16_t l;
   sprintf(filename, "%s/%s/EMAIL.DB", cfg_emaildir, curr_mbox);
+  _filetype = PRODOS_T_BIN;
+  _auxtype = 0;
   fp = fopen(filename, "rb+");
   if (!fp)
     error(ERR_FATAL, "Can't open %s", filename);
@@ -440,6 +443,8 @@ void new_mailbox(char *mbox) {
     return;
   }
   sprintf(filename, "%s/%s/EMAIL.DB", cfg_emaildir, mbox);
+  _filetype = PRODOS_T_BIN;
+  _auxtype = 0;
   fp = fopen(filename, "wb");
   if (!fp) {
     error(ERR_NONFATAL, "Can't create EMAIL.DB");
@@ -447,6 +452,8 @@ void new_mailbox(char *mbox) {
   }
   fclose(fp);
   sprintf(filename, "%s/%s/NEXT.EMAIL", cfg_emaildir, mbox);
+  _filetype = PRODOS_T_TXT;
+  _auxtype = 0;
   fp = fopen(filename, "wb");
   if (!fp) {
     error(ERR_NONFATAL, "Can't create NEXT.EMAIL");
@@ -492,6 +499,8 @@ void purge_deleted(void) {
     return;
   }
   sprintf(filename, "%s/%s/EMAIL.DB.NEW", cfg_emaildir, curr_mbox);
+  _filetype = PRODOS_T_BIN;
+  _auxtype = 0;
   fp2 = fopen(filename, "wb");
   if (!fp2) {
     error(ERR_NONFATAL, "Can't open %s", filename);
@@ -562,6 +571,8 @@ uint8_t get_next_email(char *mbox, uint16_t *num) {
  */
 uint8_t update_next_email(char *mbox, uint16_t num) {
   sprintf(filename, "%s/%s/NEXT.EMAIL", cfg_emaildir, mbox);
+  _filetype = PRODOS_T_TXT;
+  _auxtype = 0;
   fp = fopen(filename, "wb");
   if (!fp) {
     error(ERR_NONFATAL, "Can't open %s/NEXT.EMAIL", mbox);
@@ -587,18 +598,51 @@ void truncate_header(char *p, char *q, uint8_t l) {
 }
 
 /*
- * Write email headers for replies and forwarded messages
- * fp1 - File handle of the mail message being replied/forwarded
- * fp2 - File handle of the destination mail message
- * h - headers of the message being replied/forwarded
- * mode - 'R' for reply, 'F' for forward
+ * Parse 'from' address, of the form 'Joe Smith <jsmith@example.org>'
+ * If < > angle brackets are present, just return the text within them,
+ * otherwise return the whole string.
+ * p - input buffer
+ * q - output buffer
+ * Returns 0 if okay, 1 on error
  */
-void write_email_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h, char mode) {
+uint8_t parse_from_addr(char *p, char *q) {
+  char *start = strchr(p, '<');
+  char *end   = strchr(p, '>');
+  uint8_t l;
+printf("parse_from_addr: %s\n", p);
+  if (!start) {
+    strcpy(q, p);
+    return 0;
+  } else {
+    if (end)
+      l = end - start - 1;
+    else {
+      error(ERR_NONFATAL, "Bad address format '%s'", p);
+      return 1;
+    }
+  }
+  strncpy(q, start + 1, l);
+  q[l] = '\0';
+printf("parse_from_addr after: %s\n", q);
+  return 0;
+}
+
+/*
+ * Write email headers for replies and forwarded messages
+ * fp1  - File handle of the mail message being replied/forwarded
+ * fp2  - File handle of the destination mail message
+ * h    - headers of the message being replied/forwarded
+ * mode - 'R' for reply, 'F' for forward
+ * Returns 0 if okay, 1 on error
+ */
+uint8_t write_email_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h, char mode) {
   fprintf(fp2, "From: %s\r", cfg_emailaddr);
   truncate_header(h->subject, buf, 80);
   fprintf(fp2, "Subject: %s: %s\r", (mode == 'F' ? "Fwd" : "Re"), buf);
   fprintf(fp2, "Date: TODO: put date in here!!\r"); // TODO
-  truncate_header(h->from, buf, 80);
+  truncate_header(h->from, filename, 80);
+  if (parse_from_addr(filename, buf))
+    return 1;
   fprintf(fp2, "To: %s\r", (mode == 'R' ? buf : ""), buf);
   fprintf(fp2, "cc: \r");
   fprintf(fp2, "X-Mailer: %s - Apple II Forever!\r\r", PROGNAME);
@@ -619,6 +663,7 @@ void write_email_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h, char mode) {
     fprintf(fp2, "To: %s\r\r", buf);
   }
   fseek(fp1, h->skipbytes, SEEK_SET); // Skip headers when copying
+  return 0;
 }
 
 /*
@@ -649,6 +694,8 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
 
   // Open destination email file
   sprintf(filename, "%s/%s/EMAIL.%u", cfg_emaildir, mbox, num);
+  _filetype = PRODOS_T_TXT;
+  _auxtype = 0;
   fp2 = fopen(filename, "wb");
   if (!fp2) {
     fclose(fp);
@@ -657,7 +704,12 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
   }
 
   if (mode != ' ')
-    write_email_headers(fp, fp2, h, mode);
+    if (write_email_headers(fp, fp2, h, mode)) {
+      error(ERR_NONFATAL, "Invalid email header");
+      fclose(fp);
+      fclose(fp2);
+      return;
+    }
 
   // Make sure spinner is in the right place
   if ((mode == 'R') || (mode == 'F')) {
@@ -690,6 +742,8 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
 
   // Update dest/EMAIL.DB
   sprintf(filename, "%s/%s/EMAIL.DB", cfg_emaildir, mbox);
+  _filetype = PRODOS_T_BIN;
+  _auxtype = 0;
   fp = fopen(filename, "ab");
   if (!fp) {
     error(ERR_NONFATAL, "Can't open %s/EMAIL.DB", mbox);
@@ -697,6 +751,7 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
   }
   buflen = h->emailnum; // Just reusing buflen as a temporary
   h->emailnum = num;
+  // TODO UPDATE TO/FROM IF REPLY OR FORWARD
   l = fwrite(h, 1, EMAILHDRS_SZ_ON_DISK, fp);
   if (l != EMAILHDRS_SZ_ON_DISK) {
     error(ERR_NONFATAL, "Can't write to %s/EMAIL.DB %u %u", mbox);
@@ -769,6 +824,8 @@ uint8_t copy_to_mailbox_tagged(char *mbox, uint8_t delete) {
     error(ERR_FATAL, "Can't malloc()");
   while (1) {
     sprintf(filename, "%s/%s/EMAIL.DB", cfg_emaildir, curr_mbox);
+    _filetype = PRODOS_T_BIN;
+    _auxtype = 0;
     fp = fopen(filename, "rb+");
     if (!fp) {
       error(ERR_NONFATAL, "Can't open %s", filename);
@@ -863,6 +920,8 @@ void create_blank_outgoing() {
 
   // Open destination email file
   sprintf(filename, "%s/OUTBOX/EMAIL.%u", cfg_emaildir, num);
+  _filetype = PRODOS_T_TXT;
+  _auxtype = 0;
   fp = fopen(filename, "wb");
   if (!fp) {
     error(ERR_NONFATAL, "Can't open %s", filename);
