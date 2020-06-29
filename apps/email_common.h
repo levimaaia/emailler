@@ -4,10 +4,13 @@
 // Bobbi June 2020
 /////////////////////////////////////////////////////////////////
 
+#define PROGNAME "emai//er v0.1"
+
 // Configuration params from POP65.CFG
 char cfg_server[40];         // IP of POP3 server
-char cfg_user[40];           // Username
-char cfg_pass[40];           // Password
+char cfg_user[40];           // POP3 username
+char cfg_pass[40];           // POP3 password
+char cfg_pop_delete[40];     // If 'DELETE', delete message from POP3
 char cfg_smtp_server[40];    // IP of SMTP server
 char cfg_smtp_domain[40];    // Our domain
 char cfg_emaildir[80];       // ProDOS directory at root of email tree

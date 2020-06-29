@@ -299,6 +299,7 @@ void readconfigfile(void) {
     fscanf(fp, "%s", cfg_server);
     fscanf(fp, "%s", cfg_user);
     fscanf(fp, "%s", cfg_pass);
+    fscanf(fp, "%s", cfg_pop_delete);
     fscanf(fp, "%s", cfg_smtp_server);
     fscanf(fp, "%s", cfg_smtp_domain);
     fscanf(fp, "%s", cfg_emaildir);
@@ -475,7 +476,7 @@ void main(void) {
   char *p, *q;
 
   videomode(VIDEOMODE_80COL);
-  printf("%cemai//er SMTP%c\n", 0x0f, 0x0e);
+  printf("%c%s SMTP%c\n", 0x0f, PROGNAME, 0x0e);
 
   printf("\nReading POP65.CFG            -");
   readconfigfile();

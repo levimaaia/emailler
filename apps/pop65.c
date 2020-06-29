@@ -6,7 +6,6 @@
 // Bobbi June 2020
 /////////////////////////////////////////////////////////////////
 
-// TODO: Needs a POP3 DELETE option
 // TODO: The way CRLF.CRLF is detected will not work if split across packets
 //       We can probably fix this by copying the last 4 bytes of each buffer
 //       to before the beginning of the next
@@ -298,6 +297,7 @@ void readconfigfile(void) {
     fscanf(fp, "%s", cfg_server);
     fscanf(fp, "%s", cfg_user);
     fscanf(fp, "%s", cfg_pass);
+    fscanf(fp, "%s", cfg_pop_delete);
     fscanf(fp, "%s", cfg_smtp_server);
     fscanf(fp, "%s", cfg_smtp_domain);
     fscanf(fp, "%s", cfg_emaildir);
@@ -477,7 +477,7 @@ void main(void) {
   uint32_t bytes;
 
   videomode(VIDEOMODE_80COL);
-  printf("%cemai//er POP3%c\n", 0x0f, 0x0e);
+  printf("%c%s POP3%c\n", 0x0f, PROGNAME, 0x0e);
 
   printf("\nReading POP65.CFG            -");
   readconfigfile();
@@ -555,6 +555,13 @@ void main(void) {
     sprintf(sendbuf, "RETR %u\r\n", msg);
     if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, DATA_MODE)) {
       error_exit();
+    }
+    if (strcmp(cfg_pop_delete, "DELETE") == 0) {
+      sprintf(sendbuf, "DELE %u\r\n", msg);
+      if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
+        error_exit();
+      }
+      expect(buf, "+OK");
     }
     fclose(fp);
     spinner(filesize, 1); // Cleanup spinner

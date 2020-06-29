@@ -5,12 +5,11 @@
 /////////////////////////////////////////////////////////////////
 
 // TODO:
+// - Prompt for To, cc, Subject for W)rite command
 // - Update To/From if reply or forward
 // - Automatically insert date
 // - Fix terrible scrollback algorithm!!
 // - Editor for email composition functions
-
-#define PROGNAME "emai//er v0.1"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -98,6 +97,7 @@ void readconfigfile(void) {
   fscanf(fp, "%s", cfg_server);
   fscanf(fp, "%s", cfg_user);
   fscanf(fp, "%s", cfg_pass);
+  fscanf(fp, "%s", cfg_pop_delete);
   fscanf(fp, "%s", cfg_smtp_server);
   fscanf(fp, "%s", cfg_smtp_domain);
   fscanf(fp, "%s", cfg_emaildir);
