@@ -601,7 +601,7 @@ void write_email_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h, char mode) {
   truncate_header(h->from, buf, 80);
   fprintf(fp2, "To: %s\r", (mode == 'R' ? buf : ""), buf);
   fprintf(fp2, "cc: \r");
-  fprintf(fp2, "X-Mailer: %s - Apple ][ Forever!\r\r", PROGNAME);
+  fprintf(fp2, "X-Mailer: %s - Apple II Forever!\r\r", PROGNAME);
   if (mode == 'R') {
     truncate_header(h->date, buf, 40);
     fprintf(fp2, "On %s, ", buf);

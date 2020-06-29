@@ -6,6 +6,7 @@
 // Bobbi June 2020
 /////////////////////////////////////////////////////////////////
 
+// TODO: Needs a DELETE option
 // TODO: EMAIL.n files should be type TXT
 // TODO: The way CRLF.CRLF is detected will not work if split across packets
 //       We can probably fix this by copying the last 4 bytes of each buffer
