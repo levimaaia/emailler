@@ -115,122 +115,121 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
                          uint8_t do_send, uint8_t mode) {
 
   if (do_send == DO_SEND) {
-    uint16_t snd;
-    uint16_t pos = 0;
-    uint16_t len = strlen(sendbuf); // TODO 
 
-    if (strncmp(sendbuf, "PASS", 4) == 0)
-      printf(">PASS ****\n");
-    else {
+    if (mode == DATA_MODE) {
+      //
+      // Handle sending of email body
+      //
+      uint16_t snd;
+      uint16_t pos = 0;
+      uint16_t len;
+      uint8_t  cont = 1;
+
+      filesize = 0;
+
+      while (cont) { 
+
+        len = fread(buf, 1, READSZ, fp);
+        filesize += len;
+
+        if (len == 0) {
+          strcpy(buf, "\r\n.\r\n");
+          pos = 0;
+          len = 5;
+          cont = 0;
+        }
+
+        while (len) {
+          if (input_check_for_abort_key())
+          {
+            printf("User abort\n");
+            w5100_disconnect();
+            return false;
+          }
+
+          snd = w5100_send_request();
+          if (!snd) {
+            if (!w5100_connected()) {
+              printf("Connection lost\n");
+              return false;
+            }
+            continue;
+          }
+
+          if (len < snd)
+            snd = len;
+
+          {
+            // One less to allow for faster pre-increment below
+            const char *dataptr = buf + pos - 1;
+            uint16_t i;
+            for (i = 0; i < snd; ++i) {
+              // The variable is necessary to have cc65 generate code
+              // suitable to access the W5100 auto-increment register.
+              char data = *++dataptr;
+              *w5100_data = data;
+            }
+          }
+
+          w5100_send_commit(snd);
+          len -= snd;
+          pos += snd;
+        }
+        spinner(filesize, 0);
+      }
+      spinner(filesize, 1);
+
+    } else {
+      //
+      // Handle short single packet ASCII text transmissions
+      //
+      uint16_t snd;
+      uint16_t pos = 0;
+      uint16_t len = strlen(sendbuf);
+
       putchar('>');
       print_strip_crlf(sendbuf);
-    }
 
-    while (len) {
-      if (input_check_for_abort_key())
-      {
-        printf("User abort\n");
-        w5100_disconnect();
-        return false;
-      }
-
-      snd = w5100_send_request();
-      if (!snd) {
-        if (!w5100_connected()) {
-          printf("Connection lost\n");
+      while (len) {
+        if (input_check_for_abort_key())
+        {
+          printf("User abort\n");
+          w5100_disconnect();
           return false;
         }
-        continue;
-      }
 
-      if (len < snd)
-        snd = len;
-
-      {
-        // One less to allow for faster pre-increment below
-        const char *dataptr = sendbuf + pos - 1;
-        uint16_t i;
-        for (i = 0; i < snd; ++i) {
-          // The variable is necessary to have cc65 generate code
-          // suitable to access the W5100 auto-increment register.
-          char data = *++dataptr;
-          *w5100_data = data;
+        snd = w5100_send_request();
+        if (!snd) {
+          if (!w5100_connected()) {
+            printf("Connection lost\n");
+            return false;
+          }
+          continue;
         }
-      }
 
-      w5100_send_commit(snd);
-      len -= snd;
-      pos += snd;
+        if (len < snd)
+          snd = len;
+
+        {
+          // One less to allow for faster pre-increment below
+          const char *dataptr = sendbuf + pos - 1;
+          uint16_t i;
+          for (i = 0; i < snd; ++i) {
+            // The variable is necessary to have cc65 generate code
+            // suitable to access the W5100 auto-increment register.
+            char data = *++dataptr;
+            *w5100_data = data;
+          }
+        }
+
+        w5100_send_commit(snd);
+        len -= snd;
+        pos += snd;
+      }
     }
   }
 
-#if 0
-  if (mode == DATA_MODE) {
-    //
-    // Handle email body
-    //
-    uint16_t rcv, written;
-    uint16_t len = 0;
-    uint8_t cont = 1;
-
-    // Backspace to put spinner on same line as RETR
-    for (rcv = 0; rcv < 15; ++rcv)
-      putchar(BACKSPACE);
-
-    filesize = 0;
-
-    while(cont) {
-      if (input_check_for_abort_key()) {
-        printf("User abort\n");
-        w5100_disconnect();
-        return false;
-      }
-    
-      rcv = w5100_receive_request();
-      if (!rcv) {
-        cont = w5100_connected();
-        if (cont)
-          continue;
-      }
-
-      if (rcv > length - len)
-        rcv = length - len;
-
-      {
-        // One less to allow for faster pre-increment below
-        char *dataptr = recvbuf + len - 1;
-        uint16_t i;
-        for (i = 0; i < rcv; ++i) {
-          // The variable is necessary to have cc65 generate code
-          // suitable to access the W5100 auto-increment register.
-          char data = *w5100_data;
-          *++dataptr = data;
-
-          // TODO -- check we are not looking before start of recvbuf here!!
-          // TODO -- this doesn't handle the case where the sequence is split across
-          //         packets!!!
-          if (!memcmp(dataptr - 4, "\r\n.\r\n", 5))
-            cont = 0;
-        }
-      }
-      w5100_receive_commit(rcv);
-      len += rcv;
-
-      written = fwrite(recvbuf, 1, len, fp);
-      if (written != len) {
-        printf("Write error");
-        fclose(fp);
-        error_exit();
-      }
-
-      filesize += len;
-      spinner(filesize, 0);
-      len = 0;
-    }
-  } else {
-#else
   {
-#endif
     //
     // Handle short single packet ASCII text responses
     //
@@ -446,6 +445,8 @@ void main(void) {
 
     // TODO Handle multiple comma-separated recipients
 
+    // TODO Chop trailing \r off sender & recipient
+
     sprintf(sendbuf, "MAIL FROM:<%s>\r\n", sender);
     if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
       error_exit();
@@ -458,19 +459,18 @@ void main(void) {
     }
     expect(buf, "250 ");
 
-    sprintf(sendbuf, "DATA");
+    sprintf(sendbuf, "DATA\r\n");
     if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
       error_exit();
     }
     expect(buf, "354 ");
 
     fseek(fp, 0, SEEK_SET);
-    // TODO NOW SEND ENTIRE BODY OF FILE
 
-    if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DONT_SEND, CMD_MODE)) {
+    if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, DATA_MODE)) {
       error_exit();
     }
-    expect(buf, "250 OK");
+    expect(buf, "250 ");
 
 skiptonext:
     fclose(fp);
