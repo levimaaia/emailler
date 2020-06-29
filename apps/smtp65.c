@@ -6,8 +6,6 @@
 // Bobbi June 2020
 /////////////////////////////////////////////////////////////////
 
-// TODO See below
-
 #include <cc65.h>
 #include <errno.h>
 #include <ctype.h>
@@ -18,6 +16,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <dirent.h>
+#include <apple2_filetype.h>
 
 #include "../inc/ip65.h"
 #include "w5100.h"
@@ -112,7 +111,7 @@ void spinner(uint32_t sz, uint8_t final) {
 // recvbuf is the buffer into which the received message will be written
 // length is the length of recvbuf[]
 // do_send Do the sending if true, otherwise skip
-// mode Binary mode for received message, maybe first block of long message
+// mode Binary mode for sent message, pump data from disk file fp
 bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
                          uint8_t do_send, uint8_t mode) {
 
@@ -278,12 +277,14 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
 
 /*
  * Check expected string from server
+ * Returns 0 if expected, 1 otherwise
  */
-void expect(char *buf, char *s) {
+uint8_t expect(char *buf, char *s) {
   if (strncmp(buf, s, strlen(s)) != 0) {
     printf("\nExpected '%s' got '%s\n", s, buf);
-    error_exit();
+    return 1;
   }
+  return 0;
 }
 
 /*
@@ -301,6 +302,7 @@ void readconfigfile(void) {
     fscanf(fp, "%s", cfg_smtp_server);
     fscanf(fp, "%s", cfg_smtp_domain);
     fscanf(fp, "%s", cfg_emaildir);
+    fscanf(fp, "%s", cfg_emailaddr);
     fclose(fp);
 }
 
@@ -337,12 +339,140 @@ int16_t get_line(FILE *fp) {
   }
 }
 
+/*
+ * Update EMAIL.DB - quick access database for header info
+ */
+void update_email_db(struct emailhdrs *h) {
+  FILE *fp;
+  sprintf(filename, "%s/SENT/EMAIL.DB", cfg_emaildir);
+  _filetype = PRODOS_T_BIN;
+  _auxtype = 0;
+  fp = fopen(filename, "ab");
+  if (!fp) {
+    printf("Can't open %s\n", filename);
+    error_exit();
+  }
+  fwrite(h, sizeof(struct emailhdrs), 1, fp);
+  fclose(fp);
+}
+
+/*
+ * Copy one header from source->dest, removing '\r' from end
+ */
+void copyheader(char *dest, char *source, uint16_t len) {
+  uint16_t i;
+  memset(dest, ' ', len);
+  for (i = 0; i < len; ++i) {
+    if ((*source == '\0') || (*source == '\r'))
+      return;
+    *dest++ = *source++;
+  }
+}
+
+/*
+ * Write NEXT.EMAIL file with number of next EMAIL.n file to be created
+ */
+void write_next_email(uint16_t num) {
+  sprintf(filename, "%s/SENT/NEXT.EMAIL", cfg_emaildir);
+  _filetype = PRODOS_T_TXT;
+  _auxtype = 0;
+  fp = fopen(filename, "wb");
+  if (!fp) {
+    printf("Can't open %s\n", filename);
+    fclose(fp);
+    error_exit();
+  }
+  fprintf(fp, "%u", num);
+  fclose(fp);
+}
+
+/*
+ * Update SENT when a message has been sent
+ * Copy a messages from OUTBOX to SENT and find headers of interest
+ * (Date, From, To, BCC, Subject)
+ * filename - Filename in OUTBOX for message just sent
+ */
+void update_sent_mbox(char *name) {
+  static struct emailhdrs hdrs;
+  uint16_t nextemail, chars, headerchars;
+  uint8_t headers;
+  FILE *destfp;
+  sprintf(filename, "%s/SENT/NEXT.EMAIL", cfg_emaildir);
+  fp = fopen(filename, "r");
+  if (!fp) {
+    nextemail = 1;
+    write_next_email(nextemail);
+  } else {
+    fscanf(fp, "%u", &nextemail);
+    fclose(fp);
+  }
+  strcpy(linebuf, "");
+  sprintf(filename, "%s/OUTBOX/%s", cfg_emaildir, name);
+  fp = fopen(filename, "r");
+  if (!fp) {
+    printf("Can't open %s\n", filename);
+    error_exit();
+  }
+  hdrs.emailnum = nextemail;
+  sprintf(filename, "%s/SENT/EMAIL.%u", cfg_emaildir, nextemail++);
+  puts(filename);
+  _filetype = PRODOS_T_TXT;
+  _auxtype = 0;
+  destfp = fopen(filename, "wb");
+  if (!destfp) {
+    printf("Can't open %s\n", filename);
+    fclose(fp);
+    error_exit();
+  }
+  headers = 1;
+  headerchars = 0;
+  hdrs.skipbytes = 0; // Just in case it doesn't get set
+  hdrs.status = 'N';
+  hdrs.tag = ' ';
+  while ((chars = get_line(fp)) != -1) {
+    if (headers) {
+      headerchars += chars;
+      if (!strncmp(linebuf, "Date: ", 6)) {
+        copyheader(hdrs.date, linebuf + 6, 39);
+        hdrs.date[39] = '\0';
+      }
+      if (!strncmp(linebuf, "From: ", 6)) {
+        copyheader(hdrs.from, linebuf + 6, 79);
+        hdrs.from[79] = '\0';
+      }
+      if (!strncmp(linebuf, "To: ", 4)) {
+        copyheader(hdrs.to, linebuf + 4, 79);
+        hdrs.to[79] = '\0';
+      }
+      if (!strncmp(linebuf, "Cc: ", 4)) {
+        copyheader(hdrs.cc, linebuf + 4, 79);
+        hdrs.cc[79] = '\0';
+      }
+      if (!strncmp(linebuf, "Subject: ", 9)) {
+        copyheader(hdrs.subject, linebuf + 9, 79);
+        hdrs.subject[79] = '\0';
+      }
+      //if (linebuf[0] == '\r') {
+      if (strlen(linebuf) < 10) {
+        headers = 0;
+        hdrs.skipbytes = headerchars;
+      }
+    }
+    fputs(linebuf, destfp);
+  }
+  fclose(fp);
+  fclose(destfp);
+  update_email_db(&hdrs);
+  write_next_email(nextemail);
+}
+
 void main(void) {
-  static char sendbuf[80], sender[80], recipient[80];
+  static char sendbuf[80], recipients[160];
   uint8_t eth_init = ETH_INIT_DEFAULT;
-  uint8_t have_recipient, have_sender, linecount;
+  uint8_t linecount;
   DIR *dp;
   struct dirent *d;
+  char *p, *q;
 
   videomode(VIDEOMODE_80COL);
   printf("%cemai//er SMTP%c\n", 0x0f, 0x0e);
@@ -391,13 +521,15 @@ void main(void) {
   if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DONT_SEND, CMD_MODE)) {
     error_exit();
   }
-  expect(buf, "220 ");
+  if (expect(buf, "220 "))
+    error_exit();
 
   sprintf(sendbuf, "HELO %s\r\n", cfg_smtp_domain);
   if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
     error_exit();
   }
-  expect(buf, "250 ");
+  if (expect(buf, "250 "))
+    error_exit();
 
   sprintf(filename, "%s/OUTBOX", cfg_emaildir);
   dp = opendir(filename);
@@ -407,6 +539,8 @@ void main(void) {
   }
 
   while (d = readdir(dp)) {
+
+skiptonext:
 
     sprintf(filename, "%s/OUTBOX/%s", cfg_emaildir, d->d_name);
     fp = fopen(filename, "rb");
@@ -421,51 +555,79 @@ void main(void) {
     if (!strncmp(d->d_name, "NEXT.EMAIL", 10))
       continue;
 
-    puts(d->d_name);
+    printf("\n** Processing file %s ...\n", d->d_name);
 
-    have_sender = have_recipient = linecount = 0;
+    linecount = 0;
+    strcpy(recipients, "");
 
     while (1) {
       if ((get_line(fp) == -1) || (linecount == 20)) {
-        printf("Didn't find to/from headers in %s\n", d->d_name);
-        goto skiptonext;
+        if (strlen(recipients) == 0) {
+          printf("No recipients (To or Cc) in %s. Skipping msg.\n", d->d_name);
+          fclose(fp);
+          goto skiptonext;
+        }
+        break;
       }
       ++linecount;
-      if (!strncmp(linebuf, "To: ", 4)) {
-        strcpy(recipient, linebuf + 4);
-        have_recipient = 1;
-        if (have_sender)
-          break;
-      } else if (!strncmp(linebuf, "From: ", 6)) {
-        strcpy(sender, linebuf + 6);
-        have_sender = 1;
-        if (have_recipient)
-          break;
+      if (!strncmp(linebuf, "To: ", 4) || (!strncmp(linebuf, "cc: ",4))) {
+        linebuf[strlen(linebuf) - 1] = '\0'; // Chop off \r
+        if (strlen(linebuf + 4) > 0) {
+          if (strlen(recipients) > 0)
+            strcat(recipients, ",");
+          strcat(recipients, linebuf + 4);
+        }
       }
-      // TODO Handle optional cc
     }
 
-    // TODO Handle multiple comma-separated recipients
-
-    // TODO Chop trailing \r off sender & recipient
-
-    sprintf(sendbuf, "MAIL FROM:<%s>\r\n", sender);
+    sprintf(sendbuf, "MAIL FROM:<%s>\r\n", cfg_emailaddr);
     if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
       error_exit();
     }
-    expect(buf, "250 ");
+    if (expect(buf, "250 ")) {
+      printf("Skipping msg\n");
+      continue;
+    }
 
-    sprintf(sendbuf, "RCPT TO:<%s>\r\n", recipient);
+printf("RECIPIENTS: %s\n", recipients);
+    // Handle multiple comma-separated recipients
+    p = recipients;
+    while (q = strchr(p, ',')) {
+      *q = '\0';
+      while (*p == ' ')
+        ++p;
+      sprintf(sendbuf, "RCPT TO:<%s>\r\n", p);
+      if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
+        error_exit();
+      }
+      if (expect(buf, "250 ")) {
+        printf("Skipping msg\n");
+        fclose(fp);
+        goto skiptonext;
+      }
+      p = q + 1;
+    }
+    while (*p == ' ')
+      ++p;
+    sprintf(sendbuf, "RCPT TO:<%s>\r\n", p);
     if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
       error_exit();
     }
-    expect(buf, "250 ");
+    if (expect(buf, "250 ")) {
+      printf("Skipping msg\n");
+      fclose(fp);
+      continue;
+    }
 
     sprintf(sendbuf, "DATA\r\n");
     if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
       error_exit();
     }
-    expect(buf, "354 ");
+    if (expect(buf, "354 ")) {
+      printf("Skipping msg\n");
+      fclose(fp);
+      continue;
+    }
 
     fseek(fp, 0, SEEK_SET);
 
@@ -474,11 +636,15 @@ void main(void) {
     }
     expect(buf, "250 ");
 
-skiptonext:
     fclose(fp);
 
-    //TODO: Copy file to SENT & remove from here
+    printf("Updating SENT mailbox ...\n");
+    update_sent_mbox(d->d_name);
 
+    printf("Removing from OUTBOX ...\n");
+    sprintf(filename, "%s/OUTBOX/%s", cfg_emaildir, d->d_name);
+    if (unlink(filename))
+      printf("Can't remove %s\n", filename);
   }
   closedir(dp);
 
