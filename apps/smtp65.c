@@ -429,13 +429,13 @@ void main(void) {
         goto skiptonext;
       }
       ++linecount;
-      if (!strncmp(linebuf, "From: ", 6)) {
-        strcpy(recipient, linebuf + 6);
+      if (!strncmp(linebuf, "To: ", 4)) {
+        strcpy(recipient, linebuf + 4);
         have_recipient = 1;
         if (have_sender)
           break;
-      } else if (!strncmp(linebuf, "To: ", 4)) {
-        strcpy(sender, linebuf + 4);
+      } else if (!strncmp(linebuf, "From: ", 6)) {
+        strcpy(sender, linebuf + 6);
         have_sender = 1;
         if (have_recipient)
           break;
