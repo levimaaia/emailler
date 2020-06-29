@@ -5,7 +5,6 @@
 /////////////////////////////////////////////////////////////////
 
 // TODO:
-// - Prompt for To, cc, Subject for W)rite command
 // - Update To/From if reply or forward
 // - Automatically insert date
 // - Fix terrible scrollback algorithm!!
@@ -48,12 +47,21 @@ static unsigned char  buf[READSZ];
 #define ERR_FATAL    1
 
 /*
+ * Put cursor at beginning of PROMPT_ROW
+ */
+void goto_prompt_row(void) {
+  uint8_t i;
+  putchar(0x19); // HOME
+  for (i = 0; i < PROMPT_ROW - 1; ++i) 
+    putchar(0x0a); // CURSOR DOWN
+}
+
+/*
  * Show non fatal error in PROMPT_ROW
  * Fatal errors are shown on a blank screen
  */
 void error(uint8_t fatal, const char *fmt, ...) {
   va_list v;
-  uint8_t i;
   if (fatal) {
     clrscr();
     printf("\n\n%cFATAL ERROR:%c\n\n", 0x0f, 0x0e);
@@ -64,16 +72,14 @@ void error(uint8_t fatal, const char *fmt, ...) {
     cgetc();
     exit(1);
   } else {
-    putchar(0x19);                          // HOME
-    for (i = 0; i < PROMPT_ROW - 1; ++i) 
-      putchar(0x0a);                        // CURSOR DOWN
-    putchar(0x1a);                          // CLEAR LINE
+    goto_prompt_row();
+    putchar(0x1a); // CLEAR LINE
     va_start(v, fmt);
     vprintf(fmt, v);
     va_end(v);
     printf(" - [Press Any Key]");
     cgetc();
-    putchar(0x1a);                          // CLEAR LINE
+    putchar(0x1a); // CLEAR LINE
   }
 }
 
@@ -516,10 +522,8 @@ void purge_deleted(void) {
       if (unlink(filename)) {
         error(ERR_NONFATAL, "Can't delete %s", filename);
       }
-      putchar(0x19);                          // HOME
-      for (l = 0; l < PROMPT_ROW - 1; ++l) 
-        putchar(0x0a);                        // CURSOR DOWN
-      putchar(0x1a);                          // CLEAR LINE
+      goto_prompt_row();
+      putchar(0x1a); // CLEAR LINE
       printf("%u msgs deleted", ++delcount);
     } else {
       l = fwrite(h, 1, EMAILHDRS_SZ_ON_DISK, fp2);
@@ -710,11 +714,8 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
     }
 
   // Make sure spinner is in the right place
-  if ((mode == 'R') || (mode == 'F')) {
-    putchar(0x19);                          // HOME
-    for (l = 0; l < PROMPT_ROW - 1; ++l) 
-      putchar(0x0a);                        // CURSOR DOWN
-  }
+  if ((mode == 'R') || (mode == 'F'))
+    goto_prompt_row();
 
   // Copy email
   putchar(' '); // For spinner
@@ -780,11 +781,8 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
  * Prompt ok?
  */
 char prompt_okay(char *msg) {
-  uint16_t i;
   char c;
-  putchar(0x19);                          // HOME
-  for (i = 0; i < PROMPT_ROW - 1; ++i) 
-    putchar(0x0a);                        // CURSOR DOWN
+  goto_prompt_row();
   printf("%sSure? (y/n)", msg);
   while (1) {
     c = cgetc();
@@ -796,7 +794,7 @@ char prompt_okay(char *msg) {
     c = 1;
   else
     c = 0;
-  putchar(0x1a);                          // CLEAR LINE
+  putchar(0x1a); // CLEAR LINE
   return c;
 }
 
@@ -844,10 +842,8 @@ uint8_t copy_to_mailbox_tagged(char *mbox, uint8_t delete) {
     }
     if (h->tag == 'T') {
       h->tag = ' '; // Don't want it tagged in the destination
-      putchar(0x19);                          // HOME
-      for (l = 0; l < PROMPT_ROW - 1; ++l) 
-        putchar(0x0a);                        // CURSOR DOWN
-      putchar(0x1a);                          // CLEAR LINE
+      goto_prompt_row();
+      putchar(0x1a); // CLEAR LINE
       printf("%u/%u:", ++tagcount, total_tag);
       copy_to_mailbox(h, count, mbox, delete, ' ');
     }
@@ -861,18 +857,18 @@ err:
 /*
  * Prompt for a name in the line below the menu, store it in userentry
  * Returns number of chars read.
+ * prompt - Message to display before > prompt
+ * is_file - if 1, restrict chars to those allowed in ProDOS filename
  */
-uint8_t prompt_for_name(void) {
+uint8_t prompt_for_name(char *prompt, uint8_t is_file) {
   uint16_t i;
   char c;
-  putchar(0x19);                          // HOME
-  for (i = 0; i < PROMPT_ROW - 1; ++i) 
-    putchar(0x0a);                        // CURSOR DOWN
-  printf(">>>");
+  goto_prompt_row();
+  printf("%s>", prompt);
   i = 0;
   while (1) {
     c = cgetc();
-    if (!isalnum(c) && (c != 0x0d) && (c != 0x08) && (c != 0x7f) && (c != '.')) {
+    if (is_file && !isalnum(c) && (c != 0x0d) && (c != 0x08) && (c != 0x7f) && (c != '.')) {
       putchar(7); // BELL
       continue;
     }
@@ -899,9 +895,7 @@ uint8_t prompt_for_name(void) {
 done:
   userentry[i] = '\0';
   putchar(0x1a);                          // CLEAR LINE
-  putchar(0x19);                          // HOME
-  for (c = 0; c < PROMPT_ROW - 1; ++c) 
-    putchar(0x0a);                        // CURSOR DOWN
+  goto_prompt_row();
   return i;
 }
 
@@ -927,10 +921,13 @@ void create_blank_outgoing() {
   }
 
   fprintf(fp, "From: %s\n", cfg_emailaddr);
-  fprintf(fp, "Subject: \n");
+  prompt_for_name("Subject", 0);
+  fprintf(fp, "Subject: %s\n", userentry);
   fprintf(fp, "Date: TODO: put date in here!!\n"); // TODO
-  fprintf(fp, "To: \n");
-  fprintf(fp, "cc: \n\n");
+  prompt_for_name("To", 0);
+  fprintf(fp, "To: %s\n", userentry);
+  prompt_for_name("cc", 0);
+  fprintf(fp, "cc: %s\n\n", userentry);
   fclose(fp);
 
   // Update dest/NEXT.EMAIL, incrementing count by 1
@@ -947,7 +944,6 @@ void create_blank_outgoing() {
  */
 void keyboard_hdlr(void) {
   struct emailhdrs *h;
-  uint8_t i;
   while (1) {
     char c = cgetc();
     switch (c) {
@@ -1027,19 +1023,17 @@ void keyboard_hdlr(void) {
       break;
     case 'c':
     case 'C':
-      if (prompt_for_name())
+      if (prompt_for_name("Copy to mbox", 1))
         copy_to_mailbox_tagged(userentry, 0);
       break;
     case 'm':
     case 'M':
-      if (prompt_for_name())
+      if (prompt_for_name("Move to mbox", 1))
         copy_to_mailbox_tagged(userentry, 1);
       break;
     case 'a':
     case 'A':
-      putchar(0x19);                          // HOME
-      for (i = 0; i < PROMPT_ROW - 1; ++i) 
-        putchar(0x0a);                        // CURSOR DOWN
+      goto_prompt_row();
       copy_to_mailbox_tagged("RECEIVED", 1);
       break;
     case 'p':
@@ -1049,12 +1043,12 @@ void keyboard_hdlr(void) {
       break;
     case 'n':
     case 'N':
-      if (prompt_for_name())
+      if (prompt_for_name("New mbox", 1))
         new_mailbox(userentry);
       break;
     case 's':
     case 'S':
-      if (prompt_for_name())
+      if (prompt_for_name("Switch mbox", 1))
         switch_mailbox(userentry);
       break;
     case 'w':
