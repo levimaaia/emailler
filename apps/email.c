@@ -29,6 +29,28 @@
 #define SCROLLBACK    25*80  // How many bytes to go back when paging up
 #define READSZ        1024   // Size of buffer for copying files
 
+#define BELL          0x07
+#define BACKSPACE     0x08
+#define INVERSE       0x0f
+#define RETURN        0x0d
+#define NORMAL        0x0e
+#define CURDOWN       0x0a
+#define HOME          0x19
+#define CLRLINE       0x1a
+#define DELETE        0x7f
+
+/*
+ * Represents a date and time
+ */
+struct datetime {
+    unsigned int  year;
+    unsigned char month;
+    unsigned char day;
+    unsigned char hour;
+    unsigned char minute;
+    unsigned char ispd25format;
+    unsigned char nodatetime;
+};
 
 char                  filename[80];
 char                  userentry[80];
@@ -51,9 +73,9 @@ static unsigned char  buf[READSZ];
  */
 void goto_prompt_row(void) {
   uint8_t i;
-  putchar(0x19); // HOME
+  putchar(HOME);
   for (i = 0; i < PROMPT_ROW - 1; ++i) 
-    putchar(0x0a); // CURSOR DOWN
+    putchar(CURDOWN);
 }
 
 /*
@@ -64,7 +86,7 @@ void error(uint8_t fatal, const char *fmt, ...) {
   va_list v;
   if (fatal) {
     clrscr();
-    printf("\n\n%cFATAL ERROR:%c\n\n", 0x0f, 0x0e);
+    printf("\n\n%cFATAL ERROR:%c\n\n", INVERSE, NORMAL);
     va_start(v, fmt);
     vprintf(fmt, v);
     va_end(v);
@@ -73,13 +95,13 @@ void error(uint8_t fatal, const char *fmt, ...) {
     exit(1);
   } else {
     goto_prompt_row();
-    putchar(0x1a); // CLEAR LINE
+    putchar(CLRLINE);
     va_start(v, fmt);
     vprintf(fmt, v);
     va_end(v);
     printf(" - [Press Any Key]");
     cgetc();
-    putchar(0x1a); // CLEAR LINE
+    putchar(CLRLINE);
   }
 }
 
@@ -89,7 +111,7 @@ void error(uint8_t fatal, const char *fmt, ...) {
 void spinner(void) {
   static char chars[] = "|/-\\";
   static uint8_t i = 0;
-  putchar(0x08); // BACKSPACE
+  putchar(BACKSPACE);
   putchar(chars[(i++) % 4]);
 }
 
@@ -109,6 +131,52 @@ void readconfigfile(void) {
   fscanf(fp, "%s", cfg_emaildir);
   fscanf(fp, "%s", cfg_emailaddr);
   fclose(fp);
+}
+
+void readdatetime(unsigned char time[4], struct datetime *dt) {
+    unsigned int d = time[0] + 256U * time[1];
+    unsigned int t = time[2] + 256U * time[3];
+    if ((d == 0) && (t == 0)) {
+        dt->nodatetime = 1;
+        return;
+    }
+    dt->nodatetime = 0;
+    if (!(t & 0xe000)) {
+        /* ProDOS 1.0 to 2.4.2 date format */
+        dt->year   = (d & 0xfe00) >> 9;
+        dt->month  = (d & 0x01e0) >> 5;
+        dt->day    = d & 0x001f;
+        dt->hour   = (t & 0x1f00) >> 8;
+        dt->minute = t & 0x003f;
+        dt->ispd25format = 0;
+        if (dt->year < 40) /* See ProDOS-8 Tech Note 48 */
+            dt->year += 2000;
+        else
+            dt->year += 1900;
+    } else {
+        /* ProDOS 2.5.0+ */
+        dt->year   = t & 0x0fff;
+        dt->month  = ((t & 0xf000) >> 12) - 1;
+        dt->day    = (d & 0xf800) >> 11;
+        dt->hour   = (d & 0x07c0) >> 6;
+        dt->minute = d & 0x003f;
+        dt->ispd25format = 1;
+    }
+}
+
+void printdatetime(struct datetime *dt) {
+  if (dt->nodatetime)
+    fputs("????-??-?? ??:??", stdout);
+  else {
+    printf("%04d-%02d-%02d %02d:%02d",
+           dt->year, dt->month, dt->day, dt->hour, dt->minute);
+  }
+}
+
+void printsystemdate(void) {
+  struct datetime dt;
+  readdatetime((unsigned char*)(0xbf90), &dt);
+  printdatetime(&dt);
 }
 
 /*
@@ -203,7 +271,7 @@ void printfield(char *s, uint8_t start, uint8_t end) {
  * Print one line summary of email headers for one message
  */
 void print_one_email_summary(struct emailhdrs *h, uint8_t inverse) {
-  putchar(inverse ? 0xf : 0xe); // INVERSE or NORMAL
+  putchar(inverse ? INVERSE : NORMAL);
   putchar(h->tag == 'T' ? 'T' : ' ');
   switch(h->status) {
   case 'N':
@@ -224,7 +292,7 @@ void print_one_email_summary(struct emailhdrs *h, uint8_t inverse) {
   putchar('|');
   printfield(h->subject, 0, 39);
   //putchar('\r');
-  putchar(0xe); // NORMAL
+  putchar(NORMAL);
 }
 
 /*
@@ -240,16 +308,24 @@ struct emailhdrs *get_headers(uint16_t n) {
   return h;
 }
 
+/*
+ * Print status bar at the top
+ */
 void status_bar(void) {
-  putchar(0x19);                          // HOME
+  putchar(HOME);
+  putchar(INVERSE);
+  fputs("                                                                ", stdout);
+  printsystemdate();
+  putchar(HOME);
   if (num_msgs == 0)
-    printf("%c%s [%s] No messages%c",
-           0x0f, PROGNAME, curr_mbox, 0x0e);
+    printf("%c%s [%s] No messages ", INVERSE, PROGNAME, curr_mbox);
   else
-    printf("%c%s [%s] %u messages, %u new, %u tagged. Displaying %u-%u%c",
-           0x0f, PROGNAME, curr_mbox, total_msgs, total_new, total_tag, first_msg,
-           first_msg + num_msgs - 1, 0x0e);
-  printf("\n\n");
+    printf("%c[%s] %u msgs, %u new, %u tagged. Showing %u-%u. ",
+           INVERSE, curr_mbox, total_msgs, total_new, total_tag, first_msg,
+           first_msg + num_msgs - 1);
+  putchar(NORMAL);
+  putchar(CURDOWN);
+  printf("\n");
 }
 
 /*
@@ -265,11 +341,11 @@ void email_summary(void) {
     ++i;
     h = h->next;
   }
-  putchar(0x19);                          // HOME
+  putchar(HOME);
   for (i = 0; i < MENU_ROW - 1; ++i) 
-    putchar(0x0a);                        // CURSOR DOWN
-  printf("%cUp/K Prev | SPC/RET Read | A)rchive | C)opy | M)ove  | D)el   | U)ndel | P)urge %c", 0x0f, 0x0e);
-  printf("%cDn/J Next | S)witch mbox | N)ew mbox| T)ag  | W)rite | R)eply | F)wd   | Q)uit  %c", 0x0f, 0x0e);
+    putchar(CURDOWN);
+  printf("%cUp/K Prev | SPC/RET Read | A)rchive | C)opy | M)ove  | D)el   | U)ndel | P)urge %c", INVERSE, NORMAL);
+  printf("%cDn/J Next | S)witch mbox | N)ew mbox| T)ag  | W)rite | R)eply | F)wd   | Q)uit  %c", INVERSE, NORMAL);
 }
 
 /*
@@ -279,9 +355,9 @@ void email_summary_for(uint16_t n) {
   struct emailhdrs *h = headers;
   uint16_t j;
   h = get_headers(n);
-  putchar(0x19);                          // HOME
+  putchar(HOME);
   for (j = 0; j < n + 1; ++j) 
-    putchar(0x0a);                        // CURSOR DOWN
+    putchar(CURDOWN);
   print_one_email_summary(h, (n == selection));
 }
 
@@ -335,9 +411,9 @@ restart:
     }
     if (c == '\r') {
       if ((*p) == 22) { // Use the CURSOR ROW location
-        putchar(0x0f); // INVERSE
+        putchar(INVERSE);
         printf("[%05lu] SPACE continue reading | B)ack | T)op | H)drs | Q)uit", pos);
-        putchar(0x0e); // NORMAL
+        putchar(NORMAL);
 retry1:
         c = cgetc();
         switch (c) {
@@ -371,15 +447,15 @@ retry1:
           fclose(fp);
           return;
         default:
-          putchar(7); // BELL
+          putchar(BELL);
           goto retry1;
         }
         clrscr();
       }
     } else if (eof) {
-      putchar(0x0f); // INVERSE
+      putchar(INVERSE);
       printf("[%05lu]      *** END ***       | B)ack | T)op | H)drs | Q)uit", pos);
-      putchar(0x0e); // NORMAL
+      putchar(NORMAL);
 retry2:
       c = cgetc();
       switch (c) {
@@ -411,7 +487,7 @@ retry2:
         fclose(fp);
         return;
       default:
-        putchar(7); // BELL
+        putchar(BELL);
         goto retry2;
       }
       clrscr();
@@ -475,6 +551,9 @@ void new_mailbox(char *mbox) {
 void switch_mailbox(char *mbox) {
   char prev_mbox[80];
   uint8_t err;
+  // Treat '.' as shortcut for INBOX
+  if (!strcmp(mbox, "."))
+    strcpy(mbox, "INBOX");
   strcpy(prev_mbox, curr_mbox);
   strcpy(curr_mbox, mbox);
   first_msg = 1;
@@ -523,7 +602,7 @@ void purge_deleted(void) {
         error(ERR_NONFATAL, "Can't delete %s", filename);
       }
       goto_prompt_row();
-      putchar(0x1a); // CLEAR LINE
+      putchar(CLRLINE);
       printf("%u msgs deleted", ++delcount);
     } else {
       l = fwrite(h, 1, EMAILHDRS_SZ_ON_DISK, fp2);
@@ -732,9 +811,9 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
       return;
     }
   }
-  putchar(0x08); // Erase spinner
+  putchar(BACKSPACE);
   putchar(' ');
-  putchar(0x08);
+  putchar(BACKSPACE);
 
   fclose(fp);
   fclose(fp2);
@@ -788,13 +867,13 @@ char prompt_okay(char *msg) {
     c = cgetc();
     if ((c == 'y') || (c == 'Y') || (c == 'n') || (c == 'N'))
       break;
-    putchar(7); // BELL
+    putchar(BELL);
   } 
   if ((c == 'y') || (c == 'Y'))
     c = 1;
   else
     c = 0;
-  putchar(0x1a); // CLEAR LINE
+  putchar(CLRLINE);
   return c;
 }
 
@@ -843,7 +922,7 @@ uint8_t copy_to_mailbox_tagged(char *mbox, uint8_t delete) {
     if (h->tag == 'T') {
       h->tag = ' '; // Don't want it tagged in the destination
       goto_prompt_row();
-      putchar(0x1a); // CLEAR LINE
+      putchar(CLRLINE);
       printf("%u/%u:", ++tagcount, total_tag);
       copy_to_mailbox(h, count, mbox, delete, ' ');
     }
@@ -859,6 +938,7 @@ err:
  * Returns number of chars read.
  * prompt - Message to display before > prompt
  * is_file - if 1, restrict chars to those allowed in ProDOS filename
+ * Returns number of chars read
  */
 uint8_t prompt_for_name(char *prompt, uint8_t is_file) {
   uint16_t i;
@@ -868,22 +948,22 @@ uint8_t prompt_for_name(char *prompt, uint8_t is_file) {
   i = 0;
   while (1) {
     c = cgetc();
-    if (is_file && !isalnum(c) && (c != 0x0d) && (c != 0x08) && (c != 0x7f) && (c != '.')) {
-      putchar(7); // BELL
+    if (is_file && !isalnum(c) && (c != RETURN) && (c != BACKSPACE) && (c != DELETE) && (c != '.')) {
+      putchar(BELL);
       continue;
     }
     switch (c) {
-    case 0x0d:                            // RETURN KEY
+    case RETURN:
       goto done;
-    case 0x08:                            // BACKSPACE
-    case 0x7f:                            // DELETE
+    case BACKSPACE:
+    case DELETE:
       if (i > 0) {
-        putchar(0x08);
+        putchar(BACKSPACE);
         putchar(' ');
-        putchar(0x08);
+        putchar(BACKSPACE);
         --i;
       } else
-        putchar(7); // BELL
+        putchar(BELL);
       break;
     default:
       putchar(c);
@@ -894,7 +974,7 @@ uint8_t prompt_for_name(char *prompt, uint8_t is_file) {
   }
 done:
   userentry[i] = '\0';
-  putchar(0x1a);                          // CLEAR LINE
+  putchar(CLRLINE);
   goto_prompt_row();
   return i;
 }
@@ -921,11 +1001,13 @@ void create_blank_outgoing() {
   }
 
   fprintf(fp, "From: %s\n", cfg_emailaddr);
+  prompt_for_name("To", 0);
+  if (strlen(userentry) == 0)
+    return;
+  fprintf(fp, "To: %s\n", userentry);
   prompt_for_name("Subject", 0);
   fprintf(fp, "Subject: %s\n", userentry);
   fprintf(fp, "Date: TODO: put date in here!!\n"); // TODO
-  prompt_for_name("To", 0);
-  fprintf(fp, "To: %s\n", userentry);
   prompt_for_name("cc", 0);
   fprintf(fp, "cc: %s\n\n", userentry);
   fclose(fp);
@@ -991,7 +1073,7 @@ void keyboard_hdlr(void) {
         email_summary();
       }
       break;
-    case 0x0d: // RETURN KEY
+    case RETURN:
     case ' ':
       h = get_headers(selection);
       if (h) {
@@ -1073,7 +1155,7 @@ void keyboard_hdlr(void) {
       }
     default:
       //printf("[%02x]", c);
-      putchar(7); // BELL
+      putchar(BELL);
     }
   }
 }
