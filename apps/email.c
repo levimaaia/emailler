@@ -609,7 +609,6 @@ uint8_t parse_from_addr(char *p, char *q) {
   char *start = strchr(p, '<');
   char *end   = strchr(p, '>');
   uint8_t l;
-printf("parse_from_addr: %s\n", p);
   if (!start) {
     strcpy(q, p);
     return 0;
@@ -623,7 +622,6 @@ printf("parse_from_addr: %s\n", p);
   }
   strncpy(q, start + 1, l);
   q[l] = '\0';
-printf("parse_from_addr after: %s\n", q);
   return 0;
 }
 
