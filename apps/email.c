@@ -6,7 +6,6 @@
 
 // TODO:
 // - Update To/From if reply or forward
-// - Automatically insert date
 // - Fix terrible scrollback algorithm!!
 // - Editor for email composition functions
 
@@ -38,6 +37,8 @@
 #define HOME          0x19
 #define CLRLINE       0x1a
 #define DELETE        0x7f
+
+#define SYSTEMTIME    0xbf90
 
 /*
  * Represents a date and time
@@ -164,6 +165,9 @@ void readdatetime(unsigned char time[4], struct datetime *dt) {
     }
 }
 
+/*
+ * Print a date/time value in short format for the status bar
+ */
 void printdatetime(struct datetime *dt) {
   if (dt->nodatetime)
     fputs("????-??-?? ??:??", stdout);
@@ -173,9 +177,29 @@ void printdatetime(struct datetime *dt) {
   }
 }
 
+/*
+ * Format a date/time in format suitable for an email
+ * dt - structure representing date/time
+ * s  - result is returned through this pointer
+ */
+void datetimelong(struct datetime *dt, char *s) {
+  static char *months[] = {"", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+  if (dt->nodatetime)
+    sprintf(s, "No system clock");
+  else {
+    // eg: "20 Jun 2020 hh:mm:00"
+    sprintf(s, "%2d %s %04d %02d:%02d:00",
+            dt->day, months[dt->month], dt->year, dt->hour, dt->minute);
+  }
+}
+
+/*
+ * Obtain the system date and time for the status bar
+ */
 void printsystemdate(void) {
   struct datetime dt;
-  readdatetime((unsigned char*)(0xbf90), &dt);
+  readdatetime((unsigned char*)(SYSTEMTIME), &dt);
   printdatetime(&dt);
 }
 
@@ -717,10 +741,13 @@ uint8_t parse_from_addr(char *p, char *q) {
  * Returns 0 if okay, 1 on error
  */
 uint8_t write_email_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h, char mode) {
+  struct datetime dt;
   fprintf(fp2, "From: %s\r", cfg_emailaddr);
   truncate_header(h->subject, buf, 80);
   fprintf(fp2, "Subject: %s: %s\r", (mode == 'F' ? "Fwd" : "Re"), buf);
-  fprintf(fp2, "Date: TODO: put date in here!!\r"); // TODO
+  readdatetime((unsigned char*)(SYSTEMTIME), &dt);
+  datetimelong(&dt, buf);
+  fprintf(fp2, "Date: %s\r", buf);
   truncate_header(h->from, filename, 80);
   if (parse_from_addr(filename, buf))
     return 1;
@@ -984,6 +1011,7 @@ done:
  * OUTBOX is not a 'proper' mailbox (no EMAIL.DB)
  */
 void create_blank_outgoing() {
+  struct datetime dt;
   uint16_t num;
 
   // Read next number from dest/NEXT.EMAIL
@@ -1007,7 +1035,9 @@ void create_blank_outgoing() {
   fprintf(fp, "To: %s\n", userentry);
   prompt_for_name("Subject", 0);
   fprintf(fp, "Subject: %s\n", userentry);
-  fprintf(fp, "Date: TODO: put date in here!!\n"); // TODO
+  readdatetime((unsigned char*)(SYSTEMTIME), &dt);
+  datetimelong(&dt, userentry);
+  fprintf(fp, "Date: %s\n", userentry);
   prompt_for_name("cc", 0);
   fprintf(fp, "cc: %s\n\n", userentry);
   fclose(fp);
