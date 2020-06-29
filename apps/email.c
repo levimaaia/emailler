@@ -22,15 +22,19 @@
 #define EMAIL_C
 #include "email_common.h"
 
+// Program constants
 #define MSGS_PER_PAGE 18     // Number of messages shown on summary screen
 #define MENU_ROW      22     // Row that the menu appears on
 #define PROMPT_ROW    24     // Row that data entry prompt appears on
 #define SCROLLBACK    25*80  // How many bytes to go back when paging up
 #define READSZ        1024   // Size of buffer for copying files
 
+// Characters
 #define BELL          0x07
 #define BACKSPACE     0x08
 #define INVERSE       0x0f
+#define DOWNARROW     0x0a
+#define UPARROW       0x0b
 #define RETURN        0x0d
 #define NORMAL        0x0e
 #define CURDOWN       0x0a
@@ -38,6 +42,8 @@
 #define CLRLINE       0x1a
 #define DELETE        0x7f
 
+// Addresses
+#define CURSORROW     0x0025
 #define SYSTEMTIME    0xbf90
 
 /*
@@ -398,7 +404,7 @@ void update_highlighted(void) {
  */
 void email_pager(void) {
   uint32_t pos = 0;
-  uint8_t *p = (uint8_t*)0x25; // CURSOR ROW!!
+  uint8_t *p = (uint8_t*)CURSORROW;
   struct emailhdrs *h = get_headers(selection);
   uint8_t eof;
   char c;
@@ -1061,7 +1067,7 @@ void keyboard_hdlr(void) {
     switch (c) {
     case 'k':
     case 'K':
-    case 0xb: // UP-ARROW
+    case UPARROW:
       if (selection > 1) {
         prevselection = selection;
         --selection;
@@ -1091,7 +1097,7 @@ void keyboard_hdlr(void) {
       // Fallthrough so tagging also moves down!!!
     case 'j':
     case 'J':
-    case 0xa: // DOWN-ARROW
+    case DOWNARROW:
       if (selection < num_msgs) {
         prevselection = selection;
         ++selection;
