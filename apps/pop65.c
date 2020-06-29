@@ -6,8 +6,7 @@
 // Bobbi June 2020
 /////////////////////////////////////////////////////////////////
 
-// TODO: Needs a DELETE option
-// TODO: EMAIL.n files should be type TXT
+// TODO: Needs a POP3 DELETE option
 // TODO: The way CRLF.CRLF is detected will not work if split across packets
 //       We can probably fix this by copying the last 4 bytes of each buffer
 //       to before the beginning of the next
@@ -21,6 +20,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <apple2_filetype.h>
 
 #include "../inc/ip65.h"
 #include "w5100.h"
@@ -344,6 +344,8 @@ int16_t get_line(FILE *fp) {
 void update_email_db(struct emailhdrs *h) {
   FILE *fp;
   sprintf(filename, "%s/INBOX/EMAIL.DB", cfg_emaildir);
+  _filetype = PRODOS_T_BIN;
+  _auxtype = 0;
   fp = fopen(filename, "ab");
   if (!fp) {
     printf("Can't open %s\n", filename);
@@ -371,6 +373,8 @@ void copyheader(char *dest, char *source, uint16_t len) {
  */
 void write_next_email(uint16_t num) {
   sprintf(filename, "%s/INBOX/NEXT.EMAIL", cfg_emaildir);
+  _filetype = PRODOS_T_TXT;
+  _auxtype = 0;
   fp = fopen(filename, "wb");
   if (!fp) {
     printf("Can't open %s\n", filename);
@@ -411,6 +415,8 @@ void update_inbox(uint16_t nummsgs) {
     hdrs.emailnum = nextemail;
     sprintf(filename, "%s/INBOX/EMAIL.%u", cfg_emaildir, nextemail++);
     puts(filename);
+    _filetype = PRODOS_T_TXT;
+    _auxtype = 0;
     destfp = fopen(filename, "wb");
     if (!destfp) {
       printf("Can't open %s\n", filename);
@@ -456,6 +462,10 @@ void update_inbox(uint16_t nummsgs) {
     fclose(fp);
     fclose(destfp);
     update_email_db(&hdrs);
+
+    sprintf(filename, "%s/SPOOL/EMAIL.%u", cfg_emaildir, msg);
+    if (unlink(filename))
+      printf("Can't delete %s\n", filename);
   }
   write_next_email(nextemail);
 }
@@ -535,7 +545,8 @@ void main(void) {
 
   for (msg = 1; msg <= nummsgs; ++msg) {
     sprintf(filename, "%s/SPOOL/EMAIL.%u", cfg_emaildir, msg);
-    remove(filename); /// TO MAKE DEBUGGING EASIER - GET RID OF THIS
+    _filetype = PRODOS_T_TXT;
+    _auxtype = 0;
     fp = fopen(filename, "wb"); 
     if (!fp) {
       printf("Can't create %s\n", filename);
