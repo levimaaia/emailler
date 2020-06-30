@@ -5,10 +5,9 @@
 /////////////////////////////////////////////////////////////////
 
 // TODO:
-// - BUG: If messages are deleted, selection can be left on an empty line.
-//   Move it to top after P)urge.
 // - Update To/From if reply or forward
 // - Fix terrible scrollback algorithm!!
+// - Add MIME support? Quoted printable and Base64?
 // - Editor for email composition functions
 
 #include <stdio.h>
@@ -1159,8 +1158,10 @@ void keyboard_hdlr(void) {
       break;
     case 'p':
     case 'P':
-      if (prompt_okay("Purge - "))
+      if (prompt_okay("Purge - ")) {
         purge_deleted();
+        switch_mailbox(curr_mbox);
+      }
       break;
     case 'n':
     case 'N':
