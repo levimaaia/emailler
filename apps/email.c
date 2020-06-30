@@ -1048,6 +1048,7 @@ void create_blank_outgoing() {
   fprintf(fp, "Date: %s\n", userentry);
   prompt_for_name("cc", 0);
   fprintf(fp, "cc: %s\n\n", userentry);
+  fprintf(fp, "X-Mailer: %s - Apple II Forever!\r\r", PROGNAME);
   fclose(fp);
 
   // Update dest/NEXT.EMAIL, incrementing count by 1

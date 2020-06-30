@@ -6,6 +6,7 @@
 // Bobbi June 2020
 /////////////////////////////////////////////////////////////////
 
+// TODO: BUG screen corruption after DELE command w/ spinner.
 // TODO: The way CRLF.CRLF is detected will not work if split across packets
 //       We can probably fix this by copying the last 4 bytes of each buffer
 //       to before the beginning of the next
