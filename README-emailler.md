@@ -101,6 +101,8 @@ POP65 runs without any user interaction and performs the following tasks:
 
 EMAIL is a simple mail user agent for reading and managing email.
 
+<p align="center"><img src="img/summary-screen.png" alt="Summary Screen" height="400px"></p>
+
 When the EMAIL application is started it will show the `INBOX` in the summary screen.  This shows the following important information for each message:
 
   - Tag - Shows `T` if the message is tagged.
@@ -126,6 +128,8 @@ Main menu commands:
  - `R)eply` - Prepare a reply to the selected email and place it in `OUTBOX` ready for editing.
  - `F)orward` - Prepare a forwarded copy of the selected email and place it in `OUTBOX` ready for editing.
  - `Q)uit` - Quit from the EMAIL user interface.
+
+<p align="center"><img src="img/email-pager.png" alt="Email Pager" height="400px"></p>
 
 ### Design Principles
 
