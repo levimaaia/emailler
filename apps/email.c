@@ -7,8 +7,6 @@
 // TODO:
 // - BUG: If messages are deleted, selection can be left on an empty line.
 //   Move it to top after P)urge.
-// - BUG: If there are 19 messages, page 1 shows 1-18, but can't advance
-//   to page 2.
 // - Update To/From if reply or forward
 // - Fix terrible scrollback algorithm!!
 // - Editor for email composition functions
@@ -1106,7 +1104,7 @@ void keyboard_hdlr(void) {
         prevselection = selection;
         ++selection;
         update_highlighted();
-      } else if (first_msg + selection + 1 < total_msgs) {
+      } else if (first_msg + selection - 1 < total_msgs) {
         first_msg += MSGS_PER_PAGE;
         read_email_db(first_msg, 0, 0);
         selection = 1;
