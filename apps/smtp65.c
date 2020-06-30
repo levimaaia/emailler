@@ -311,13 +311,19 @@ void readconfigfile(void) {
  * Read a text file a line at a time leaving the line in linebuf[]
  * Returns number of chars in the line, or -1 if EOF.
  * Expects Apple ][ style line endings (CR) and does no conversion
+ * fp - file to read from
+ * reset - if 1 then just reset the buffer and return
  */
-int16_t get_line(FILE *fp) {
+int16_t get_line(FILE *fp, uint8_t reset) {
   static uint16_t rd = 0;
   static uint16_t buflen = 0;
   uint8_t found = 0;
   uint16_t j = 0;
   uint16_t i;
+  if (reset) {
+    rd = buflen = 0;
+    return 0;
+  }
   while (1) {
     for (i = rd; i < buflen; ++i) {
       linebuf[j++] = buf[i];
@@ -430,7 +436,8 @@ void update_sent_mbox(char *name) {
   hdrs.skipbytes = 0; // Just in case it doesn't get set
   hdrs.status = 'N';
   hdrs.tag = ' ';
-  while ((chars = get_line(fp)) != -1) {
+  get_line(fp, 1); // Reset buffer
+  while ((chars = get_line(fp, 0)) != -1) {
     if (headers) {
       headerchars += chars;
       if (!strncmp(linebuf, "Date: ", 6)) {
@@ -562,7 +569,7 @@ skiptonext:
     strcpy(recipients, "");
 
     while (1) {
-      if ((get_line(fp) == -1) || (linecount == 20)) {
+      if ((get_line(fp, 0) == -1) || (linecount == 20)) {
         if (strlen(recipients) == 0) {
           printf("No recipients (To or Cc) in %s. Skipping msg.\n", d->d_name);
           fclose(fp);
