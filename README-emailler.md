@@ -1,6 +1,6 @@
 # Apple II Email Suite
 
-<p align="center"><img src="apps/emailler-logo.png" alt="emai//er-logo" height="200px"></p>
+<p align="center"><img src="img/emailler-logo.png" alt="emai//er-logo" height="200px"></p>
 
 The following programs are completely new:
 

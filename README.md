@@ -10,7 +10,7 @@ I have made the following changes:
 
 ## Apple II Email Suite
 
-<p align="center"><img src="apps/emailler-logo.png" alt="emai//er-logo" height="200px"></p>
+<p align="center"><img src="img/emailler-logo.png" alt="emai//er-logo" height="200px"></p>
 
 See [here](README-emailler.md)
 
