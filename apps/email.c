@@ -5,6 +5,8 @@
 /////////////////////////////////////////////////////////////////
 
 // TODO:
+// - BUG: If messages are deleted, selection can be left on an empty line.
+//   Move it to top after P)urge.
 // - Update To/From if reply or forward
 // - Fix terrible scrollback algorithm!!
 // - Editor for email composition functions

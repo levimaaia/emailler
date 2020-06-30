@@ -590,7 +590,6 @@ skiptonext:
       continue;
     }
 
-printf("RECIPIENTS: %s\n", recipients);
     // Handle multiple comma-separated recipients
     p = recipients;
     while (q = strchr(p, ',')) {
