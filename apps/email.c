@@ -1045,7 +1045,7 @@ void create_blank_outgoing() {
   datetimelong(&dt, userentry);
   fprintf(fp, "Date: %s\r", userentry);
   prompt_for_name("cc", 0);
-  fprintf(fp, "cc: %s\r\r", userentry);
+  fprintf(fp, "cc: %s\r", userentry);
   fprintf(fp, "X-Mailer: %s - Apple II Forever!\r\r", PROGNAME);
   fclose(fp);
 
