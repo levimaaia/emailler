@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////////
 // SMTP65
-// Simple Mail Transport Protocol (SMTO) Client for IP65
+// Simple Mail Transport Protocol (SMTP) Client for IP65
 // https://www.ietf.org/rfc/rfc821
 // (Based on IP65's wget65.c)
 // Bobbi June 2020
