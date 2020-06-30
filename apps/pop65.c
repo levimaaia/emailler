@@ -6,7 +6,6 @@
 // Bobbi June 2020
 /////////////////////////////////////////////////////////////////
 
-// TODO: BUG screen corruption after DELE command w/ spinner.
 // TODO: The way CRLF.CRLF is detected will not work if split across packets
 //       We can probably fix this by copying the last 4 bytes of each buffer
 //       to before the beginning of the next
@@ -557,6 +556,7 @@ void main(void) {
     if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, DATA_MODE)) {
       error_exit();
     }
+    spinner(filesize, 1); // Cleanup spinner
     if (strcmp(cfg_pop_delete, "DELETE") == 0) {
       sprintf(sendbuf, "DELE %u\r\n", msg);
       if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
@@ -565,7 +565,6 @@ void main(void) {
       expect(buf, "+OK");
     }
     fclose(fp);
-    spinner(filesize, 1); // Cleanup spinner
   }
 
   // Ignore any error - can be a race condition where other side
