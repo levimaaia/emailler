@@ -4,11 +4,10 @@
 // Bobbi June 2020
 /////////////////////////////////////////////////////////////////
 
-// TODO:
-// - Update To/From if reply or forward
-// - Fix terrible scrollback algorithm!!
-// - Add MIME support? Quoted printable and Base64?
-// - Editor for email composition functions
+// - TODO: Update To/From if reply or forward
+// - TODO: Fix terrible scrollback algorithm!!
+// - TODO: Editor for email composition functions
+// - TODO: Add MIME support? Quoted printable and Base64?
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1035,18 +1034,18 @@ void create_blank_outgoing() {
     return;
   }
 
-  fprintf(fp, "From: %s\n", cfg_emailaddr);
+  fprintf(fp, "From: %s\r", cfg_emailaddr);
   prompt_for_name("To", 0);
   if (strlen(userentry) == 0)
     return;
-  fprintf(fp, "To: %s\n", userentry);
+  fprintf(fp, "To: %s\r", userentry);
   prompt_for_name("Subject", 0);
-  fprintf(fp, "Subject: %s\n", userentry);
+  fprintf(fp, "Subject: %s\r", userentry);
   readdatetime((unsigned char*)(SYSTEMTIME), &dt);
   datetimelong(&dt, userentry);
-  fprintf(fp, "Date: %s\n", userentry);
+  fprintf(fp, "Date: %s\r", userentry);
   prompt_for_name("cc", 0);
-  fprintf(fp, "cc: %s\n\n", userentry);
+  fprintf(fp, "cc: %s\r\r", userentry);
   fprintf(fp, "X-Mailer: %s - Apple II Forever!\r\r", PROGNAME);
   fclose(fp);
 
