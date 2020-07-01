@@ -452,9 +452,14 @@ uint8_t hexdigit(char c) {
 /*
  * Decode linebuf[] from quoted-printable format and print on screen
  */
-void print_quoted_printable(void) {
+void decode_quoted_printable(FILE *fp, uint8_t binary) {
   uint16_t i = 0;
   char c;
+  if (!fp) {
+    if (binary)
+      return;
+    fp = stdout;
+  }
   while (c = linebuf[i]) {
     if (c == '=') {
       if (linebuf[i + 1] == '\r') // Trailing '=' is a soft EOL
@@ -462,29 +467,83 @@ void print_quoted_printable(void) {
       // Otherwise '=xx' where x is a hex digit
       c = 16 * hexdigit(linebuf[i + 1]) + hexdigit(linebuf[i + 2]);
       if ((c >= 0x20) && (c <= 0x7e))
-        putchar(c);
+        fputc(c, fp);
       i += 3;
     } else {
-      putchar(c);
+      fputc(c, fp);
       ++i;
     }
   }
 }
 
 /*
- * Decode linebuf[] from Base64 format and print on screen
+ * Return value of character in Base64 encoding.
+ * Maybe a table is smaller/better?
  */
-void print_base64(void) {
-  // TODO
+uint32_t base64_char(char c) {
+  if ((c >= 'A') && (c <= 'Z'))
+    return c - 'A';
+  if ((c >= 'a') && (c <= 'z'))
+    return c - 'a' + 26;
+  if ((c >= '0') && (c <= '9'))
+    return c - '0' + 52;
+  if (c == '+')
+    return 62;
+  if (c == '/')
+    return 63;
+  if (c == '=') // Padding
+    return 0;
+  return 0; // Should never happen
+}
+
+/*
+ * Decode linebuf[] from Base64 format and print on screen
+ * Each line of base64 has up to 76 chars
+ */
+void decode_base64(FILE *fp, uint8_t binary) {
+  uint16_t i = 0, j = 0;
+  union {
+    uint32_t val;
+    char     c[4];
+  } u;
+  if (!fp) {
+    if (binary)
+      return;
+    fp = stdout;
+  }
+  while (linebuf[i] != '\r') {
+    u.val  = base64_char(linebuf[i])     << 18;
+    u.val |= base64_char(linebuf[i + 1]) << 12;
+    u.val |= base64_char(linebuf[i + 2]) << 6;
+    u.val |= base64_char(linebuf[i + 3]);
+    if (linebuf[i + 2] == '=') {
+      // Two padding chars 'xx=='
+      fputc(u.c[1], fp);
+      fputc(u.c[2], fp);
+      return;
+    }
+    if (linebuf[i + 1] == '=') {
+      // One padding char 'x==='
+      fputc(u.c[1], fp);
+      return;
+    }
+    fputc(u.c[2], fp);
+    fputc(u.c[1], fp);
+    fputc(u.c[0], fp);
+    i += 4;
+  }
 }
 
 /*
  * Display email with simple pager functionality
+ * Includes support for decoding MIME headers
  */
 void email_pager(void) {
   uint32_t pos = 0;
-  uint8_t *p = (uint8_t*)CURSORROW, mime = 0, mime_type = 0;
+  uint8_t *p = (uint8_t*)CURSORROW, mime = 0;
   struct emailhdrs *h = get_headers(selection);
+  uint8_t  mime_enc, mime_binary;
+  FILE *attachfp;
   uint8_t eof;
   char c;
   clrscr();
@@ -497,6 +556,8 @@ void email_pager(void) {
   pos = h->skipbytes;
   fseek(fp, pos, SEEK_SET); // Skip over headers
 restart:
+  eof = 0;
+  attachfp = NULL;
   clrscr();
   fputs("Date:    ", stdout);
   printfield(h->date, 0, 39);
@@ -513,40 +574,50 @@ restart:
   fputs("\n\n", stdout);
   get_line(fp, 1); // Reset buffer
   while (1) {
-    if (get_line(fp, 0) == -1)
+    if (get_line(fp, 0) == -1) {
       eof = 1;
-    else {
+    } else {
       if ((mime >= 1) && (!strncmp(linebuf, "--", 2))) {
         mime = 2;
-        mime_type = 0;
-      } else if ((mime >= 2) && (!strncmp(linebuf, "Content-Type: ", 14))) {
-        if ((!strncmp(linebuf + 14, "text/plain", 10)) ||
-            (!strncmp(linebuf + 14, "text/html", 9))) {
+        mime_enc = 0;
+        mime_binary = 0;
+      } else if ((mime >= 2) && (!strncasecmp(linebuf, "Content-Type: ", 14))) {
+        if (!strncmp(linebuf + 14, "text/plain", 10))
           mime = 3;
-        } else {
-          printf("Unsupp content %s\n", linebuf + 14);
+        else if (!strncmp(linebuf + 14, "text/html", 9)) {
+          printf("\n<Not showing HTML>\n");
           mime = 1;
+        } else {
+          mime_binary = 1;
+          mime = 3;
         }
-      } else if ((mime >= 2) && (!strncmp(linebuf, "Content-Transfer-Encoding: ", 27))) {
+      } else if ((mime >= 2) && (!strncasecmp(linebuf, "Content-Transfer-Encoding: ", 27))) {
         mime = 3;
         if (!strncmp(linebuf + 27, "7bit", 4))
-          mime_type = 0;
+          mime_enc = 0;
         else if (!strncmp(linebuf + 27, "quoted-printable", 16))
-          mime_type = 1;
+          mime_enc = 1;
         else if (!strncmp(linebuf + 27, "base64", 6))
-          mime_type = 2;
+          mime_enc = 2;
         else {
-          printf("Unsupp encoding %s\n", linebuf + 27);
+          printf("** Unsupp encoding %s\n", linebuf + 27);
           mime = 1;
         }
+      } else if ((mime >= 2) && (strstr(linebuf, "filename="))) {
+        sprintf(filename, "%s/ATTACHMENTS/%s", cfg_emaildir, strstr(linebuf, "filename=") + 9);
+        filename[strlen(filename) - 1] = '\0'; // Remove '\r'
+        printf("** Attachment -> %s\n", filename);
+        attachfp = fopen(filename, "wb");  // TODO MUST CLOSE THIS TOO !!
+        if (!attachfp)
+          printf("** Can't open %s\n", filename);
       } else if ((mime == 3) && (!strncmp(linebuf, "\r", 1)))
         mime = 4;
-      if ((mime == 0) || ((mime == 4) && (mime_type == 0)))
+      if ((mime == 0) || ((mime == 4) && (mime_enc == 0)))
         fputs(linebuf, stdout);
-      else if ((mime == 4) && (mime_type == 1))
-        print_quoted_printable();
-      else if ((mime == 4) && (mime_type == 2))
-        print_base64();
+      else if ((mime == 4) && (mime_enc == 1))
+        decode_quoted_printable(attachfp, mime_binary);
+      else if ((mime == 4) && (mime_enc == 2))
+        decode_base64(attachfp, mime_binary);
     }
     if ((*p) == 22) { // Use the CURSOR ROW location
       putchar(INVERSE);
