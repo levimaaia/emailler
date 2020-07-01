@@ -53,7 +53,7 @@ The lines are as follows, in order:
  4) If this string is exactly `DELETE` then messages will be deleted from the POP3 server after downloading.  Otherwise they are left on the server.  `DELETE` is the normal setting, but `NODELETE` (or any other nonsense value) can be helpful for debugging, allowing the same messages to be downloaded from the POP3 server again and again.
  5) IP address of the SMTP server for sending outgoing mail.
  6) Domain name that is passed to the SMTP server on connection.  The way my SMTP server (Postfix) is configured, it doesn't seem to care about this.
- 7) ProDOS path to the root of the email folder tree.  Mailboxed will be created and managed under this root path.
+ 7) ProDOS path to the root of the email folder tree.  Mailboxes will be created and managed under this root path.
  8) Your email address.  Used as the sender's address in outgoing messages.
 
 ### Creating Directories
@@ -62,6 +62,7 @@ To get started, you will need to create the following directories:
 
  - The email root directory (`/H1/DOCUMENTS/EMAIL` in the example config)
  - The `SPOOL` directory, used by POP65, within the email root directory.  This will be `/H1/DOCUMENTS/EMAIL/SPOOL` for our example configuration.
+ - The `OUTBOX` directory, used by SMTP65, within the email root directory.  This will be `/H1/DOCUMENTS/EMAIL/OUTBOX` for our example configuration.
 
 You can create these directories in ProDOS `BASIC.SYSTEM` as follows:
 
@@ -69,20 +70,27 @@ You can create these directories in ProDOS `BASIC.SYSTEM` as follows:
 ] CREATE /H1/DOCUMENTS/EMAIL
 ] CREATE /H1/DOCUMENTS/EMAIL/SPOOL
 ] CREATE /H1/DOCUMENTS/EMAIL/INBOX
+] CREATE /H1/DOCUMENTS/EMAIL/OUTBOX
 ```
+
+You will also want to create a couple of mailboxes such as `RECEIVED` and `SENT`.  If you do not create a `SENT` mailbox then SMPT65 will be unable to complete the sending of messages and will give an error.  To create these mailboxes, run `EMAIL.SYSTEM` and press `N` for N)ew mailbox.  At the prompt, enter the name of the mailbox to be created: `RECEIVED`, and press return.  Repeat this to create the the `SENT` mailbox.
+
+These are the minimum mailboxes you need to get started.  You may create more mailboxes to organize your mail at any time.
 
 ### Mailboxes
 
 Each mailbox consists of the following:
 
  - A directory under the email root, and within this directory
- - Optionally, email messages in plain text files named `EMAIL.nn` where `nn` is an integer value
+ - Email messages are stored on per file, in plain Apple II text files (with CR line endings) named `EMAIL.nn` where `nn` is an integer value
  - A text file called `NEXT.EMAIL`.  This file initially contains the number 1.  It is used when naming the individual `EMAIL.nn` files, and is incremented by one each time.  If messages are added to a mailbox and nothing is ever deleted they will be sequentially numbered `EMAIL.1`, `EMAIL.2`, etc.
  - A binary file called `EMAIL.DB`.  This file contains essential information about each email message in a quickly accessed format.  This allows the user interface to show the email summary without having to open and read each individual email file.  This file is initially empty and a fixed size record is added for each email message.
 
 The easiest way to create additional mailboxes is using the `N)ew` command in `EMAIL.SYSTEM`.
 
 `POP65.SYSTEM` knows how to initialize `INBOX` but the directory must have been created first.
+
+Note that `SPOOL` is not a mailbox, just a directory.  `OUTBOX` is also not a 'proper' mailbox - it has `NEXT.EMAIL` but not `EMAIL.DB`.
 
 ## `POP65.SYSTEM`
 
