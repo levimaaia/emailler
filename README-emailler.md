@@ -72,6 +72,8 @@ The easiest way to create additional mailboxes is using the `N)ew` command in `E
 
 ## `POP65.SYSTEM`
 
+<p align="center"><img src="img/POP65.jpg" alt="Summary Screen" height="400px"></p>
+
 POP65 is a Post Office Protocol v3 (POP3) client for the Apple II.  It requires an Uthernet-II ethernet card and will not work with other interfaces without modification, because it uses the W5100 hardware TCP/IP stack.  POP65 is used to download new email messages from a POP3 email server.  (I use Dovecot on the Raspberry Pi as my POP3 server, but other POP3 servers should work too.)
 
 Before running `POP65.SYSTEM` for the first time, be sure you have created the email root directory and the `SPOOL` directory, as described above.  POP3 will initialize the `INBOX` mailbox, creating `NEXT.EMAIL` and `EMAIL.DB` files if they do not exist.
@@ -152,6 +154,8 @@ Main menu commands:
 ...
 
 ## `SMTP65.SYSTEM`
+
+<p align="center"><img src="img/SMTP65.jpg" alt="Summary Screen" height="400px"></p>
 
 SMTP65 is a Simple Mail Transport Protocol (SMTP65) client for the Apple II.  It requires an Uthernet-II ethernet card and will not work with other interfaces without modification, because it uses the W5100 hardware TCP/IP stack.  POP65 is used to send outgoing email messages to an SMTP email server.  (I use Postfix on the Raspberry Pi as my SMTP server, but other SMTP servers should work too.)
 

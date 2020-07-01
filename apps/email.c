@@ -4,6 +4,7 @@
 // Bobbi June 2020
 /////////////////////////////////////////////////////////////////
 
+// - TODO: When forwarding, prompt for To & Cc
 // - TODO: Update To/From if reply or forward
 // - TODO: Fix terrible scrollback algorithm!!
 // - TODO: Editor for email composition functions
@@ -766,7 +767,7 @@ uint8_t write_email_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h, char mode
     truncate_header(h->from, buf, 80);
     fprintf(fp2, "%s wrote:\r\r", buf);
   } else {
-    fprintf(fp2, "-------- Forwarded Message --------\n");
+    fprintf(fp2, "-------- Forwarded Message --------\r");
     truncate_header(h->subject, buf, 80);
     fprintf(fp2, "Subject: %s\r", buf);
     truncate_header(h->date, buf, 40);
