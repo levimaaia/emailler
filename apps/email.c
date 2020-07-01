@@ -61,6 +61,7 @@ struct datetime {
 
 char                  filename[80];
 char                  userentry[80];
+char                  linebuf[998+2]; // According to RFC2822 Section 2.1.1 (998+CRLF)
 FILE                  *fp;
 struct emailhdrs      *headers;
 uint16_t              selection, prevselection;
@@ -400,11 +401,89 @@ void update_highlighted(void) {
 }
 
 /*
+ * Read a text file a line at a time leaving the line in linebuf[]
+ * Returns number of chars in the line, or -1 if EOF.
+ * Expects Apple ][ style line endings (CR) and does no conversion
+ * fp - file to read from
+ * reset - if 1 then just reset the buffer and return
+ */
+int16_t get_line(FILE *fp, uint8_t reset) {
+  static uint16_t rd = 0;
+  static uint16_t buflen = 0;
+  uint8_t found = 0;
+  uint16_t j = 0;
+  uint16_t i;
+  if (reset) {
+    rd = buflen = 0;
+    return 0;
+  }
+  while (1) {
+    for (i = rd; i < buflen; ++i) {
+      linebuf[j++] = buf[i];
+      if (linebuf[j - 1] == '\r') {
+        found = 1;
+        break;
+      }
+    }
+    if (found) {
+      rd = i + 1;
+      linebuf[j] = '\0';
+      return j;
+    }
+    buflen = fread(buf, 1, READSZ, fp);
+    if (buflen == 0) {
+      rd = 0;
+      return -1; // Hit EOF before we found EOL
+    }
+    rd = 0;
+  }
+}
+
+/*
+ * Convert hex char to value
+ */
+uint8_t hexdigit(char c) {
+  if ((c >= '0') && (c <= '9'))
+    return c - '0';
+  else
+    return c - 'A' + 10;
+}
+
+/*
+ * Decode linebuf[] from quoted-printable format and print on screen
+ */
+void print_quoted_printable(void) {
+  uint16_t i = 0;
+  char c;
+  while (c = linebuf[i]) {
+    if (c == '=') {
+      if (linebuf[i + 1] == '\r') // Trailing '=' is a soft EOL
+        return;
+      // Otherwise '=xx' where x is a hex digit
+      c = 16 * hexdigit(linebuf[i + 1]) + hexdigit(linebuf[i + 2]);
+      if ((c >= 0x20) && (c <= 0x7e))
+        putchar(c);
+      i += 3;
+    } else {
+      putchar(c);
+      ++i;
+    }
+  }
+}
+
+/*
+ * Decode linebuf[] from Base64 format and print on screen
+ */
+void print_base64(void) {
+  // TODO
+}
+
+/*
  * Display email with simple pager functionality
  */
 void email_pager(void) {
   uint32_t pos = 0;
-  uint8_t *p = (uint8_t*)CURSORROW;
+  uint8_t *p = (uint8_t*)CURSORROW, mime = 0, mime_type = 0;
   struct emailhdrs *h = get_headers(selection);
   uint8_t eof;
   char c;
@@ -432,59 +511,95 @@ restart:
   fputs("\nSubject: ", stdout);
   printfield(h->subject, 0, 70);
   fputs("\n\n", stdout);
+  get_line(fp, 1); // Reset buffer
   while (1) {
-    c = fgetc(fp);
-    eof = feof(fp);
-    if (!eof) {
-      putchar(c);
-      ++pos;
+    if (get_line(fp, 0) == -1)
+      eof = 1;
+    else {
+      if ((mime >= 1) && (!strncmp(linebuf, "--", 2))) {
+        mime = 2;
+        mime_type = 0;
+      } else if ((mime >= 2) && (!strncmp(linebuf, "Content-Type: ", 14))) {
+        if ((!strncmp(linebuf + 14, "text/plain", 10)) ||
+            (!strncmp(linebuf + 14, "text/html", 9))) {
+          mime = 3;
+        } else {
+          printf("Unsupp content %s\n", linebuf + 14);
+          mime = 1;
+        }
+      } else if ((mime >= 2) && (!strncmp(linebuf, "Content-Transfer-Encoding: ", 27))) {
+        mime = 3;
+        if (!strncmp(linebuf + 27, "7bit", 4))
+          mime_type = 0;
+        else if (!strncmp(linebuf + 27, "quoted-printable", 16))
+          mime_type = 1;
+        else if (!strncmp(linebuf + 27, "base64", 6))
+          mime_type = 2;
+        else {
+          printf("Unsupp encoding %s\n", linebuf + 27);
+          mime = 1;
+        }
+      } else if ((mime == 3) && (!strncmp(linebuf, "\r", 1)))
+        mime = 4;
+      if ((mime == 0) || ((mime == 4) && (mime_type == 0)))
+        fputs(linebuf, stdout);
+      else if ((mime == 4) && (mime_type == 1))
+        print_quoted_printable();
+      else if ((mime == 4) && (mime_type == 2))
+        print_base64();
     }
-    if (c == '\r') {
-      if ((*p) == 22) { // Use the CURSOR ROW location
-        putchar(INVERSE);
-        printf("[%05lu] SPACE continue reading | B)ack | T)op | H)drs | Q)uit", pos);
-        putchar(NORMAL);
+    if ((*p) == 22) { // Use the CURSOR ROW location
+      putchar(INVERSE);
+      printf("[%05lu] SPACE continue reading | B)ack | T)op | H)drs | M)IME | Q)uit", pos);
+      putchar(NORMAL);
 retry1:
-        c = cgetc();
-        switch (c) {
-        case ' ':
-          break;
-        case 'B':
-        case 'b':
-          if (pos < h->skipbytes + (uint32_t)(SCROLLBACK)) {
-            pos = h->skipbytes;
-            fseek(fp, pos, SEEK_SET);
-            goto restart;
-          } else {
-            pos -= (uint32_t)(SCROLLBACK);
-            fseek(fp, pos, SEEK_SET);
-          }
-          break;
-        case 'T':
-        case 't':
+      c = cgetc();
+      switch (c) {
+      case ' ':
+        break;
+      case 'B':
+      case 'b':
+        if (pos < h->skipbytes + (uint32_t)(SCROLLBACK)) {
           pos = h->skipbytes;
           fseek(fp, pos, SEEK_SET);
           goto restart;
-          break;
-        case 'H':
-        case 'h':
-          pos = 0;
+        } else {
+          pos -= (uint32_t)(SCROLLBACK);
           fseek(fp, pos, SEEK_SET);
-          goto restart;
-        break;
-        case 'Q':
-        case 'q':
-          fclose(fp);
-          return;
-        default:
-          putchar(BELL);
-          goto retry1;
         }
-        clrscr();
+        break;
+      case 'T':
+      case 't':
+        mime = 0;
+        pos = h->skipbytes;
+        fseek(fp, pos, SEEK_SET);
+        goto restart;
+        break;
+      case 'H':
+      case 'h':
+        mime = 0;
+        pos = 0;
+        fseek(fp, pos, SEEK_SET);
+        goto restart;
+      break;
+      case 'M':
+      case 'm':
+        mime = 1;
+        pos = 0;
+        fseek(fp, pos, SEEK_SET);
+        goto restart;
+      case 'Q':
+      case 'q':
+        fclose(fp);
+        return;
+      default:
+        putchar(BELL);
+        goto retry1;
       }
+      clrscr();
     } else if (eof) {
       putchar(INVERSE);
-      printf("[%05lu]      *** END ***       | B)ack | T)op | H)drs | Q)uit", pos);
+      printf("[%05lu]      *** END ***       | B)ack | T)op | H)drs | M)IME | Q)uit", pos);
       putchar(NORMAL);
 retry2:
       c = cgetc();
@@ -502,12 +617,21 @@ retry2:
         break;
       case 'T':
       case 't':
+        mime = 0;
         pos = h->skipbytes;
         fseek(fp, pos, SEEK_SET);
         goto restart;
         break;
       case 'H':
       case 'h':
+        mime = 0;
+        pos = 0;
+        fseek(fp, pos, SEEK_SET);
+        goto restart;
+        break;
+      case 'M':
+      case 'm':
+        mime = 1;
         pos = 0;
         fseek(fp, pos, SEEK_SET);
         goto restart;
