@@ -22,8 +22,6 @@
 
 #include "../inc/ip65.h"
 #include "w5100.h"
-#include "w5100_http.h"
-#include "linenoise.h"
 
 #include "email_common.h"
 

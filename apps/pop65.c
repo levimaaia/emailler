@@ -6,10 +6,6 @@
 // Bobbi June 2020
 /////////////////////////////////////////////////////////////////
 
-// TODO: The way CRLF.CRLF is detected will not work if split across packets
-//       We can probably fix this by copying the last 4 bytes of each buffer
-//       to before the beginning of the next
-
 #include <cc65.h>
 #include <errno.h>
 #include <ctype.h>
@@ -23,8 +19,6 @@
 
 #include "../inc/ip65.h"
 #include "w5100.h"
-#include "w5100_http.h"
-#include "linenoise.h"
 
 #include "email_common.h"
 
@@ -35,7 +29,7 @@
 #pragma optimize      (on)
 #pragma static-locals (on)
 
-#define NETBUFSZ  1500
+#define NETBUFSZ  1500+4       // 4 extra bytes ...
 #define LINEBUFSZ 1000         // According to RFC2822 Section 2.1.1 (998+CRLF)
 #define READSZ    1024         // Must be less than NETBUFSZ to fit in buf[]
 
@@ -182,7 +176,10 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
 
     filesize = 0;
 
-    while(cont) {
+    // Initialize 4 byte overlap to zero
+    bzero(recvbuf, 4);
+
+    while (cont) {
       if (input_check_for_abort_key()) {
         printf("User abort\n");
         w5100_disconnect();
@@ -201,17 +198,14 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
 
       {
         // One less to allow for faster pre-increment below
-        char *dataptr = recvbuf + len - 1;
+        // 4 bytes of overlap between blocks
+        char *dataptr = recvbuf + len + 4 - 1;
         uint16_t i;
         for (i = 0; i < rcv; ++i) {
           // The variable is necessary to have cc65 generate code
           // suitable to access the W5100 auto-increment register.
           char data = *w5100_data;
           *++dataptr = data;
-
-          // TODO -- check we are not looking before start of recvbuf here!!
-          // TODO -- this doesn't handle the case where the sequence is split across
-          //         packets!!!
           if (!memcmp(dataptr - 4, "\r\n.\r\n", 5))
             cont = 0;
         }
@@ -219,12 +213,16 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
       w5100_receive_commit(rcv);
       len += rcv;
 
-      written = fwrite(recvbuf, 1, len, fp);
+      // Skip 4 byte overlap
+      written = fwrite(recvbuf + 4, 1, len, fp);
       if (written != len) {
         printf("Write error");
         fclose(fp);
         error_exit();
       }
+
+      // Copy 4 bytes of overlap
+      memcpy(recvbuf, recvbuf + len, 4);
 
       filesize += len;
       spinner(filesize, 0);
@@ -237,7 +235,7 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
     uint16_t rcv;
     uint16_t len = 0;
 
-    while(1) {
+    while (1) {
       if (input_check_for_abort_key()) {
         printf("User abort\n");
         w5100_disconnect();
