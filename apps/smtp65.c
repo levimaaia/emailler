@@ -6,8 +6,6 @@
 // Bobbi June 2020
 /////////////////////////////////////////////////////////////////
 
-// TODO: Clean up EMAIL.DB in OUTBOX after sending
-
 #include <cc65.h>
 #include <errno.h>
 #include <ctype.h>

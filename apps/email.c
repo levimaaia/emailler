@@ -4,11 +4,10 @@
 // Bobbi June 2020
 /////////////////////////////////////////////////////////////////
 
-// - TODO: When forwarding, prompt for To & Cc
-// - TODO: Update To/From if reply or forward
+// - TODO: Default to starting at end, not beginning (or option to sort backwards...)
 // - TODO: Fix terrible scrollback algorithm!!
 // - TODO: Editor for email composition functions
-// - TODO: Add MIME support? Quoted printable and Base64?
+// - TODO: Add MIME support? Quoted-printable and Base64?
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -740,6 +739,52 @@ uint8_t parse_from_addr(char *p, char *q) {
 }
 
 /*
+ * Prompt for a name in the line below the menu, store it in userentry
+ * Returns number of chars read.
+ * prompt - Message to display before > prompt
+ * is_file - if 1, restrict chars to those allowed in ProDOS filename
+ * Returns number of chars read
+ */
+uint8_t prompt_for_name(char *prompt, uint8_t is_file) {
+  uint16_t i;
+  char c;
+  goto_prompt_row();
+  printf("%s>", prompt);
+  i = 0;
+  while (1) {
+    c = cgetc();
+    if (is_file && !isalnum(c) && (c != RETURN) && (c != BACKSPACE) && (c != DELETE) && (c != '.')) {
+      putchar(BELL);
+      continue;
+    }
+    switch (c) {
+    case RETURN:
+      goto done;
+    case BACKSPACE:
+    case DELETE:
+      if (i > 0) {
+        putchar(BACKSPACE);
+        putchar(' ');
+        putchar(BACKSPACE);
+        --i;
+      } else
+        putchar(BELL);
+      break;
+    default:
+      putchar(c);
+      userentry[i++] = c;
+    }
+    if (i == 79)
+      goto done;
+  }
+done:
+  userentry[i] = '\0';
+  putchar(CLRLINE);
+  goto_prompt_row();
+  return i;
+}
+
+/*
  * Write email headers for replies and forwarded messages
  * fp1  - File handle of the mail message being replied/forwarded
  * fp2  - File handle of the destination mail message
@@ -755,11 +800,19 @@ uint8_t write_email_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h, char mode
   readdatetime((unsigned char*)(SYSTEMTIME), &dt);
   datetimelong(&dt, buf);
   fprintf(fp2, "Date: %s\r", buf);
-  truncate_header(h->from, filename, 80);
-  if (parse_from_addr(filename, buf))
-    return 1;
-  fprintf(fp2, "To: %s\r", (mode == 'R' ? buf : ""), buf);
-  fprintf(fp2, "cc: \r");
+  if (mode == 'R') {
+    truncate_header(h->from, filename, 80);
+    if (parse_from_addr(filename, buf))
+      return 1;
+    fprintf(fp2, "To: %s\r", buf);
+  } else {
+    prompt_for_name("Fwd to", 0);
+    if (strlen(userentry) == 0)
+      return 0;
+    fprintf(fp2, "To: %s\r", userentry);
+  }
+  prompt_for_name("cc", 0);
+  fprintf(fp2, "cc: %s\r", userentry);
   fprintf(fp2, "X-Mailer: %s - Apple II Forever!\r\r", PROGNAME);
   if (mode == 'R') {
     truncate_header(h->date, buf, 40);
@@ -852,25 +905,27 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
   fclose(fp);
   fclose(fp2);
 
-  // Update dest/EMAIL.DB
-  sprintf(filename, "%s/%s/EMAIL.DB", cfg_emaildir, mbox);
-  _filetype = PRODOS_T_BIN;
-  _auxtype = 0;
-  fp = fopen(filename, "ab");
-  if (!fp) {
-    error(ERR_NONFATAL, "Can't open %s/EMAIL.DB", mbox);
-    return;
+  // Update dest/EMAIL.DB unless this is R)eply or F)orward
+  // The upshot of this is we never create EMAIL.DB in OUTBOX
+  if (mode == ' ') {
+    sprintf(filename, "%s/%s/EMAIL.DB", cfg_emaildir, mbox);
+    _filetype = PRODOS_T_BIN;
+    _auxtype = 0;
+    fp = fopen(filename, "ab");
+    if (!fp) {
+      error(ERR_NONFATAL, "Can't open %s/EMAIL.DB", mbox);
+      return;
+    }
+    buflen = h->emailnum; // Just reusing buflen as a temporary
+    h->emailnum = num;
+    l = fwrite(h, 1, EMAILHDRS_SZ_ON_DISK, fp);
+    if (l != EMAILHDRS_SZ_ON_DISK) {
+      error(ERR_NONFATAL, "Can't write to %s/EMAIL.DB %u %u", mbox);
+      return;
+    }
+    h->emailnum = buflen ;
+    fclose(fp);
   }
-  buflen = h->emailnum; // Just reusing buflen as a temporary
-  h->emailnum = num;
-  // TODO UPDATE TO/FROM IF REPLY OR FORWARD
-  l = fwrite(h, 1, EMAILHDRS_SZ_ON_DISK, fp);
-  if (l != EMAILHDRS_SZ_ON_DISK) {
-    error(ERR_NONFATAL, "Can't write to %s/EMAIL.DB %u %u", mbox);
-    return;
-  }
-  h->emailnum = buflen ;
-  fclose(fp);
 
   // Update dest/NEXT.EMAIL, incrementing count by 1
   if (update_next_email(mbox, num + 1))
@@ -965,52 +1020,6 @@ err:
   free(h);
   fclose(fp);
   return 1;
-}
-
-/*
- * Prompt for a name in the line below the menu, store it in userentry
- * Returns number of chars read.
- * prompt - Message to display before > prompt
- * is_file - if 1, restrict chars to those allowed in ProDOS filename
- * Returns number of chars read
- */
-uint8_t prompt_for_name(char *prompt, uint8_t is_file) {
-  uint16_t i;
-  char c;
-  goto_prompt_row();
-  printf("%s>", prompt);
-  i = 0;
-  while (1) {
-    c = cgetc();
-    if (is_file && !isalnum(c) && (c != RETURN) && (c != BACKSPACE) && (c != DELETE) && (c != '.')) {
-      putchar(BELL);
-      continue;
-    }
-    switch (c) {
-    case RETURN:
-      goto done;
-    case BACKSPACE:
-    case DELETE:
-      if (i > 0) {
-        putchar(BACKSPACE);
-        putchar(' ');
-        putchar(BACKSPACE);
-        --i;
-      } else
-        putchar(BELL);
-      break;
-    default:
-      putchar(c);
-      userentry[i++] = c;
-    }
-    if (i == 79)
-      goto done;
-  }
-done:
-  userentry[i] = '\0';
-  putchar(CLRLINE);
-  goto_prompt_row();
-  return i;
 }
 
 /*

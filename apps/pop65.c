@@ -29,7 +29,7 @@
 #pragma optimize      (on)
 #pragma static-locals (on)
 
-#define NETBUFSZ  1500+4       // 4 extra bytes ...
+#define NETBUFSZ  1500+4       // 4 extra bytes for overlap between packets
 #define LINEBUFSZ 1000         // According to RFC2822 Section 2.1.1 (998+CRLF)
 #define READSZ    1024         // Must be less than NETBUFSZ to fit in buf[]
 
