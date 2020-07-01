@@ -2,13 +2,27 @@
 
 <p align="center"><img src="img/emailler-logo.png" alt="emai//er-logo" height="200px"></p>
 
-The following programs are completely new:
+The AppleII Email Suite consists of the following three ProDOS programs:
 
- - `POP65` is a Post Office Protocol version 3 (POP3) client for the Apple II with Uthernet-II card.
- - `EMAIL` is a simple user interface for reading and managing email.  It works together with `POP65` and `SMTP65`.
- - `SMTP65` is a Simple Mail Transport Protocol (SMTP) client for the Apple II with Uthernet-II card.
+ - `POP65.SYSTEM` is a Post Office Protocol version 3 (POP3) client for the Apple II with Uthernet-II card.
+ - `EMAIL.SYSTEM` is a simple user interface for reading and managing email.  It works together with `POP65` and `SMTP65`.
+ - `SMTP65.SYSTEM` is a Simple Mail Transport Protocol (SMTP) client for the Apple II with Uthernet-II card.
 
 ## Overview
+
+The software has been designed to be modular, which allows new protocols to be added later for handling incoming and outgoing mail.  POP3 was selected as the email download/ingest protocol because it is simple and there are many available server implementations.  SMTP was chosen as the outgoing protocol due to its almost universal adoption for this purpose.  Once again, there are many server-side implementations to choose from.  It may be possible, for example, to add an NNTP module to allow reading and posting of Usenet articles.
+
+One problem faced by any retrocomputing project of this type is that Transport Layer Security (TLS) is endemic on today's Internet.  While this is great for security, the encryption algorithms are not feasible to implement on a 6502-based system.  In order to bridge the plain text world of the Apple II to today's encrypted Internet, I have set up a Raspberry Pi using several common open source packages as a gateway.  The Raspberry Pi uses Fetchmail to download messages from Gmail's servers using the IMAPS protocol (with TLS) and hands them off to Postfix, which is used at the system mailer (MTA) on the Pi.  I use Dovecot as a POP3 server to offer a plain text connection to the `POP65.SYSTEM` application on the Apple II.  For outgoing messages, I configured Postfix to accept plain text SMTP connections from `SMTP65.SYSTEM` on the Apple II and to relay the messages to Gmail's servers using secure SMTPS.  The configuration of the Raspberry Pi (which was originally set up as a gateway for SAM2 email under GSOS on the Apple IIgs) is documented [here](README-gmail-gateway.md).
+
+A few design principles that I have tried to apply:
+
+  - *Simplicity* This software runs on the Apple //e and currently fits within 64KB of RAM (although I may use the 64KB of aux memory for future enhancements.)  It is important that is be as simple and small as possible.  The code is written in C using cc65, which allows more rapid evolution when compared to writing in assembly language, at the expense of larger code which uses more memory.
+  - *Modularity* Where it makes sense to split the functionality into separate modules it makes sense to do so in order to make the best use of available memory.
+  - *Speed* The software should make the most of the limited hardware of the Apple //e in order to allow speedy browsing of emails without needing much processor or disk activity.
+  - *Avoidance of Limits* I tried to avoid the imposition of arbitrary limits to message length or the number of messages in a folder.
+  - *Veracity* The software should never modify or discard information. Incoming emails are saved to disk verbatim, including all headers.  The system hides the headers when displaying the emails, but they are available for inspection or further processing.  The only change that is made to incoming messages is to convert the CR+LF line endings to Apple II CR-only line endings.
+
+`POP65.SYSTEM` and `SMTP65.SYSTEM` are based on Oliver Schmitd's excellent IP65 TCP/IP framework (in particular they follow the design of `WGET65.SYSTEM`.)  Without IP65, this software would not have been possible.
 
 ## System Setup and Configuration
 
@@ -133,9 +147,7 @@ Main menu commands:
 
 <p align="center"><img src="img/email-pager.png" alt="Email Pager" height="400px"></p>
 
-### Design Principles
 
-...
 
 ### Persistence of Tags and Read/Unread/Deleted Status
 
