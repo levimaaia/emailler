@@ -62,6 +62,7 @@ To get started, you will need to create the following directories:
 
  - The email root directory (`/H1/DOCUMENTS/EMAIL` in the example config)
  - The `SPOOL` directory, used by POP65, within the email root directory.  This will be `/H1/DOCUMENTS/EMAIL/SPOOL` for our example configuration.
+ - The `INBOX` directory, used by POP65, within the email root directory.  This will be `/H1/DOCUMENTS/EMAIL/INBOX` for our example configuration.
  - The `OUTBOX` directory, used by SMTP65, within the email root directory.  This will be `/H1/DOCUMENTS/EMAIL/OUTBOX` for our example configuration.
 
 You can create these directories in ProDOS `BASIC.SYSTEM` as follows:
@@ -73,7 +74,7 @@ You can create these directories in ProDOS `BASIC.SYSTEM` as follows:
 ] CREATE /H1/DOCUMENTS/EMAIL/OUTBOX
 ```
 
-You will also want to create a couple of mailboxes such as `RECEIVED` and `SENT`.  If you do not create a `SENT` mailbox then SMPT65 will be unable to complete the sending of messages and will give an error.  To create these mailboxes, run `EMAIL.SYSTEM` and press `N` for N)ew mailbox.  At the prompt, enter the name of the mailbox to be created: `RECEIVED`, and press return.  Repeat this to create the the `SENT` mailbox.
+You will also want to create a couple of mailboxes such as `RECEIVED` and `SENT`.  If you do not create a `SENT` mailbox then SMTP65 will be unable to complete the sending of messages and will give an error.  To create these mailboxes, run `EMAIL.SYSTEM` and press `N` for N)ew mailbox.  At the prompt, enter the name of the mailbox to be created: `RECEIVED`, and press return.  Repeat this to create the the `SENT` mailbox.
 
 These are the minimum mailboxes you need to get started.  You may create more mailboxes to organize your mail at any time.
 
