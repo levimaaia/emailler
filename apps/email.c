@@ -7,7 +7,6 @@
 // - TODO: Default to starting at end, not beginning (or option to sort backwards...)
 // - TODO: Fix terrible scrollback algorithm!!
 // - TODO: Editor for email composition functions
-// - TODO: Add MIME support? Quoted-printable and Base64?
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -407,7 +406,7 @@ void update_highlighted(void) {
  * fp - file to read from
  * reset - if 1 then just reset the buffer and return
  */
-int16_t get_line(FILE *fp, uint8_t reset) {
+int16_t get_line(FILE *fp, uint8_t reset, uint32_t *pos) {
   static uint16_t rd = 0;
   static uint16_t buflen = 0;
   uint8_t found = 0;
@@ -415,11 +414,13 @@ int16_t get_line(FILE *fp, uint8_t reset) {
   uint16_t i;
   if (reset) {
     rd = buflen = 0;
+    *pos = 0;
     return 0;
   }
   while (1) {
     for (i = rd; i < buflen; ++i) {
       linebuf[j++] = buf[i];
+      ++(*pos);
       if (linebuf[j - 1] == '\r') {
         found = 1;
         break;
@@ -542,9 +543,9 @@ void email_pager(void) {
   uint32_t pos = 0;
   uint8_t *p = (uint8_t*)CURSORROW, mime = 0;
   struct emailhdrs *h = get_headers(selection);
-  uint8_t  mime_enc, mime_binary;
   FILE *attachfp;
-  uint8_t eof;
+  uint16_t linecount;
+  uint8_t  mime_enc, mime_binary, eof;
   char c;
   clrscr();
   sprintf(filename, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, h->emailnum);
@@ -557,6 +558,7 @@ void email_pager(void) {
   fseek(fp, pos, SEEK_SET); // Skip over headers
 restart:
   eof = 0;
+  linecount = 0;
   attachfp = NULL;
   clrscr();
   fputs("Date:    ", stdout);
@@ -572,12 +574,18 @@ restart:
   fputs("\nSubject: ", stdout);
   printfield(h->subject, 0, 70);
   fputs("\n\n", stdout);
-  get_line(fp, 1); // Reset buffer
+  get_line(fp, 1, &pos); // Reset buffer
   while (1) {
-    if (get_line(fp, 0) == -1) {
+    if (get_line(fp, 0, &pos) == -1) {
       eof = 1;
     } else {
+      ++linecount;
       if ((mime >= 1) && (!strncmp(linebuf, "--", 2))) {
+        if (attachfp)
+          fclose(attachfp);
+        if ((mime == 4) && mime_binary)
+          putchar(BACKSPACE); // Erase spinner
+        attachfp = NULL;
         mime = 2;
         mime_enc = 0;
         mime_binary = 0;
@@ -591,7 +599,8 @@ restart:
           mime_binary = 1;
           mime = 3;
         }
-      } else if ((mime >= 2) && (!strncasecmp(linebuf, "Content-Transfer-Encoding: ", 27))) {
+      } else if ((mime >= 2) &&
+                 (!strncasecmp(linebuf, "Content-Transfer-Encoding: ", 27))) {
         mime = 3;
         if (!strncmp(linebuf + 27, "7bit", 4))
           mime_enc = 0;
@@ -604,25 +613,28 @@ restart:
           mime = 1;
         }
       } else if ((mime >= 2) && (strstr(linebuf, "filename="))) {
-        sprintf(filename, "%s/ATTACHMENTS/%s", cfg_emaildir, strstr(linebuf, "filename=") + 9);
+        sprintf(filename, "%s/ATTACHMENTS/%s",
+                cfg_emaildir, strstr(linebuf, "filename=") + 9);
         filename[strlen(filename) - 1] = '\0'; // Remove '\r'
-        printf("** Attachment -> %s\n", filename);
-        attachfp = fopen(filename, "wb");  // TODO MUST CLOSE THIS TOO !!
+        printf("** Attachment -> %s  ", filename);
+        attachfp = fopen(filename, "wb");
         if (!attachfp)
           printf("** Can't open %s\n", filename);
-      } else if ((mime == 3) && (!strncmp(linebuf, "\r", 1)))
+      } else if ((mime == 3) && (!strncmp(linebuf, "\r", 1))) {
         mime = 4;
+      }
       if ((mime == 0) || ((mime == 4) && (mime_enc == 0)))
         fputs(linebuf, stdout);
       else if ((mime == 4) && (mime_enc == 1))
         decode_quoted_printable(attachfp, mime_binary);
       else if ((mime == 4) && (mime_enc == 2))
         decode_base64(attachfp, mime_binary);
+      if ((mime == 4) && mime_binary && (linecount % 10 == 0))
+        spinner();
     }
     if ((*p) == 22) { // Use the CURSOR ROW location
-      putchar(INVERSE);
-      printf("[%05lu] SPACE continue reading | B)ack | T)op | H)drs | M)IME | Q)uit", pos);
-      putchar(NORMAL);
+      printf("\n%c[%05lu] SPACE continue reading | B)ack | T)op | H)drs | M)IME | Q)uit%c",
+             INVERSE, pos, NORMAL);
 retry1:
       c = cgetc();
       switch (c) {
@@ -656,11 +668,13 @@ retry1:
       case 'M':
       case 'm':
         mime = 1;
-        pos = 0;
+        pos = h->skipbytes;
         fseek(fp, pos, SEEK_SET);
         goto restart;
       case 'Q':
       case 'q':
+        if (attachfp)
+          fclose(attachfp);
         fclose(fp);
         return;
       default:
@@ -670,7 +684,8 @@ retry1:
       clrscr();
     } else if (eof) {
       putchar(INVERSE);
-      printf("[%05lu]      *** END ***       | B)ack | T)op | H)drs | M)IME | Q)uit", pos);
+      printf("\n%c[%05lu]      *** END ***       | B)ack | T)op | H)drs | M)IME | Q)uit%c",
+             INVERSE, pos, NORMAL);
       putchar(NORMAL);
 retry2:
       c = cgetc();
@@ -703,12 +718,14 @@ retry2:
       case 'M':
       case 'm':
         mime = 1;
-        pos = 0;
+        pos = h->skipbytes;
         fseek(fp, pos, SEEK_SET);
         goto restart;
         break;
       case 'Q':
       case 'q':
+        if (attachfp)
+          fclose(attachfp);
         fclose(fp);
         return;
       default:
