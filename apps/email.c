@@ -481,7 +481,15 @@ void decode_quoted_printable(FILE *fp, uint8_t binary) {
 /*
  * Base64 decode table
  */
-static const signed char base64_decode[] = {62,-1,-1,-1,63,52,53,54,55,56,57,58,59,60,61,-1,-1,-1,-2,-1,-1,-1,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,-1,-1,-1,-1,-1,-1,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51};
+static const int16_t b64dec[] =
+  {62,-1,-1,-1,63,52,53,54,55,56,
+   57,58,59,60,61,-1,-1,-1,-2,-1,
+   -1,-1, 0, 1, 2, 3, 4, 5, 6, 7,
+    8, 9,10,11,12,13,14,15,16,17,
+   18,19,20,21,22,23,24,25,-1,-1,
+   -1,-1,-1,-1,26,27,28,29,30,31,
+   32,33,34,35,36,37,38,39,40,41,
+   42,43,44,45,46,47,48,49,50,51};
 
 /*
  * Decode linebuf[] from Base64 format and print on screen
@@ -489,35 +497,13 @@ static const signed char base64_decode[] = {62,-1,-1,-1,63,52,53,54,55,56,57,58,
  * TODO This is hideously slow!!
  */
 void decode_base64(FILE *fp, uint8_t binary) {
-  uint16_t i = 0, j = 0;
-  union {
-    uint32_t val;
-    char     c[4];
-  } u;
-  if (!fp) {
-    if (binary)
-      return;
-    fp = stdout;
-  }
+  uint16_t i = 0;
   while (linebuf[i] != '\r') {
-    u.val  = (uint32_t)base64_decode[linebuf[i] - 43]     << 18;
-    u.val |= (uint32_t)base64_decode[linebuf[i + 1] - 43] << 12;
-    u.val |= (uint32_t)base64_decode[linebuf[i + 2] - 43] << 6;
-    u.val |= (uint32_t)base64_decode[linebuf[i + 3] - 43];
-    if (linebuf[i + 2] == '=') {
-      // Two padding chars 'xx=='
-      fputc(u.c[1], fp);
-      fputc(u.c[2], fp);
-      return;
-    }
-    if (linebuf[i + 1] == '=') {
-      // One padding char 'x==='
-      fputc(u.c[1], fp);
-      return;
-    }
-    fputc(u.c[2], fp);
-    fputc(u.c[1], fp);
-    fputc(u.c[0], fp);
+    fputc(b64dec[linebuf[i] - 43] << 2 | b64dec[linebuf[i + 1] - 43] >> 4, fp);
+    if (linebuf[i + 2] != '=')
+      fputc(b64dec[linebuf[i + 1] - 43] << 4 | b64dec[linebuf[i + 2] - 43] >> 2, fp);
+    if (linebuf[i + 3] != '=')
+      fputc(b64dec[linebuf[i + 2] - 43] << 6 | b64dec[linebuf[i + 3] - 43], fp);
     i += 4;
   }
 }
@@ -598,51 +584,61 @@ restart:
         mime = 2;
         mime_enc = 0;
         mime_binary = 0;
-      } else if ((mime >= 2) && (!strncasecmp(linebuf, "Content-Type: ", 14))) {
-        if (!strncmp(linebuf + 14, "text/plain", 10))
+      } else if ((mime < 4) && (mime >= 2)) {
+        if (!strncasecmp(linebuf, "Content-Type: ", 14)) {
+          if (!strncmp(linebuf + 14, "text/plain", 10))
+            mime = 3;
+          else if (!strncmp(linebuf + 14, "text/html", 9)) {
+            printf("\n<Not showing HTML>\n");
+            mime = 1;
+          } else {
+            mime_binary = 1;
+            mime = 3;
+          }
+        } else if (!strncasecmp(linebuf, "Content-Transfer-Encoding: ", 27)) {
           mime = 3;
-        else if (!strncmp(linebuf + 14, "text/html", 9)) {
-          printf("\n<Not showing HTML>\n");
-          mime = 1;
-        } else {
-          mime_binary = 1;
-          mime = 3;
+          if (!strncmp(linebuf + 27, "7bit", 4))
+            mime_enc = 0;
+          else if (!strncmp(linebuf + 27, "quoted-printable", 16))
+            mime_enc = 1;
+          else if (!strncmp(linebuf + 27, "base64", 6))
+            mime_enc = 2;
+          else {
+            printf("** Unsupp encoding %s\n", linebuf + 27);
+            mime = 1;
+          }
+        } else if (strstr(linebuf, "filename=")) {
+          sprintf(filename, "%s/ATTACHMENTS/%s",
+                  cfg_emaildir, strstr(linebuf, "filename=") + 9);
+          filename[strlen(filename) - 1] = '\0'; // Remove '\r'
+          if (prompt_okay_attachment(filename)) {
+            printf("** Attachment -> %s  ", filename);
+            attachfp = fopen(filename, "wb");
+            if (!attachfp)
+              printf("** Can't open %s\n", filename);
+          } else
+            mime = 1;
+        } else if ((mime == 3) && (!strncmp(linebuf, "\r", 1))) {
+          mime = 4;
         }
-      } else if ((mime >= 2) &&
-                 (!strncasecmp(linebuf, "Content-Transfer-Encoding: ", 27))) {
-        mime = 3;
-        if (!strncmp(linebuf + 27, "7bit", 4))
-          mime_enc = 0;
-        else if (!strncmp(linebuf + 27, "quoted-printable", 16))
-          mime_enc = 1;
-        else if (!strncmp(linebuf + 27, "base64", 6))
-          mime_enc = 2;
-        else {
-          printf("** Unsupp encoding %s\n", linebuf + 27);
-          mime = 1;
-        }
-      } else if ((mime >= 2) && (strstr(linebuf, "filename="))) {
-        sprintf(filename, "%s/ATTACHMENTS/%s",
-                cfg_emaildir, strstr(linebuf, "filename=") + 9);
-        filename[strlen(filename) - 1] = '\0'; // Remove '\r'
-        if (prompt_okay_attachment(filename)) {
-          printf("** Attachment -> %s  ", filename);
-          attachfp = fopen(filename, "wb");
-          if (!attachfp)
-            printf("** Can't open %s\n", filename);
-        } else
-          mime = 1;
-      } else if ((mime == 3) && (!strncmp(linebuf, "\r", 1))) {
-        mime = 4;
       }
-      if ((mime == 0) || ((mime == 4) && (mime_enc == 0)))
+      if (mime == 0)
         fputs(linebuf, stdout);
-      else if ((mime == 4) && (mime_enc == 1))
-        decode_quoted_printable(attachfp, mime_binary);
-      else if ((mime == 4) && (mime_enc == 2))
-        decode_base64(attachfp, mime_binary);
-      if ((mime == 4) && mime_binary && (linecount % 10 == 0))
-        spinner();
+      if (mime == 4) {
+        switch (mime_enc) {
+        case 0:
+          fputs(linebuf, stdout);
+          break;
+        case 1:
+          decode_quoted_printable(attachfp, mime_binary);
+          break;
+        case 2:
+          decode_base64(attachfp, mime_binary);
+          break;
+        }
+        if (mime_binary && (linecount % 10 == 0))
+          spinner();
+      }
     }
     if ((*p) == 22) { // Use the CURSOR ROW location
       printf("\n%c[%05lu] SPACE continue reading | B)ack | T)op | H)drs | M)IME | Q)uit%c",
