@@ -454,14 +454,9 @@ uint8_t hexdigit(char c) {
 /*
  * Decode linebuf[] from quoted-printable format and print on screen
  */
-void decode_quoted_printable(FILE *fp, uint8_t binary) {
+void decode_quoted_printable(FILE *fp) {
   uint16_t i = 0;
   char c;
-  if (!fp) {
-    if (binary)
-      return;
-    fp = stdout;
-  }
   while (c = linebuf[i]) {
     if (c == '=') {
       if (linebuf[i + 1] == '\r') // Trailing '=' is a soft EOL
@@ -494,9 +489,8 @@ static const int16_t b64dec[] =
 /*
  * Decode linebuf[] from Base64 format and print on screen
  * Each line of base64 has up to 76 chars
- * TODO This is hideously slow!!
  */
-void decode_base64(FILE *fp, uint8_t binary) {
+void decode_base64(FILE *fp) {
   uint16_t i = 0;
   while (linebuf[i] != '\r') {
     fputc(b64dec[linebuf[i] - 43] << 2 | b64dec[linebuf[i + 1] - 43] >> 4, fp);
@@ -536,7 +530,7 @@ void email_pager(void) {
   uint32_t pos = 0;
   uint8_t *p = (uint8_t*)CURSORROW, mime = 0;
   struct emailhdrs *h = get_headers(selection);
-  FILE *attachfp;
+  FILE *attachfp, *decodefp;
   uint16_t linecount;
   uint8_t  mime_enc, mime_binary, eof;
   char c;
@@ -620,6 +614,13 @@ restart:
             mime = 1;
         } else if ((mime == 3) && (!strncmp(linebuf, "\r", 1))) {
           mime = 4;
+          if (attachfp)
+            decodefp = attachfp;
+          else
+            if (mime_binary)
+              mime_enc = 4; // Skip over binary MIME parts with no filename
+            else
+              decodefp = stdout; // If non-binary and no file, send to screen
         }
       }
       if (mime == 0)
@@ -627,13 +628,13 @@ restart:
       if (mime == 4) {
         switch (mime_enc) {
         case 0:
-          fputs(linebuf, stdout);
+          fputs(linebuf, decodefp);
           break;
         case 1:
-          decode_quoted_printable(attachfp, mime_binary);
+          decode_quoted_printable(decodefp);
           break;
         case 2:
-          decode_base64(attachfp, mime_binary);
+          decode_base64(decodefp);
           break;
         }
         if (mime_binary && (linecount % 10 == 0))
