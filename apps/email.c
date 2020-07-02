@@ -583,8 +583,10 @@ restart:
       if ((mime >= 1) && (!strncmp(linebuf, "--", 2))) {
         if (attachfp)
           fclose(attachfp);
-        if ((mime == 4) && mime_binary)
+        if ((mime == 4) && mime_binary) {
           putchar(BACKSPACE); // Erase spinner
+          puts("[OK]");
+        }
         attachfp = NULL;
         mime = 2;
         mime_enc = 0;
