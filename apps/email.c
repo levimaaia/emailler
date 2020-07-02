@@ -479,28 +479,14 @@ void decode_quoted_printable(FILE *fp, uint8_t binary) {
 }
 
 /*
- * Return value of character in Base64 encoding.
- * Maybe a table is smaller/better?
+ * Base64 decode table
  */
-uint32_t base64_char(char c) {
-  if ((c >= 'A') && (c <= 'Z'))
-    return c - 'A';
-  if ((c >= 'a') && (c <= 'z'))
-    return c - 'a' + 26;
-  if ((c >= '0') && (c <= '9'))
-    return c - '0' + 52;
-  if (c == '+')
-    return 62;
-  if (c == '/')
-    return 63;
-  if (c == '=') // Padding
-    return 0;
-  return 0; // Should never happen
-}
+static const signed char base64_decode[] = {62,-1,-1,-1,63,52,53,54,55,56,57,58,59,60,61,-1,-1,-1,-2,-1,-1,-1,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,-1,-1,-1,-1,-1,-1,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51};
 
 /*
  * Decode linebuf[] from Base64 format and print on screen
  * Each line of base64 has up to 76 chars
+ * TODO This is hideously slow!!
  */
 void decode_base64(FILE *fp, uint8_t binary) {
   uint16_t i = 0, j = 0;
@@ -514,10 +500,10 @@ void decode_base64(FILE *fp, uint8_t binary) {
     fp = stdout;
   }
   while (linebuf[i] != '\r') {
-    u.val  = base64_char(linebuf[i])     << 18;
-    u.val |= base64_char(linebuf[i + 1]) << 12;
-    u.val |= base64_char(linebuf[i + 2]) << 6;
-    u.val |= base64_char(linebuf[i + 3]);
+    u.val  = (uint32_t)base64_decode[linebuf[i] - 43]     << 18;
+    u.val |= (uint32_t)base64_decode[linebuf[i + 1] - 43] << 12;
+    u.val |= (uint32_t)base64_decode[linebuf[i + 2] - 43] << 6;
+    u.val |= (uint32_t)base64_decode[linebuf[i + 3] - 43];
     if (linebuf[i + 2] == '=') {
       // Two padding chars 'xx=='
       fputc(u.c[1], fp);
