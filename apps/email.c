@@ -39,6 +39,7 @@
 #define CURDOWN       0x0a
 #define HOME          0x19
 #define CLRLINE       0x1a
+#define CURUP         0x1f
 #define DELETE        0x7f
 
 // Addresses
@@ -536,6 +537,26 @@ void decode_base64(FILE *fp, uint8_t binary) {
 }
 
 /*
+ * OK to d/l attachment?
+ */
+char prompt_okay_attachment(char *filename) {
+  char c;
+  printf("Okay to download %s? (y/n) >", filename);
+  while (1) {
+    c = cgetc();
+    if ((c == 'y') || (c == 'Y') || (c == 'n') || (c == 'N'))
+      break;
+    putchar(BELL);
+  } 
+  putchar(RETURN); // Go to col 0
+  putchar(CURUP);
+  putchar(CLRLINE);
+  if ((c == 'y') || (c == 'Y'))
+    return 1;
+  else
+    return 0;
+}
+/*
  * Display email with simple pager functionality
  * Includes support for decoding MIME headers
  */
@@ -618,10 +639,13 @@ restart:
         sprintf(filename, "%s/ATTACHMENTS/%s",
                 cfg_emaildir, strstr(linebuf, "filename=") + 9);
         filename[strlen(filename) - 1] = '\0'; // Remove '\r'
-        printf("** Attachment -> %s  ", filename);
-        attachfp = fopen(filename, "wb");
-        if (!attachfp)
-          printf("** Can't open %s\n", filename);
+        if (prompt_okay_attachment(filename)) {
+          printf("** Attachment -> %s  ", filename);
+          attachfp = fopen(filename, "wb");
+          if (!attachfp)
+            printf("** Can't open %s\n", filename);
+        } else
+          mime = 1;
       } else if ((mime == 3) && (!strncmp(linebuf, "\r", 1))) {
         mime = 4;
       }
