@@ -1,7 +1,7 @@
 /////////////////////////////////////////////////////////////////
 // emai//er - Simple Email User Agent vaguely inspired by Elm
 // Handles INBOX in the format created by POP65
-// Bobbi June 2020
+// Bobbi June, July 2020
 /////////////////////////////////////////////////////////////////
 
 // - TODO: Default to starting at end, not beginning (or option to sort backwards...)
@@ -522,6 +522,25 @@ char prompt_okay_attachment(char *filename) {
   else
     return 0;
 }
+
+/*
+ * Sanitize filename for ProDOS
+ * Modifies s in place
+ */
+void sanitize_filename(char *s) {
+  uint8_t i = 0, j = 0;
+  char c;
+  while (1) {
+    c = s[i++];
+    if (c == '\r') {
+      s[j] = '\0';
+      return;
+    }
+    if (isalnum(c) || c == '.' || c == '/')
+      s[j++] = c;
+  }
+}
+
 /*
  * Display email with simple pager functionality
  * Includes support for decoding MIME headers
@@ -604,12 +623,13 @@ restart:
         } else if (strstr(linebuf, "filename=")) {
           sprintf(filename, "%s/ATTACHMENTS/%s",
                   cfg_emaildir, strstr(linebuf, "filename=") + 9);
-          filename[strlen(filename) - 1] = '\0'; // Remove '\r'
+          //filename[strlen(filename) - 1] = '\0'; // Remove '\r'
+          sanitize_filename(filename);
           if (prompt_okay_attachment(filename)) {
             printf("** Attachment -> %s  ", filename);
             attachfp = fopen(filename, "wb");
             if (!attachfp)
-              printf("** Can't open %s\n", filename);
+              printf("\n** Can't open %s  ", filename);
           } else
             mime = 1;
         } else if ((mime == 3) && (!strncmp(linebuf, "\r", 1))) {
