@@ -476,7 +476,7 @@ void decode_quoted_printable(FILE *fp) {
 /*
  * Base64 decode table
  */
-static const int16_t b64dec[] =
+static const int8_t b64dec[] =
   {62,-1,-1,-1,63,52,53,54,55,56,
    57,58,59,60,61,-1,-1,-1,-2,-1,
    -1,-1, 0, 1, 2, 3, 4, 5, 6, 7,
