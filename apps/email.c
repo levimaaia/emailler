@@ -547,7 +547,7 @@ void sanitize_filename(char *s) {
  */
 void email_pager(void) {
   uint32_t pos = 0;
-  uint8_t *p = (uint8_t*)CURSORROW, mime = 0;
+  uint8_t *cursorrow = (uint8_t*)CURSORROW, mime = 0;
   struct emailhdrs *h = get_headers(selection);
   FILE *attachfp, *decodefp;
   uint16_t linecount;
@@ -661,13 +661,20 @@ restart:
           spinner();
       }
     }
-    if ((*p) == 22) { // Use the CURSOR ROW location
-      printf("\n%c[%05lu] SPACE continue reading | B)ack | T)op | H)drs | M)IME | Q)uit%c",
-             INVERSE, pos, NORMAL);
+    if ((*cursorrow == 22) || eof) {
+      printf("\n%c[%05lu] %s | B)ack | T)op | H)drs | M)IME | Q)uit%c",
+             INVERSE,
+             pos,
+             (eof ? "       ** END **      " : "SPACE continue reading"),
+             NORMAL);
 retry1:
       c = cgetc();
       switch (c) {
       case ' ':
+        if (eof) {
+          putchar(BELL);
+          goto retry1;
+        }
         break;
       case 'B':
       case 'b':
@@ -710,58 +717,6 @@ retry1:
       default:
         putchar(BELL);
         goto retry1;
-      }
-      clrscr();
-    } else if (eof) {
-      putchar(INVERSE);
-      printf("\n%c[%05lu]      *** END ***       | B)ack | T)op | H)drs | M)IME | Q)uit%c",
-             INVERSE, pos, NORMAL);
-      putchar(NORMAL);
-retry2:
-      c = cgetc();
-      switch (c) {
-      case 'B':
-      case 'b':
-        if (pos < h->skipbytes + (uint32_t)(SCROLLBACK)) {
-          pos = h->skipbytes;
-          fseek(fp, pos, SEEK_SET);
-          goto restart;
-        } else {
-          pos -= (uint32_t)(SCROLLBACK);
-          fseek(fp, pos, SEEK_SET);
-          get_line(fp, 1, &pos); // Reset buffer
-        }
-        break;
-      case 'T':
-      case 't':
-        mime = 0;
-        pos = h->skipbytes;
-        fseek(fp, pos, SEEK_SET);
-        goto restart;
-        break;
-      case 'H':
-      case 'h':
-        mime = 0;
-        pos = 0;
-        fseek(fp, pos, SEEK_SET);
-        goto restart;
-        break;
-      case 'M':
-      case 'm':
-        mime = 1;
-        pos = h->skipbytes;
-        fseek(fp, pos, SEEK_SET);
-        goto restart;
-        break;
-      case 'Q':
-      case 'q':
-        if (attachfp)
-          fclose(attachfp);
-        fclose(fp);
-        return;
-      default:
-        putchar(BELL);
-        goto retry2;
       }
       clrscr();
     }
