@@ -678,6 +678,7 @@ retry1:
         } else {
           pos -= (uint32_t)(SCROLLBACK);
           fseek(fp, pos, SEEK_SET);
+          get_line(fp, 1, &pos); // Reset buffer
         }
         break;
       case 'T':
@@ -728,6 +729,7 @@ retry2:
         } else {
           pos -= (uint32_t)(SCROLLBACK);
           fseek(fp, pos, SEEK_SET);
+          get_line(fp, 1, &pos); // Reset buffer
         }
         break;
       case 'T':
