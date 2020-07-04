@@ -667,13 +667,13 @@ restart:
              pos,
              (eof ? "       ** END **      " : "SPACE continue reading"),
              NORMAL);
-retry1:
+retry:
       c = cgetc();
       switch (c) {
       case ' ':
         if (eof) {
           putchar(BELL);
-          goto retry1;
+          goto retry;
         }
         break;
       case 'B':
@@ -716,7 +716,7 @@ retry1:
         return;
       default:
         putchar(BELL);
-        goto retry1;
+        goto retry;
       }
       clrscr();
     }
