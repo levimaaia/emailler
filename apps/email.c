@@ -656,6 +656,7 @@ restart:
       if (get_line(fp, 0, &pos) == -1)
         eof = 1;
       readp = linebuf;
+      ++linecount;
     } else {
       if ((mime >= 1) && (!strncmp(linebuf, "--", 2))) {
         if (attachfp)
@@ -724,16 +725,17 @@ restart:
          case ENC_B64:
           decode_base64(decodefp); // Save directly to file, no word-wrap
           readp = NULL; // Read next line from disk
-          spinner();
+          if (!(linecount % 10))
+            spinner();
           break;
          case ENC_SKIP:
-          spinner();
+          if (!(linecount % 10))
+            spinner();
           readp = NULL; // Read next line from disk
           break;
         }
       }
       do {
-        ++linecount; // THIS ISN'T QUITE RIGHT - DO IT IN WORD_WRAP_LINE ...
         if (readp) {
           if (mime == 0)
             word_wrap_line(stdout, &readp);
