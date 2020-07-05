@@ -606,6 +606,11 @@ void sanitize_filename(char *s) {
   }
 }
 
+#define ENC_7BIT 0   // 7bit
+#define ENC_QP   1   // Quoted-Printable
+#define ENC_B64  2   // Base64
+#define ENC_SKIP 255 // Do nothing
+
 /*
  * Display email with simple pager functionality
  * Includes support for decoding MIME headers
@@ -661,9 +666,9 @@ restart:
         }
         attachfp = NULL;
         mime = 2;
-        mime_enc = 0;
+        mime_enc = ENC_7BIT;
         mime_binary = 0;
-        readp = NULL;
+        readp = NULL; // Read next line from disk
       } else if ((mime < 4) && (mime >= 2)) {
         if (!strncasecmp(linebuf, "Content-Type: ", 14)) {
           if (!strncmp(linebuf + 14, "text/plain", 10)) {
@@ -678,11 +683,11 @@ restart:
         } else if (!strncasecmp(linebuf, "Content-Transfer-Encoding: ", 27)) {
           mime = 3;
           if (!strncmp(linebuf + 27, "7bit", 4))
-            mime_enc = 0;
+            mime_enc = ENC_7BIT;
           else if (!strncmp(linebuf + 27, "quoted-printable", 16))
-            mime_enc = 1;
+            mime_enc = ENC_QP;
           else if (!strncmp(linebuf + 27, "base64", 6))
-            mime_enc = 2;
+            mime_enc = ENC_B64;
           else {
             printf("** Unsupp encoding %s\n", linebuf + 27);
             mime = 1;
@@ -697,28 +702,38 @@ restart:
             if (!attachfp)
               printf("\n** Can't open %s  ", filename);
           } else
-            mime = 1;
+            attachfp = NULL;
         } else if ((mime == 3) && (!strncmp(linebuf, "\r", 1))) {
           mime = 4;
           if (attachfp)
             decodefp = attachfp;
           else
-            if (mime_binary)
-              mime_enc = 4; // Skip over binary MIME parts with no filename
-            else
+            if (mime_binary) {
+              mime_enc = ENC_SKIP; // Skip over binary MIME parts with no filename
+              fputs("Skipping  ", stdout);
+            } else
               decodefp = stdout; // If non-binary and no file, send to screen
         }
-        readp = NULL;
+        readp = NULL; // Read next line from disk
       } else if (mime == 4) {
         switch (mime_enc) {
-        case 1:
+        case ENC_QP:
           decode_quoted_printable();
-          readp = linebuf;
+          readp = linebuf; // Decoded text is in linebuf[]
+          break;
+         case ENC_B64:
+          decode_base64(decodefp); // Save directly to file, no word-wrap
+          readp = NULL; // Read next line from disk
+          spinner();
+          break;
+         case ENC_SKIP:
+          spinner();
+          readp = NULL; // Read next line from disk
           break;
         }
       }
       do {
-        ++linecount;
+        ++linecount; // THIS ISN'T QUITE RIGHT - DO IT IN WORD_WRAP_LINE ...
         if (readp) {
           if (mime == 0)
             word_wrap_line(stdout, &readp);
@@ -726,19 +741,15 @@ restart:
             readp = NULL;
           if (mime == 4) {
             switch (mime_enc) {
-            case 0:
+            case ENC_7BIT:
+            case ENC_QP:
               word_wrap_line(decodefp, &readp);
               break;
-            case 1:
-              word_wrap_line(decodefp, &readp);
-              break;
-            case 2:
+            case ENC_B64:
               decode_base64(decodefp); // TODO: FIX THIS TO USE word_wrap_line() OR JUST FOR BINARIES
               readp = 0;
               break;
             }
-            if (mime_binary && (linecount % 10 == 0))
-              spinner();
           }
         }
         if ((*cursorrow == 22) || eof) {
