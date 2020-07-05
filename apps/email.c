@@ -452,7 +452,7 @@ uint8_t hexdigit(char c) {
 }
 
 /*
- * Decode linebuf[] from quoted-printable format and print on screen
+ * Decode linebuf[] from quoted-printable format and write to fp
  */
 void decode_quoted_printable(FILE *fp) {
   uint16_t i = 0;
@@ -487,7 +487,7 @@ static const int8_t b64dec[] =
    42,43,44,45,46,47,48,49,50,51};
 
 /*
- * Decode linebuf[] from Base64 format and print on screen
+ * Decode linebuf[] from Base64 format and write to fp
  * Each line of base64 has up to 76 chars
  */
 void decode_base64(FILE *fp) {
@@ -500,6 +500,38 @@ void decode_base64(FILE *fp) {
       fputc(b64dec[linebuf[i + 2] - 43] << 6 | b64dec[linebuf[i + 3] - 43], fp);
     i += 4;
   }
+}
+
+/*
+ * Break line passed in s into multiple lines if necessary
+ * If whole line is consumed, set *s to NULL, otherwise *s is left pointing to
+ * remaining text.
+ */
+void break_line(char **s) {
+  char *ss = *s;
+  uint8_t col = 80;
+  uint16_t l = strlen(ss);
+  if (l <= col) {
+#if 0
+    // Special case if fits exactly,  chop out the '\r', if present
+    if ((l == col) && (ss[l - 1] == '\r'))
+      ss[l - 1] = '\0';
+#endif
+    fputs(ss, stdout);
+    *s = NULL;
+    return;
+  }
+  while ((ss[--col] != ' ') && (col > 1));
+  // If there is no ' ', just give up and print the whole line, which may wrap
+  if (col == 1) {
+    fputs(ss, stdout);
+    *s = NULL;
+    return;
+  }
+  ss[col] = '\0';
+  fputs(ss, stdout);
+  putchar('\n');
+  *s = ss + col + 1;
 }
 
 /*
@@ -552,7 +584,7 @@ void email_pager(void) {
   FILE *attachfp, *decodefp;
   uint16_t linecount;
   uint8_t  mime_enc, mime_binary, eof;
-  char c;
+  char c, *readp;
   clrscr();
   sprintf(filename, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, h->emailnum);
   fp = fopen(filename, "rb");
@@ -582,10 +614,11 @@ restart:
   fputs("\n\n", stdout);
   get_line(fp, 1, &pos); // Reset buffer
   while (1) {
-    if (get_line(fp, 0, &pos) == -1) {
-      eof = 1;
+    if (!readp) {
+      if (get_line(fp, 0, &pos) == -1)
+        eof = 1;
+      readp = linebuf;
     } else {
-      ++linecount;
       if ((mime >= 1) && (!strncmp(linebuf, "--", 2))) {
         if (attachfp)
           fclose(attachfp);
@@ -597,11 +630,12 @@ restart:
         mime = 2;
         mime_enc = 0;
         mime_binary = 0;
+        readp = NULL;
       } else if ((mime < 4) && (mime >= 2)) {
         if (!strncasecmp(linebuf, "Content-Type: ", 14)) {
-          if (!strncmp(linebuf + 14, "text/plain", 10))
+          if (!strncmp(linebuf + 14, "text/plain", 10)) {
             mime = 3;
-          else if (!strncmp(linebuf + 14, "text/html", 9)) {
+          } else if (!strncmp(linebuf + 14, "text/html", 9)) {
             printf("\n<Not showing HTML>\n");
             mime = 1;
           } else {
@@ -623,7 +657,6 @@ restart:
         } else if (strstr(linebuf, "filename=")) {
           sprintf(filename, "%s/ATTACHMENTS/%s",
                   cfg_emaildir, strstr(linebuf, "filename=") + 9);
-          //filename[strlen(filename) - 1] = '\0'; // Remove '\r'
           sanitize_filename(filename);
           if (prompt_okay_attachment(filename)) {
             printf("** Attachment -> %s  ", filename);
@@ -642,83 +675,93 @@ restart:
             else
               decodefp = stdout; // If non-binary and no file, send to screen
         }
+        readp = NULL;
       }
-      if (mime == 0)
-        fputs(linebuf, stdout);
-      if (mime == 4) {
-        switch (mime_enc) {
-        case 0:
-          fputs(linebuf, decodefp);
-          break;
-        case 1:
-          decode_quoted_printable(decodefp);
-          break;
-        case 2:
-          decode_base64(decodefp);
-          break;
+      do {
+        ++linecount;
+        if (readp) {
+          if (mime == 0)
+            break_line(&readp);
+          if (mime == 1)
+            readp = NULL;
+          if (mime == 4) {
+            switch (mime_enc) {
+            case 0:
+              break_line(&readp);
+              break;
+            case 1:
+              decode_quoted_printable(decodefp); // TODO FIX THIS TO USE break_line()
+              readp = 0;
+              break;
+            case 2:
+              decode_base64(decodefp); // TODO: FIX THIS TO USE break_line() OR JUST FOR BINARIES
+              readp = 0;
+              break;
+            }
+            if (mime_binary && (linecount % 10 == 0))
+              spinner();
+          }
         }
-        if (mime_binary && (linecount % 10 == 0))
-          spinner();
-      }
-    }
-    if ((*cursorrow == 22) || eof) {
-      printf("\n%c[%05lu] %s | B)ack | T)op | H)drs | M)IME | Q)uit%c",
-             INVERSE,
-             pos,
-             (eof ? "       ** END **      " : "SPACE continue reading"),
-             NORMAL);
+        if ((*cursorrow == 22) || eof) {
+          printf("\n%c[%05lu] %s | B)ack | T)op | H)drs | M)IME | Q)uit%c",
+                 INVERSE,
+                 pos,
+                 (eof ? "       ** END **      " : "SPACE continue reading"),
+                 NORMAL);
 retry:
-      c = cgetc();
-      switch (c) {
-      case ' ':
-        if (eof) {
-          putchar(BELL);
-          goto retry;
+          c = cgetc();
+          switch (c) {
+          case ' ':
+            if (eof) {
+              putchar(BELL);
+              goto retry;
+            }
+            break;
+          case 'B':
+          case 'b':
+            if (pos < h->skipbytes + (uint32_t)(SCROLLBACK)) {
+              pos = h->skipbytes;
+              fseek(fp, pos, SEEK_SET);
+              goto restart;
+            } else {
+              pos -= (uint32_t)(SCROLLBACK);
+              fseek(fp, pos, SEEK_SET);
+              get_line(fp, 1, &pos); // Reset buffer
+            }
+            break;
+          case 'T':
+          case 't':
+            mime = 0;
+            pos = h->skipbytes;
+            fseek(fp, pos, SEEK_SET);
+            goto restart;
+            break;
+          case 'H':
+          case 'h':
+            mime = 0;
+            pos = 0;
+            fseek(fp, pos, SEEK_SET);
+            goto restart;
+          break;
+          case 'M':
+          case 'm':
+            mime = 1;
+            pos = h->skipbytes;
+            fseek(fp, pos, SEEK_SET);
+            goto restart;
+          case 'Q':
+          case 'q':
+            if (attachfp)
+              fclose(attachfp);
+            fclose(fp);
+            return;
+          default:
+            putchar(BELL);
+            goto retry;
+          }
+          clrscr();
         }
-        break;
-      case 'B':
-      case 'b':
-        if (pos < h->skipbytes + (uint32_t)(SCROLLBACK)) {
-          pos = h->skipbytes;
-          fseek(fp, pos, SEEK_SET);
-          goto restart;
-        } else {
-          pos -= (uint32_t)(SCROLLBACK);
-          fseek(fp, pos, SEEK_SET);
-          get_line(fp, 1, &pos); // Reset buffer
-        }
-        break;
-      case 'T':
-      case 't':
-        mime = 0;
-        pos = h->skipbytes;
-        fseek(fp, pos, SEEK_SET);
-        goto restart;
-        break;
-      case 'H':
-      case 'h':
-        mime = 0;
-        pos = 0;
-        fseek(fp, pos, SEEK_SET);
-        goto restart;
-      break;
-      case 'M':
-      case 'm':
-        mime = 1;
-        pos = h->skipbytes;
-        fseek(fp, pos, SEEK_SET);
-        goto restart;
-      case 'Q':
-      case 'q':
-        if (attachfp)
-          fclose(attachfp);
-        fclose(fp);
-        return;
-      default:
-        putchar(BELL);
-        goto retry;
-      }
-      clrscr();
+      } while (readp);
     }
   }
 }
