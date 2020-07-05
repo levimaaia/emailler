@@ -5,7 +5,7 @@
 /////////////////////////////////////////////////////////////////
 
 // - TODO: Default to starting at end, not beginning (or option to sort backwards...)
-// - TODO: Fix terrible scrollback algorithm!!
+// - TODO: Fix terrible scrollback algorithm!! Use AUX mem to store pages.
 // - TODO: Editor for email composition functions
 
 #include <stdio.h>
@@ -454,28 +454,27 @@ uint8_t hexdigit(char c) {
 /*
  * Decode linebuf[] from quoted-printable format in place
  */
-void decode_quoted_printable(void) {
+uint16_t decode_quoted_printable(void) {
   uint16_t i = 0, j = 0;
   char c;
   while (c = linebuf[i]) {
     if (c == '=') {
       if (linebuf[i + 1] == '\r') { // Trailing '=' is a soft '\r'
         linebuf[j] = '\0';
-        return;
+        return j;
       }
       // Otherwise '=xx' where x is a hex digit
       c = 16 * hexdigit(linebuf[i + 1]) + hexdigit(linebuf[i + 2]);
       if ((c >= 0x20) && (c <= 0x7e))
         linebuf[j++] = c;
-        //fputc(c, fp);
       i += 3;
     } else {
       linebuf[j++] = c;
-      //fputc(c, fp);
       ++i;
     }
   }
   linebuf[j] = '\0';
+  return j;
 }
 
 /*
@@ -492,19 +491,20 @@ static const int8_t b64dec[] =
    42,43,44,45,46,47,48,49,50,51};
 
 /*
- * Decode linebuf[] from Base64 format and write to fp
- * Each line of base64 has up to 76 chars
+ * Decode linebuf[] from Base64 format in place
+ * Each line of base64 has up to 76 chars, which decodes to up to 57 bytes
  */
-void decode_base64(FILE *fp) {
-  uint16_t i = 0;
+uint16_t decode_base64(void) {
+  uint16_t i = 0, j = 0;
   while (linebuf[i] != '\r') {
-    fputc(b64dec[linebuf[i] - 43] << 2 | b64dec[linebuf[i + 1] - 43] >> 4, fp);
+    linebuf[j++] = b64dec[linebuf[i] - 43] << 2 | b64dec[linebuf[i + 1] - 43] >> 4;
     if (linebuf[i + 2] != '=')
-      fputc(b64dec[linebuf[i + 1] - 43] << 4 | b64dec[linebuf[i + 2] - 43] >> 2, fp);
+      linebuf[j++] = b64dec[linebuf[i + 1] - 43] << 4 | b64dec[linebuf[i + 2] - 43] >> 2;
     if (linebuf[i + 3] != '=')
-      fputc(b64dec[linebuf[i + 2] - 43] << 6 | b64dec[linebuf[i + 3] - 43], fp);
+      linebuf[j++] = b64dec[linebuf[i + 2] - 43] << 6 | b64dec[linebuf[i + 3] - 43];
     i += 4;
   }
+  return j;
 }
 
 /*
@@ -623,7 +623,7 @@ void email_pager(void) {
   uint8_t *cursorrow = (uint8_t*)CURSORROW, mime = 0;
   struct emailhdrs *h = get_headers(selection);
   FILE *attachfp, *decodefp;
-  uint16_t linecount;
+  uint16_t linecount, chars;
   uint8_t  mime_enc, mime_binary, eof;
   char c, *readp;
   clrscr();
@@ -722,12 +722,12 @@ restart:
       } else if (mime == 4) {
         switch (mime_enc) {
         case ENC_QP:
-          decode_quoted_printable();
+          chars = decode_quoted_printable();
           readp = linebuf; // Decoded text is in linebuf[]
           break;
          case ENC_B64:
-          decode_base64(decodefp); // Save directly to file, no word-wrap
-          readp = NULL; // Read next line from disk
+          chars = decode_base64();
+          readp = linebuf; // Decoded text is in linebuf[]
           if (!(linecount % 10))
             spinner();
           break;
@@ -745,16 +745,11 @@ restart:
           if (mime == 1)
             readp = NULL;
           if (mime == 4) {
-            switch (mime_enc) {
-            case ENC_7BIT:
-            case ENC_QP:
-              word_wrap_line(decodefp, &readp);
-              break;
-            case ENC_B64:
-              decode_base64(decodefp); // TODO: FIX THIS TO USE word_wrap_line() OR JUST FOR BINARIES
+            if (mime_binary) {
+              fwrite(linebuf, 1, chars, decodefp);
               readp = 0;
-              break;
-            }
+            } else
+              word_wrap_line(decodefp, &readp);
           }
         }
         if ((*cursorrow == 22) || eof) {
