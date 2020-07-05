@@ -435,7 +435,7 @@ int16_t get_line(FILE *fp, uint8_t reset, uint32_t *pos) {
     buflen = fread(buf, 1, READSZ, fp);
     if (buflen == 0) {
       rd = 0;
-      return -1; // Hit EOF before we found EOL
+      return -1; // Hit EOF before we found '\r'
     }
     rd = 0;
   }
@@ -452,25 +452,30 @@ uint8_t hexdigit(char c) {
 }
 
 /*
- * Decode linebuf[] from quoted-printable format and write to fp
+ * Decode linebuf[] from quoted-printable format in place
  */
-void decode_quoted_printable(FILE *fp) {
-  uint16_t i = 0;
+void decode_quoted_printable(void) {
+  uint16_t i = 0, j = 0;
   char c;
   while (c = linebuf[i]) {
     if (c == '=') {
-      if (linebuf[i + 1] == '\r') // Trailing '=' is a soft EOL
+      if (linebuf[i + 1] == '\r') { // Trailing '=' is a soft '\r'
+        linebuf[j] = '\0';
         return;
+      }
       // Otherwise '=xx' where x is a hex digit
       c = 16 * hexdigit(linebuf[i + 1]) + hexdigit(linebuf[i + 2]);
       if ((c >= 0x20) && (c <= 0x7e))
-        fputc(c, fp);
+        linebuf[j++] = c;
+        //fputc(c, fp);
       i += 3;
     } else {
-      fputc(c, fp);
+      linebuf[j++] = c;
+      //fputc(c, fp);
       ++i;
     }
   }
+  linebuf[j] = '\0';
 }
 
 /*
@@ -503,35 +508,63 @@ void decode_base64(FILE *fp) {
 }
 
 /*
- * Break line passed in s into multiple lines if necessary
- * If whole line is consumed, set *s to NULL, otherwise *s is left pointing to
- * remaining text.
+ * Print line up to first '\r' or '\0'
  */
-void break_line(char **s) {
+void putline(FILE *fp, char *s) {
+  char *ret = strchr(s, '\r');
+  if (ret)
+    *ret = '\0';
+  fputs(s, fp);
+  if (ret)
+    *ret = '\r';
+}
+
+/*
+ * Perform word wrapping, for a line of text, which may contain embedded '\r'
+ * carriage returns, perform word-wrapping. For each call, this function will
+ * output one line of text (or a partial line if there is not enough input).
+ * fp - File handle to use for output.
+ * s - Pointer to pointer to input buffer. If all text is consumed, this is
+ *     set to NULL.  If there is text left in the buffer to be consumed then
+ *     the pointer will be advanced to point to the next text to process.
+ *
+ * TODO: This does not handle the case where a line is >80 chars without spaces.
+ */
+void word_wrap_line(FILE *fp, char **s) {
+  static uint8_t col = 0; // Keeps track of screen column
   char *ss = *s;
-  uint8_t col = 80;
+  char *ret = strchr(ss, '\r');
   uint16_t l = strlen(ss);
-  if (l <= col) {
-#if 0
-    // Special case if fits exactly,  chop out the '\r', if present
-    if ((l == col) && (ss[l - 1] == '\r'))
-      ss[l - 1] = '\0';
-#endif
-    fputs(ss, stdout);
-    *s = NULL;
+  char *nextline = NULL;
+  if (ret) {
+    // If '\r' is not at the end ...
+    if (l >= (ret - ss) + 1)
+      nextline = ss + (ret - ss) + 1;
+    l = ret - ss;
+  }
+  if (col + l <= 80) {
+    col += l;
+    putline(fp, ss);
+    if (ret) {
+      col = 0;
+      if (col + l != 80)
+        fputc('\r', fp);
+    }
+    *s = nextline;
     return;
   }
-  while ((ss[--col] != ' ') && (col > 1));
-  // If there is no ' ', just give up and print the whole line, which may wrap
-  if (col == 1) {
-    fputs(ss, stdout);
-    *s = NULL;
+  l = 80 - col;
+  while ((ss[--l] != ' ') && (l > 0));
+  if (l == 0) { // No space character found, just break the line
+    fputc('\r', fp);
+    col = 0;
     return;
   }
-  ss[col] = '\0';
-  fputs(ss, stdout);
-  putchar('\n');
-  *s = ss + col + 1;
+  ss[l] = '\0';
+  putline(fp, ss);
+  fputc('\r', fp);
+  col = 0;
+  *s = ss + l + 1;
 }
 
 /*
@@ -676,25 +709,31 @@ restart:
               decodefp = stdout; // If non-binary and no file, send to screen
         }
         readp = NULL;
+      } else if (mime == 4) {
+        switch (mime_enc) {
+        case 1:
+          decode_quoted_printable();
+          readp = linebuf;
+          break;
+        }
       }
       do {
         ++linecount;
         if (readp) {
           if (mime == 0)
-            break_line(&readp);
+            word_wrap_line(stdout, &readp);
           if (mime == 1)
             readp = NULL;
           if (mime == 4) {
             switch (mime_enc) {
             case 0:
-              break_line(&readp);
+              word_wrap_line(decodefp, &readp);
               break;
             case 1:
-              decode_quoted_printable(decodefp); // TODO FIX THIS TO USE break_line()
-              readp = 0;
+              word_wrap_line(decodefp, &readp);
               break;
             case 2:
-              decode_base64(decodefp); // TODO: FIX THIS TO USE break_line() OR JUST FOR BINARIES
+              decode_base64(decodefp); // TODO: FIX THIS TO USE word_wrap_line() OR JUST FOR BINARIES
               readp = 0;
               break;
             }
