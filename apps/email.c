@@ -4,8 +4,8 @@
 // Bobbi June, July 2020
 /////////////////////////////////////////////////////////////////
 
+// - TODO: See TODOs further down for error handling, buffer savings
 // - TODO: Default to starting at end, not beginning (or option to sort backwards...)
-// - TODO: Fix terrible scrollback algorithm!! Use AUX mem to store pages.
 // - TODO: Editor for email composition functions
 
 #include <stdio.h>
@@ -25,7 +25,6 @@
 #define MSGS_PER_PAGE 18     // Number of messages shown on summary screen
 #define MENU_ROW      22     // Row that the menu appears on
 #define PROMPT_ROW    24     // Row that data entry prompt appears on
-#define SCROLLBACK    25*80  // How many bytes to go back when paging up
 #define READSZ        1024   // Size of buffer for copying files
 
 // Characters
@@ -62,6 +61,8 @@ struct datetime {
 char                  filename[80];
 char                  userentry[80];
 char                  linebuf[998+2]; // According to RFC2822 Section 2.1.1 (998+CRLF)
+char                  auxbuf[0x0400]; // TODO: We can probably make linebuf bigger
+                                      //       and get rid of auxbuf
 FILE                  *fp;
 struct emailhdrs      *headers;
 uint16_t              selection, prevselection;
@@ -529,18 +530,18 @@ void putline(FILE *fp, char *s) {
  *     the pointer will be advanced to point to the next text to process.
  */
 void word_wrap_line(FILE *fp, char **s) {
-  static uint8_t col = 0;     // Keeps track of screen column
+  static uint8_t col = 0;        // Keeps track of screen column
   char *ss = *s;
   char *ret = strchr(ss, '\r');
   uint16_t l = strlen(ss);
   char *nextline = NULL;
   uint16_t i;
   if (ret) {
-    if (l >= (ret - ss) + 1)    // If '\r' is not at the end ...
+    if (l >= (ret - ss) + 1)     // If '\r' is not at the end ...
       nextline = ss + (ret - ss) + 1; // Keep track of next line(s)
     l = ret - ss;
   }
-  if (col + l <= 80) {          // Fits on this line
+  if (col + l <= 80) {           // Fits on this line
     col += l;
     putline(fp, ss);
     if (ret) {
@@ -551,19 +552,19 @@ void word_wrap_line(FILE *fp, char **s) {
     *s = nextline;
     return;
   }
-  i = 80 - col;                 // Doesn't fit, need to break
+  i = 80 - col;                  // Doesn't fit, need to break
   while ((ss[--i] != ' ') && (i > 0));
-  if (i == 0) {                 // No space character found
-    if (col == 0)               // Doesn't fit on full line
-      for (i = 0; i <80; ++i) { // Truncate @80 chars
+  if (i == 0) {                  // No space character found
+    if (col == 0)                // Doesn't fit on full line
+      for (i = 0; i < 80; ++i) { // Truncate @80 chars
         fputc(ss[i], fp);
         *s = ss + l + 1;
-    } else                      // There is stuff on this line already
-      fputc('\r', fp);          // Try a blank line
+    } else                       // There is stuff on this line already
+      fputc('\r', fp);           // Try a blank line
     col = 0;
     return;
   }
-  ss[i] = '\0';                 // Space was found, split line
+  ss[i] = '\0';                  // Space was found, split line
   putline(fp, ss);
   fputc('\r', fp);
   col = 0;
@@ -609,6 +610,50 @@ void sanitize_filename(char *s) {
   }
 }
 
+#define FROMAUX 0
+#define TOAUX   1
+/*
+ * Aux memory copy routine
+ */
+void copyaux(char *src, char *dst, uint16_t len, uint8_t dir) {
+    char **a1 = (char**)0x3c;
+    char **a2 = (char**)0x3e;
+    char **a4 = (char**)0x42;
+    *a1 = src;
+    *a2 = src + len - 1; // AUXMOVE moves length+1 bytes!!
+    *a4 = dst;
+    if (dir == TOAUX) {
+        __asm__("sec");       // Copy main->aux
+        __asm__("jsr $c311"); // AUXMOVE
+    } else {
+        __asm__("clc");       // Copy aux->main
+        __asm__("jsr $c311"); // AUXMOVE
+    }
+}
+
+/*
+ * Save the current screen to the scrollback file
+ * TODO: No error handling!!
+ */
+void save_screen_to_scrollback(FILE *fp) {
+  fwrite((void*)0x0400, 0x0400, 1, fp); // Even cols
+  copyaux((void*)0x400, auxbuf, 0x400, FROMAUX);
+  fwrite(auxbuf, 0x0400, 1, fp); // Odd cols
+}
+
+/*
+ * Load a screen from the scrollback file
+ * Screens are numbered 1, 2, 3 ...
+ * TODO: No error handling!!
+ */
+void load_screen_from_scrollback(FILE *fp, uint8_t screen) {
+  fseek(fp, (screen - 1) * 0x0800, SEEK_SET);
+  fread((void*)0x0400, 0x0400, 1, fp); // Even cols
+  fread(auxbuf, 0x0400, 1, fp); // Odd cols
+  copyaux(auxbuf, 0x400, 0x400, TOAUX);
+  fseek(fp, 0, SEEK_END);
+}
+
 #define ENC_7BIT 0   // 7bit
 #define ENC_QP   1   // Quoted-Printable
 #define ENC_B64  2   // Base64
@@ -622,14 +667,17 @@ void email_pager(void) {
   uint32_t pos = 0;
   uint8_t *cursorrow = (uint8_t*)CURSORROW, mime = 0;
   struct emailhdrs *h = get_headers(selection);
-  FILE *attachfp, *decodefp;
+  FILE *sbackfp = NULL;
+  FILE *attachfp;
   uint16_t linecount, chars;
-  uint8_t  mime_enc, mime_binary, eof;
+  uint8_t  mime_enc, mime_binary, eof, screennum, maxscreennum;
   char c, *readp;
   clrscr();
   sprintf(filename, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, h->emailnum);
   fp = fopen(filename, "rb");
   if (!fp) {
+    if (sbackfp)
+      fclose(sbackfp);
     error(ERR_NONFATAL, "Can't open %s", filename);
     return;
   }
@@ -639,6 +687,17 @@ restart:
   eof = 0;
   linecount = 0;
   attachfp = NULL;
+  if (sbackfp)
+    fclose(sbackfp);
+  _filetype = PRODOS_T_BIN;
+  _auxtype = 0;
+  sprintf(filename, "%s/SCROLLBACK", cfg_emaildir);
+  unlink(filename);
+  sbackfp = fopen(filename, "wb+");
+  if (!sbackfp) {
+    error(ERR_NONFATAL, "No scrollback");
+  }
+  maxscreennum = screennum = 0;
   clrscr();
   fputs("Date:    ", stdout);
   printfield(h->date, 0, 39);
@@ -709,14 +768,10 @@ restart:
             attachfp = NULL;
         } else if ((mime == 3) && (!strncmp(linebuf, "\r", 1))) {
           mime = 4;
-          if (attachfp)
-            decodefp = attachfp;
-          else
-            if (mime_binary) {
-              mime_enc = ENC_SKIP; // Skip over binary MIME parts with no filename
-              fputs("Skipping  ", stdout);
-            } else
-              decodefp = stdout; // If non-binary and no file, send to screen
+          if (!attachfp && mime_binary) {
+            mime_enc = ENC_SKIP; // Skip over binary MIME parts with no filename
+            fputs("Skipping  ", stdout);
+          }
         }
         readp = NULL; // Read next line from disk
       } else if (mime == 4) {
@@ -746,10 +801,12 @@ restart:
             readp = NULL;
           if (mime == 4) {
             if (mime_binary) {
-              fwrite(linebuf, 1, chars, decodefp);
+              if (attachfp)
+                fwrite(linebuf, 1, chars, attachfp);
               readp = 0;
-            } else
-              word_wrap_line(decodefp, &readp);
+            } else {
+              word_wrap_line(stdout, &readp);
+            }
           }
         }
         if ((*cursorrow == 22) || eof) {
@@ -758,25 +815,33 @@ restart:
                  pos,
                  (eof ? "       ** END **      " : "SPACE continue reading"),
                  NORMAL);
+          if (sbackfp) {
+            save_screen_to_scrollback(sbackfp);
+            ++screennum;
+            ++maxscreennum;
+          }
 retry:
           c = cgetc();
           switch (c) {
           case ' ':
-            if (eof) {
-              putchar(BELL);
+            if (sbackfp && (screennum < maxscreennum)) {
+              load_screen_from_scrollback(sbackfp, ++screennum);
               goto retry;
+            } else {
+              if (eof) {
+                putchar(BELL);
+                goto retry;
+              }
             }
             break;
           case 'B':
           case 'b':
-            if (pos < h->skipbytes + (uint32_t)(SCROLLBACK)) {
-              pos = h->skipbytes;
-              fseek(fp, pos, SEEK_SET);
-              goto restart;
+            if (sbackfp && (screennum > 1)) {
+              load_screen_from_scrollback(sbackfp, --screennum);
+              goto retry;
             } else {
-              pos -= (uint32_t)(SCROLLBACK);
-              fseek(fp, pos, SEEK_SET);
-              get_line(fp, 1, &pos); // Reset buffer
+              putchar(BELL);
+              goto retry;
             }
             break;
           case 'T':
@@ -803,6 +868,8 @@ retry:
           case 'q':
             if (attachfp)
               fclose(attachfp);
+            if (sbackfp)
+              fclose(sbackfp);
             fclose(fp);
             return;
           default:
@@ -1501,6 +1568,12 @@ void keyboard_hdlr(void) {
 }
 
 void main(void) {
+  uint8_t *pp;
+  pp = (uint8_t*)0xbf98;
+  if (!(*pp & 0x02))
+    error(ERR_FATAL, "Need 80 cols");
+  if ((*pp & 0x30) != 0x30)
+    error(ERR_FATAL, "Need 128K");
   videomode(VIDEOMODE_80COL);
   readconfigfile();
   first_msg = 1;
