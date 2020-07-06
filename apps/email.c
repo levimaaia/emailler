@@ -87,6 +87,11 @@ void goto_prompt_row(void) {
     putchar(CURDOWN);
 }
 
+void clrscr2(void) {
+  videomode(VIDEOMODE_80COL);
+  clrscr();
+}
+
 /*
  * Show non fatal error in PROMPT_ROW
  * Fatal errors are shown on a blank screen
@@ -94,7 +99,7 @@ void goto_prompt_row(void) {
 void error(uint8_t fatal, const char *fmt, ...) {
   va_list v;
   if (fatal) {
-    clrscr();
+    clrscr2();
     printf("\n\n%cFATAL ERROR:%c\n\n", INVERSE, NORMAL);
     va_start(v, fmt);
     vprintf(fmt, v);
@@ -366,7 +371,7 @@ void status_bar(void) {
 void email_summary(void) {
   uint8_t i = 1;
   struct emailhdrs *h = headers;
-  clrscr();
+  clrscr2();
   status_bar();
   while (h) {
     print_one_email_summary(h, (i == selection));
@@ -672,7 +677,7 @@ void email_pager(void) {
   uint16_t linecount, chars;
   uint8_t  mime_enc, mime_binary, eof, screennum, maxscreennum;
   char c, *readp;
-  clrscr();
+  clrscr2();
   sprintf(filename, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, h->emailnum);
   fp = fopen(filename, "rb");
   if (!fp) {
@@ -686,6 +691,7 @@ void email_pager(void) {
 restart:
   eof = 0;
   linecount = 0;
+  readp = NULL;
   attachfp = NULL;
   if (sbackfp)
     fclose(sbackfp);
@@ -698,7 +704,7 @@ restart:
     error(ERR_NONFATAL, "No scrollback");
   }
   maxscreennum = screennum = 0;
-  clrscr();
+  clrscr2();
   fputs("Date:    ", stdout);
   printfield(h->date, 0, 39);
   fputs("\nFrom:    ", stdout);
@@ -876,7 +882,7 @@ retry:
             putchar(BELL);
             goto retry;
           }
-          clrscr();
+          clrscr2();
         }
       } while (readp);
     }
@@ -1557,7 +1563,7 @@ void keyboard_hdlr(void) {
     case 'q':
     case 'Q':
       if (prompt_okay("Quit - ")) {
-        clrscr();
+        clrscr2();
         exit(0);
       }
     default:
