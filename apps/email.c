@@ -4,7 +4,7 @@
 // Bobbi June, July 2020
 /////////////////////////////////////////////////////////////////
 
-// - TODO: See TODOs further down for error handling, buffer savings
+// - TODO: See TODOs further down for error handling
 // - TODO: Default to starting at end, not beginning (or option to sort backwards...)
 // - TODO: Editor for email composition functions
 
@@ -61,8 +61,7 @@ struct datetime {
 char                  filename[80];
 char                  userentry[80];
 char                  linebuf[998+2]; // According to RFC2822 Section 2.1.1 (998+CRLF)
-char                  auxbuf[0x0400]; // TODO: We can probably make linebuf bigger
-                                      //       and get rid of auxbuf
+char                  halfscreen[0x0400];
 FILE                  *fp;
 struct emailhdrs      *headers;
 uint16_t              selection, prevselection;
@@ -642,20 +641,36 @@ void copyaux(char *src, char *dst, uint16_t len, uint8_t dir) {
  */
 void save_screen_to_scrollback(FILE *fp) {
   fwrite((void*)0x0400, 0x0400, 1, fp); // Even cols
-  copyaux((void*)0x400, auxbuf, 0x400, FROMAUX);
-  fwrite(auxbuf, 0x0400, 1, fp); // Odd cols
+  copyaux((void*)0x400, halfscreen, 0x400, FROMAUX);
+  fwrite(halfscreen, 0x0400, 1, fp); // Odd cols
 }
 
 /*
  * Load a screen from the scrollback file
  * Screens are numbered 1, 2, 3 ...
+ * Does not trash the screen holes, which must be preserved!
  * TODO: No error handling!!
  */
 void load_screen_from_scrollback(FILE *fp, uint8_t screen) {
   fseek(fp, (screen - 1) * 0x0800, SEEK_SET);
-  fread((void*)0x0400, 0x0400, 1, fp); // Even cols
-  fread(auxbuf, 0x0400, 1, fp); // Odd cols
-  copyaux(auxbuf, 0x400, 0x400, TOAUX);
+  fread(halfscreen, 0x0400, 1, fp); // Even cols
+  memcpy((void*)0x400, halfscreen + 0x000, 0x077);
+  memcpy((void*)0x480, halfscreen + 0x080, 0x077);
+  memcpy((void*)0x500, halfscreen + 0x100, 0x077);
+  memcpy((void*)0x580, halfscreen + 0x180, 0x077);
+  memcpy((void*)0x600, halfscreen + 0x200, 0x077);
+  memcpy((void*)0x680, halfscreen + 0x280, 0x077);
+  memcpy((void*)0x700, halfscreen + 0x300, 0x077);
+  memcpy((void*)0x780, halfscreen + 0x380, 0x077);
+  fread(halfscreen, 0x0400, 1, fp); // Odd cols
+  copyaux(halfscreen + 0x000, (void*)0x400, 0x077, TOAUX);
+  copyaux(halfscreen + 0x080, (void*)0x480, 0x077, TOAUX);
+  copyaux(halfscreen + 0x100, (void*)0x500, 0x077, TOAUX);
+  copyaux(halfscreen + 0x180, (void*)0x580, 0x077, TOAUX);
+  copyaux(halfscreen + 0x200, (void*)0x600, 0x077, TOAUX);
+  copyaux(halfscreen + 0x280, (void*)0x680, 0x077, TOAUX);
+  copyaux(halfscreen + 0x300, (void*)0x700, 0x077, TOAUX);
+  copyaux(halfscreen + 0x380, (void*)0x780, 0x077, TOAUX);
   fseek(fp, 0, SEEK_END);
 }
 
