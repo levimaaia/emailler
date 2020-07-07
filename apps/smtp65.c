@@ -6,6 +6,8 @@
 // Bobbi June 2020
 /////////////////////////////////////////////////////////////////
 
+// TODO: Email rebuild mode to recreate mailbox given a directory of messages
+
 #include <cc65.h>
 #include <errno.h>
 #include <ctype.h>

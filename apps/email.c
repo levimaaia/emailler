@@ -4,6 +4,9 @@
 // Bobbi June, July 2020
 /////////////////////////////////////////////////////////////////
 
+// - TODO: BUG - there is a bug that causes messages to get duplicated 
+//               at top and bottom of mailbox. write_updated_headers()
+//               does not take account of the new reverse function.
 // - TODO: See TODOs further down for error handling
 // - TODO: Editor for email composition functions
 
@@ -1608,6 +1611,7 @@ void keyboard_hdlr(void) {
       h = get_headers(selection);
       copy_to_mailbox(h, first_msg + selection - 1, "OUTBOX", 0, 'F');
       break;
+#if 0
     case ',':
     case '<':
       reverse = 1;
@@ -1618,6 +1622,7 @@ void keyboard_hdlr(void) {
       reverse = 0;
       switch_mailbox(curr_mbox);
       break;
+#endif
     case 'q':
     case 'Q':
       if (prompt_okay("Quit - ")) {
