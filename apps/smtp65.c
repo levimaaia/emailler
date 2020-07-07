@@ -6,8 +6,6 @@
 // Bobbi June 2020
 /////////////////////////////////////////////////////////////////
 
-// TODO: Email rebuild mode to recreate mailbox given a directory of messages
-
 #include <cc65.h>
 #include <errno.h>
 #include <ctype.h>
@@ -460,8 +458,7 @@ void update_sent_mbox(char *name) {
         copyheader(hdrs.subject, linebuf + 9, 79);
         hdrs.subject[79] = '\0';
       }
-      //if (linebuf[0] == '\r') {
-      if (strlen(linebuf) < 10) {
+      if (linebuf[0] == '\r') {
         headers = 0;
         hdrs.skipbytes = headerchars;
       }

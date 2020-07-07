@@ -34,6 +34,7 @@
 #define READSZ    1024         // Must be less than NETBUFSZ to fit in buf[]
 
 static unsigned char buf[NETBUFSZ+1];    // One extra byte for null terminator
+static char          linebuf_pad[1];     // One byte of padding make it easier
 static char          linebuf[LINEBUFSZ];
 
 char     filename[80];
@@ -316,7 +317,7 @@ int16_t get_line(FILE *fp) {
   while (1) {
     for (i = rd; i < buflen; ++i) {
       linebuf[j++] = buf[i];
-      // The following line is safe because j>=1 at this point
+      // The following line is safe because of linebuf_pad[]
       if ((linebuf[j - 1] == '\n') && (linebuf[j - 2] == '\r')) {
         found = 1;
         break;
@@ -473,6 +474,8 @@ void main(void) {
   char sendbuf[80];
   uint16_t msg, nummsgs;
   uint32_t bytes;
+
+  linebuf_pad[0] = 0;
 
   videomode(VIDEOMODE_80COL);
   printf("%c%s POP3%c\n", 0x0f, PROGNAME, 0x0e);

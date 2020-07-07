@@ -4,6 +4,8 @@
 // Bobbi June, July 2020
 /////////////////////////////////////////////////////////////////
 
+// - TODO: Make an EMAIL.DB rebuilder tool
+// - TODO: Get rid of all uses of malloc(). Don't need it.
 // - TODO: See TODOs further down for error handling
 // - TODO: Editor for email composition functions
 
@@ -146,6 +148,9 @@ void readconfigfile(void) {
   fclose(fp);
 }
 
+/*
+ * Convert date/time bytes into struct datetime format.
+ */
 void readdatetime(unsigned char time[4], struct datetime *dt) {
     unsigned int d = time[0] + 256U * time[1];
     unsigned int t = time[2] + 256U * time[3];
