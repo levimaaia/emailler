@@ -4,6 +4,9 @@
 // Bobbi June, July 2020
 /////////////////////////////////////////////////////////////////
 
+// - TODO: BUG - memory leak if repeatedly switch mboxes. Think it is a problem
+//         with initialize == 1
+// - TODO: Get rid of unnecessary mallocs()
 // - TODO: See TODOs further down for error handling
 // - TODO: Default to starting at end, not beginning (or option to sort backwards...)
 // - TODO: Editor for email composition functions
@@ -238,6 +241,7 @@ uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox)
   struct emailhdrs *curr = NULL, *prev = NULL;
   uint16_t count = 0;
   uint16_t l;
+  uint8_t reverse = 0, done_visible = 0;
   if (initialize) {
     total_new = total_msgs = total_tag = 0;
   }
@@ -249,10 +253,23 @@ uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox)
     if (switchmbox)
       return 1;
   }
-  if (fseek(fp, (startnum - 1) * EMAILHDRS_SZ_ON_DISK, SEEK_SET)) {
-    error(switchmbox ? ERR_NONFATAL : ERR_FATAL, "Can't seek in %s", filename);
-    if (switchmbox)
-      return 1;
+  if (reverse) {
+    if (fseek(fp, 0, SEEK_END)) {
+      error(switchmbox ? ERR_NONFATAL : ERR_FATAL, "1/Can't seek in %s", filename);
+      if (switchmbox)
+        return 1;
+    }
+    if (fseek(fp, ftell(fp) - startnum * EMAILHDRS_SZ_ON_DISK, SEEK_SET)) {
+      error(switchmbox ? ERR_NONFATAL : ERR_FATAL, "2/Can't seek in %s", filename);
+      if (switchmbox)
+        return 1;
+    }
+  } else {
+    if (fseek(fp, (startnum - 1) * EMAILHDRS_SZ_ON_DISK, SEEK_SET)) {
+      error(switchmbox ? ERR_NONFATAL : ERR_FATAL, "Can't seek in %s", filename);
+      if (switchmbox)
+        return 1;
+    }
   }
   num_msgs = 0;
   while (1) {
@@ -268,6 +285,13 @@ uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox)
       fclose(fp);
       return 0;
     }
+    if (reverse) {
+      if (fseek(fp, ftell(fp) -2 * EMAILHDRS_SZ_ON_DISK, SEEK_SET)) {
+        free(curr);
+        fclose(fp);
+        return 0;
+      }
+    }
     if (count <= MSGS_PER_PAGE) {
       if (!prev)
         headers = curr;
@@ -275,17 +299,22 @@ uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox)
         prev->next = curr;
       prev = curr;
       ++num_msgs;
-    } else
+    } else {
       if (!initialize) {
+        free(curr);
         fclose(fp);
         return 0;
       }
+      done_visible = 1;
+    }
     if (initialize) {
       ++total_msgs;
       if (curr->status == 'N')
         ++total_new;
       if (curr->tag == 'T')
         ++total_tag;
+      if (done_visible)
+        free(curr);
     }
   }
   fclose(fp);
@@ -1371,6 +1400,7 @@ uint8_t copy_to_mailbox_tagged(char *mbox, uint8_t delete) {
     _auxtype = 0;
     fp = fopen(filename, "rb+");
     if (!fp) {
+      free(h);
       error(ERR_NONFATAL, "Can't open %s", filename);
       return 1;
     }
