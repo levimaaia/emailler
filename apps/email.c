@@ -4,11 +4,7 @@
 // Bobbi June, July 2020
 /////////////////////////////////////////////////////////////////
 
-// - TODO: BUG - memory leak if repeatedly switch mboxes. Think it is a problem
-//         with initialize == 1
-// - TODO: Get rid of unnecessary mallocs()
 // - TODO: See TODOs further down for error handling
-// - TODO: Default to starting at end, not beginning (or option to sort backwards...)
 // - TODO: Editor for email composition functions
 
 #include <stdio.h>
@@ -73,6 +69,7 @@ uint16_t              total_msgs;  // Total number of message in mailbox
 uint16_t              total_new;   // Total number of new messages
 uint16_t              total_tag;   // Total number of tagged messages
 uint16_t              first_msg;   // Msg numr: first message current page
+uint8_t               reverse;     // 0 normal, 1 reverse order
 char                  curr_mbox[80] = "INBOX";
 static unsigned char  buf[READSZ];
 
@@ -240,8 +237,9 @@ void free_headers_list(void) {
 uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox) {
   struct emailhdrs *curr = NULL, *prev = NULL;
   uint16_t count = 0;
+  uint8_t done_visible = 0;
+  int32_t pos;
   uint16_t l;
-  uint8_t reverse = 0, done_visible = 0;
   if (initialize) {
     total_new = total_msgs = total_tag = 0;
   }
@@ -254,13 +252,14 @@ uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox)
       return 1;
   }
   if (reverse) {
+    // TODO Streamline this once it works
     if (fseek(fp, 0, SEEK_END)) {
-      error(switchmbox ? ERR_NONFATAL : ERR_FATAL, "1/Can't seek in %s", filename);
+      error(switchmbox ? ERR_NONFATAL : ERR_FATAL, "Can't seek in %s", filename);
       if (switchmbox)
         return 1;
     }
     if (fseek(fp, ftell(fp) - startnum * EMAILHDRS_SZ_ON_DISK, SEEK_SET)) {
-      error(switchmbox ? ERR_NONFATAL : ERR_FATAL, "2/Can't seek in %s", filename);
+      error(switchmbox ? ERR_NONFATAL : ERR_FATAL, "Can't seek in %s", filename);
       if (switchmbox)
         return 1;
     }
@@ -285,13 +284,6 @@ uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox)
       fclose(fp);
       return 0;
     }
-    if (reverse) {
-      if (fseek(fp, ftell(fp) -2 * EMAILHDRS_SZ_ON_DISK, SEEK_SET)) {
-        free(curr);
-        fclose(fp);
-        return 0;
-      }
-    }
     if (count <= MSGS_PER_PAGE) {
       if (!prev)
         headers = curr;
@@ -315,6 +307,19 @@ uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox)
         ++total_tag;
       if (done_visible)
         free(curr);
+    }
+    if (reverse) {
+      // TODO Streamline this once it works
+      pos = ftell(fp) - 2 * EMAILHDRS_SZ_ON_DISK;
+      if (pos == -1 * EMAILHDRS_SZ_ON_DISK) {
+        fclose(fp);
+        return 0;
+      }
+      if (fseek(fp, pos, SEEK_SET)) {
+        error(switchmbox ? ERR_NONFATAL : ERR_FATAL, "Can't seek in %s", filename);
+        fclose(fp);
+        return 0;
+      }
     }
   }
   fclose(fp);
@@ -385,9 +390,9 @@ void status_bar(void) {
   if (num_msgs == 0)
     printf("%c%s [%s] No messages ", INVERSE, PROGNAME, curr_mbox);
   else
-    printf("%c[%s] %u msgs, %u new, %u tagged. Showing %u-%u. ",
+    printf("%c[%s] %u msgs, %u new, %u tagged. Showing %u-%u. %c ",
            INVERSE, curr_mbox, total_msgs, total_new, total_tag, first_msg,
-           first_msg + num_msgs - 1);
+           first_msg + num_msgs - 1, (reverse ? '<' : '>'));
   putchar(NORMAL);
   putchar(CURDOWN);
   printf("\n");
@@ -1605,6 +1610,16 @@ void keyboard_hdlr(void) {
       h = get_headers(selection);
       copy_to_mailbox(h, first_msg + selection - 1, "OUTBOX", 0, 'F');
       break;
+    case ',':
+    case '<':
+      reverse = 1;
+      switch_mailbox(curr_mbox);
+      break;
+    case '.':
+    case '>':
+      reverse = 0;
+      switch_mailbox(curr_mbox);
+      break;
     case 'q':
     case 'Q':
       if (prompt_okay("Quit - ")) {
@@ -1627,6 +1642,7 @@ void main(void) {
     error(ERR_FATAL, "Need 128K");
   videomode(VIDEOMODE_80COL);
   readconfigfile();
+  reverse = 0;
   first_msg = 1;
   read_email_db(first_msg, 1, 0);
   selection = 1;
