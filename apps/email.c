@@ -838,15 +838,13 @@ restart:
          case ENC_B64:
           chars = decode_base64();
           readp = linebuf; // Decoded text is in linebuf[]
-          if (!(linecount % 10))
-            spinner();
           break;
          case ENC_SKIP:
-          if (!(linecount % 10))
-            spinner();
           readp = NULL; // Read next line from disk
           break;
         }
+        if (mime_binary && !(linecount % 10))
+          spinner();
       }
       do {
         if (readp) {
