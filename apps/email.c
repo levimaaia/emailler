@@ -4,9 +4,6 @@
 // Bobbi June, July 2020
 /////////////////////////////////////////////////////////////////
 
-// - TODO: BUG - there is a bug that causes messages to get duplicated 
-//               at top and bottom of mailbox. write_updated_headers()
-//               does not take account of the new reverse function.
 // - TODO: See TODOs further down for error handling
 // - TODO: Editor for email composition functions
 
@@ -1381,6 +1378,16 @@ char prompt_okay(char *msg) {
 }
 
 /*
+ * Return index into EMAIL.DB for current selection.
+ */
+uint16_t get_db_index(void) {
+  if (!reverse)
+    return first_msg + selection - 1;
+  else
+    return total_msgs - (first_msg + selection - 1);
+}
+
+/*
  * Check if there are tagged messages.  If not, just call copy_to_mailbox()
  * on the current message.  If they are, prompt the user and, if affirmative,
  * iterate through the tagged messages calling copy_to_mailbox() on each.
@@ -1391,7 +1398,7 @@ uint8_t copy_to_mailbox_tagged(char *mbox, uint8_t delete) {
   uint16_t l;
   if (total_tag == 0) {
     h = get_headers(selection);
-    copy_to_mailbox(h, first_msg + selection - 1, mbox, delete, ' ');
+    copy_to_mailbox(h, get_db_index(), mbox, delete, ' ');
     return 0;
   }
   sprintf(filename, "%u tagged - ", total_tag);
@@ -1516,7 +1523,7 @@ void keyboard_hdlr(void) {
           h->tag = 'T';
           ++total_tag;
         }
-        write_updated_headers(h, first_msg + selection - 1);
+        write_updated_headers(h, get_db_index());
         email_summary_for(selection);
         status_bar();
       }
@@ -1542,7 +1549,7 @@ void keyboard_hdlr(void) {
         if (h->status == 'N')
           --total_new;
         h->status = 'R'; // Mark email read
-        write_updated_headers(h, first_msg + selection - 1);
+        write_updated_headers(h, get_db_index());
       }
       email_pager();
       email_summary();
@@ -1552,7 +1559,7 @@ void keyboard_hdlr(void) {
       h = get_headers(selection);
       if (h) {
         h->status = 'D';
-        write_updated_headers(h, first_msg + selection - 1);
+        write_updated_headers(h, get_db_index());
         email_summary_for(selection);
       }
       break;
@@ -1561,7 +1568,7 @@ void keyboard_hdlr(void) {
       h = get_headers(selection);
       if (h) {
         h->status = 'R';
-        write_updated_headers(h, first_msg + selection - 1);
+        write_updated_headers(h, get_db_index());
         email_summary_for(selection);
       }
       break;
@@ -1604,14 +1611,13 @@ void keyboard_hdlr(void) {
     case 'r':
     case 'R':
       h = get_headers(selection);
-      copy_to_mailbox(h, first_msg + selection - 1, "OUTBOX", 0, 'R');
+      copy_to_mailbox(h, get_db_index(), "OUTBOX", 0, 'R');
       break;
     case 'f':
     case 'F':
       h = get_headers(selection);
-      copy_to_mailbox(h, first_msg + selection - 1, "OUTBOX", 0, 'F');
+      copy_to_mailbox(h, get_db_index(), "OUTBOX", 0, 'F');
       break;
-#if 0
     case ',':
     case '<':
       reverse = 1;
@@ -1622,7 +1628,6 @@ void keyboard_hdlr(void) {
       reverse = 0;
       switch_mailbox(curr_mbox);
       break;
-#endif
     case 'q':
     case 'Q':
       if (prompt_okay("Quit - ")) {
