@@ -4,8 +4,6 @@
 // Bobbi June, July 2020
 /////////////////////////////////////////////////////////////////
 
-// - TODO: REBUILD should iterate through EMAIL.1 .. EMAIL.65535
-//         **in order**. Wonder how slow that is.
 // - TODO: BUG- If there is no trailing newlines, the last line of the
 //            message seems to be shown twice. Probably get_line() error.
 //            This is most obvious in SENT box if you don't CR final line.

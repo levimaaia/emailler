@@ -133,7 +133,7 @@ void copyheader(char *dest, char *source, uint16_t len) {
  */
 void repair_mailbox(void) {
   static struct emailhdrs hdrs;
-  uint16_t msg, chars, headerchars, emailnum, maxemailnum;
+  uint16_t chars, headerchars, emailnum, minemailnum, maxemailnum;
   uint8_t headers;
   FILE *fp;
   DIR *dp;
@@ -167,27 +167,30 @@ void repair_mailbox(void) {
   }
   fclose(fp);
 
-  while (d = readdir(dp)) {
+  printf("** Scanning directory %s\n", dirname);
 
+  while (d = readdir(dp)) {
     if (!strncmp(d->d_name, "EMAIL.DB", 8))
       continue;
     if (!strncmp(d->d_name, "NEXT.EMAIL", 10))
       continue;
     if (strncmp(d->d_name, "EMAIL.", 6))
       continue;
-
     sscanf(d->d_name, "EMAIL.%u", &emailnum);
+    if (emailnum < minemailnum)
+      minemailnum = emailnum;
     if (emailnum > maxemailnum)
       maxemailnum = emailnum;
+  }
+  closedir(dp);
 
-    sprintf(filename, "%s/%s", dirname, d->d_name);
-    printf("** Processing file %s [%u] ...\n", filename, emailnum);
+  printf("** Will process EMAIL.%u to EMAIL.%u\n", minemailnum, maxemailnum);
+  for (emailnum = minemailnum; emailnum <= maxemailnum; ++emailnum) {
+    sprintf(filename, "%s/EMAIL.%u", dirname, emailnum);
     fp = fopen(filename, "r");
-    if (!fp) {
-      closedir(dp);
-      printf("Can't open %s\n", filename);
+    if (!fp)
       continue;
-    }
+    printf("** Processing file %s\n", filename);
     headers = 1;
     headerchars = 0;
     hdrs.emailnum = emailnum;
@@ -228,7 +231,7 @@ void repair_mailbox(void) {
   }
   closedir(dp);
   write_next_email(maxemailnum + 1);
-  printf("Rebuilt %s/EMAIL.DB\n", dirname);
+  printf("\nRebuilt %s/EMAIL.DB\n", dirname);
   printf("Rebuilt %s/NEXT.EMAIL\n\n", dirname);
 }
 
@@ -244,7 +247,7 @@ void main(void) {
     confirm_exit();
   }
 
-  printf("\nUpdating %s ...\n", dirname);
+  printf("\nUpdating %s\n", dirname);
   repair_mailbox();
 
   confirm_exit();
