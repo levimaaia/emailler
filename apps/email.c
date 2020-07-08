@@ -4,6 +4,13 @@
 // Bobbi June, July 2020
 /////////////////////////////////////////////////////////////////
 
+// - TODO: Bunch of small bugs ...
+//         1) If there is no trailing newlines, the last line of the
+//            message seems to be shown twice. Probably get_line() error.
+//            This is most obvious in SENT box.
+//         2) If there are no messages in mailbox, reverse view is not happy.
+//         3) If there are no message in mailbox attempting to open a message
+//            tries to fetch some random EMAIL.xxxx
 // - TODO: Get rid of all uses of malloc(). Don't need it.
 // - TODO: See TODOs further down for error handling
 // - TODO: Editor for email composition functions
@@ -117,6 +124,32 @@ void error(uint8_t fatal, const char *fmt, ...) {
     cgetc();
     putchar(CLRLINE);
   }
+}
+
+/*
+ * Print spaces
+ */
+void pr_spc(uint8_t n) {
+  while (n--)
+    putchar(' ');
+}
+/*
+ * Print ASCII-art envelope
+ */
+void envelope(void) {
+  uint8_t i;
+  putchar(NORMAL);
+  putchar(HOME);
+  for (i = 0; i < 8 - 1; ++i) 
+    putchar(CURDOWN);
+  pr_spc(30); puts("+--------------+");
+  pr_spc(30); puts("|\\   INBOX    /|");
+  pr_spc(30); puts("| \\   ZERO   / |");
+  pr_spc(30); puts("|  \\        /  |");
+  pr_spc(30); puts("|   +------+   |");
+  pr_spc(30); puts("|         Bobbi|");
+  pr_spc(30); puts("+--------------+");
+  pr_spc(30); puts("             ... No messages in this mailbox");
 }
 
 /*
@@ -391,9 +424,10 @@ void status_bar(void) {
   fputs("                                                                ", stdout);
   printsystemdate();
   putchar(HOME);
-  if (num_msgs == 0)
+  if (num_msgs == 0) {
     printf("%c%s [%s] No messages ", INVERSE, PROGNAME, curr_mbox);
-  else
+    envelope();
+  } else
     printf("%c[%s] %u msgs, %u new, %u tagged. Showing %u-%u. %c ",
            INVERSE, curr_mbox, total_msgs, total_new, total_tag, first_msg,
            first_msg + num_msgs - 1, (reverse ? '<' : '>'));
@@ -1225,7 +1259,8 @@ uint8_t write_email_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h, char mode
     fprintf(fp2, "To: %s\r", userentry);
   }
   prompt_for_name("cc", 0);
-  fprintf(fp2, "cc: %s\r", userentry);
+  if (strlen(userentry) > 0)
+    fprintf(fp2, "cc: %s\r", userentry);
   fprintf(fp2, "X-Mailer: %s - Apple II Forever!\r\r", PROGNAME);
   if (mode == 'R') {
     truncate_header(h->date, buf, 40);
