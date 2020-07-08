@@ -4,7 +4,6 @@
 // Bobbi June, July 2020
 /////////////////////////////////////////////////////////////////
 
-// - TODO: Bug where messages get duplicated after purge??
 // - TODO: Get rid of all uses of malloc(). Don't need it.
 // - TODO: See TODOs further down for error handling
 // - TODO: Editor for email composition functions
@@ -1075,8 +1074,6 @@ done:
     error(ERR_NONFATAL, "Can't rename %s", userentry);
     return;
   }
-  read_email_db(first_msg, 1, 0);
-  email_summary();
 }
 
 /*
@@ -1389,7 +1386,7 @@ uint16_t get_db_index(void) {
   if (!reverse)
     return first_msg + selection - 1;
   else
-    return total_msgs - (first_msg + selection - 1);
+    return total_msgs - (first_msg + selection - 1) + 1;
 }
 
 /*
@@ -1596,7 +1593,10 @@ void keyboard_hdlr(void) {
     case 'P':
       if (prompt_okay("Purge - ")) {
         purge_deleted();
-        switch_mailbox(curr_mbox);
+        first_msg = 1;
+        read_email_db(first_msg, 1, 0);
+        selection = 1;
+        email_summary();
       }
       break;
     case 'n':
