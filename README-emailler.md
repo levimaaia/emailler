@@ -131,6 +131,8 @@ POP65 runs without any user interaction and performs the following tasks:
 
 EMAIL is a simple mail user agent for reading and managing email.
 
+<p align="center"><img src="img/inbox-zero.png" alt="Inbox Zero" height="400px"></p>
+
 <p align="center"><img src="img/summary-screen.png" alt="Summary Screen" height="400px"></p>
 
 When the EMAIL application is started it will show the `INBOX` in the summary screen.  This shows the following important information for each message:
@@ -161,7 +163,14 @@ Main menu commands:
  - '>' - Switch the order of the email summary to show the most recently added messages last.  The indicator in the status bar will change to `<` to indicate the order.
  - `Q)uit` - Quit from the EMAIL user interface.
 
-<p align="center"><img src="img/email-pager.png" alt="Email Pager" height="400px"></p>
+<p align="center"><img src="img/raw-text.png" alt="Email Pager" height="400px">
+Plain Text View</p>
+
+<p align="center"><img src="img/headers-view.png" alt="Email Pager" height="400px">
+Headers View</p>
+
+<p align="center"><img src="img/mime-view.png" alt="Email Pager" height="400px">
+MIME View</p>
 
 ### Mail Pager
 
@@ -185,6 +194,9 @@ There are three separate viewing modes:
 Long lines are word-wrapped at 80 columns in all three views.
 
 ### MIME Support
+
+<p align="center"><img src="img/attachment.png" alt="Downloading Attachment" height="400px">
+Downloading Attachment</p>
 
 EMAIL is able to decode messages encoded with the Multipurpose Internet Mail Extensions (MIME).  This allows email bodies which are encoded as anything other than plain text email to be extracted and formatted for the screen, and also provides support for extracting and saving to disk email attachments.
 
