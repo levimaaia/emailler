@@ -4,9 +4,7 @@
 // Bobbi June, July 2020
 /////////////////////////////////////////////////////////////////
 
-// - TODO: BUG- If there is no trailing newlines, the last line of the
-//            message seems to be shown twice. Probably get_line() error.
-//            This is most obvious in SENT box if you don't CR final line.
+// - TODO: BUG- Fix get_line() in other apps (email.c has been fixed)
 // - TODO: Get rid of all uses of malloc(). Don't need it.
 // - TODO: See TODOs further down for error handling
 // - TODO: Editor for email composition functions
@@ -484,36 +482,34 @@ void update_highlighted(void) {
  * reset - if 1 then just reset the buffer and return
  */
 int16_t get_line(FILE *fp, uint8_t reset, uint32_t *pos) {
-  static uint16_t rd = 0;
-  static uint16_t buflen = 0;
+  static uint16_t rd = 0; // Read
+  static uint16_t wt = 0; // Write
   uint8_t found = 0;
   uint16_t j = 0;
   uint16_t i;
   if (reset) {
-    rd = buflen = 0;
+    rd = wt = 0;
     *pos = 0;
     return 0;
   }
   while (1) {
-    for (i = rd; i < buflen; ++i) {
-      linebuf[j++] = buf[i];
+    while (rd < wt) {
+      linebuf[j++] = buf[rd++];
       ++(*pos);
       if (linebuf[j - 1] == '\r') {
         found = 1;
         break;
       }
     }
-    if (found) {
-      rd = i + 1;
-      linebuf[j] = '\0';
+    linebuf[j] = '\0';
+    if (rd == wt) // Empty buf[]
+      rd = wt = 0;
+    if (found)
       return j;
-    }
-    buflen = fread(buf, 1, READSZ, fp);
-    if (buflen == 0) {
-      rd = 0;
-      return -1; // Hit EOF before we found '\r'
-    }
-    rd = 0;
+    if (feof(fp))
+      return -1;
+    i = fread(&buf[wt], 1, READSZ - wt, fp);
+    wt += i;
   }
 }
 
