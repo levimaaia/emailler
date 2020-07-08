@@ -142,14 +142,14 @@ void envelope(void) {
   putchar(HOME);
   for (i = 0; i < 8 - 1; ++i) 
     putchar(CURDOWN);
-  pr_spc(30); puts("+--------------+");
-  pr_spc(30); puts("|\\   INBOX    /|");
-  pr_spc(30); puts("| \\   ZERO   / |");
-  pr_spc(30); puts("|  \\        /  |");
-  pr_spc(30); puts("|   +------+   |");
-  pr_spc(30); puts("|         Bobbi|");
-  pr_spc(30); puts("+--------------+");
-  pr_spc(30); puts("             ... No messages in this mailbox");
+  pr_spc(30); puts("+------------------+");
+  pr_spc(30); puts("|\\  \"Inbox Zero\"  /|");
+  pr_spc(30); puts("| \\              / |");
+  pr_spc(30); puts("|  \\            /  |");
+  pr_spc(30); puts("|   +----------+   |");
+  pr_spc(30); puts("|            Bobbi |");
+  pr_spc(30); puts("+------------------+");
+  pr_spc(30); puts("                 ... No messages in this mailbox");
 }
 
 /*
