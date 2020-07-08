@@ -163,6 +163,27 @@ Main menu commands:
 
 <p align="center"><img src="img/email-pager.png" alt="Email Pager" height="400px"></p>
 
+### Mail Pager
+
+Pressing space or return will open the currently-selected message in the mail pager.  The mail pager provides a comfortable interface for reading email, allowing rapid forwards and backwards paging through the email body.  This is done by saving the formatted email text to a `SCROLLBACK` file in the email root directory.
+
+Below the message text, a menu bar is shown with the following options:
+
+ - `SPACE continue reading` - Pressing space advances through the file a screen at a time.  This option is not available when at the end of the file.
+ - `B)ack` - Page back one screen.
+ - `T)op` - Go back to the top of the message.
+ - `H)drs` - Show message headers.
+ - `M)IME` - Decode MIME message (see below).
+ - `Q)uit` - Return to the email summary screen.
+
+There are three separate viewing modes:
+
+ - Plain text view (no headers) - This is the default view, and may be accessed by hitting the `T)op` key.  It shows the raw email text, starting immediately *after* the headers.
+ - Plain text view (with headers) - This mode is accessed using the `H)drs` option.  It shows the raw email text, starting from the very beginning.  Be aware that on today's Internet, most messages have 4KB or more of headers.  These are all preserved in EMAIL, but hidden from the user by default.
+ - MIME view - This mode is entered using the `M)IME` option.  Many email providers encode even simple text-only messages in a MIME envelope (using Quoted-Printable encoding).  Although these messages are readable in the plain text views, they are far more pleasant to read in MIME view.
+
+Long lines are word-wrapped at 80 columns in all three views.
+
 ### MIME Support
 
 EMAIL is able to decode messages encoded with the Multipurpose Internet Mail Extensions (MIME).  This allows email bodies which are encoded as anything other than plain text email to be extracted and formatted for the screen, and also provides support for extracting and saving to disk email attachments.
@@ -205,21 +226,49 @@ If you enter `n`, the attachment will be skipped.  Due to the large size of some
 
 A progress spinner is shown in either case.
 
-### Persistence of Tags and Read/Unread/Deleted Status
+### Tagging of Messages
 
-...
+It is possible to manually tag or untag messages using the `T)ag` key in the summary screen.  Collective operations such as `C)opy` or `M)ove` may then be performed on the tagged messages.
+
+Each time the `T)ag` key is pressed, the current message will be tagged and the selection moved down.  This allows large numbers of message to be tagged or untagged rapidly.
 
 ### Deletion of Messages
 
-...
+Deletion of messages in EMAIL is a two step process.  First a message must be marked as deleted using the `D)el` function.  This will be shown as a `D` in the first column on the summary screen.
 
-### Tagging of Messages
+A message which is marked as deleted may be unmarked by selecting it and pressing `U)ndel`.
 
-...
+All messages with the deleted `D` flag may be permanently deleted from disk by using the `P)urge` function.  Use this with care, since deleted messages may not be easily recovered.
+
+### New Message Status
+
+When messages are first received they are marked as new, which is shown with an asterix `*` in the first column on the summary screen.  When they are read this status will be cleared.
+
+### Persistence of Message State
+
+The message state is persisted in the `EMAIL.DB` file:
+
+ - New or already read
+ - Deleted flag
+ - Tag
 
 ### Sending of Messages
 
-...
+The EMAIL system currently does not include a text editor, instead relying on an external editor for message composition.  The advantage to this is you can choose whichever editor you prefer, provided it can handle plain Apple II text files.  I find the editor which is built into the Proterm 3.1 communications program to be quite satisfactory for this purpose.
+
+Sending of an email message is a three step process:
+
+ - Use the `W)rite`, `R)eply` or `F)wd` functions in EMAIL to create an email template file and store it in `OUTBOX`.
+ - Edit this file in your favourite text editor to add the email body.  You may also modify the `To:`, `cc:`, `Subject:` or `Date:` headers.
+ - Once you are satisfied with your edits and have saved the file, run `SMTP65.SYSTEM` to send the file to your mail server and copy it to the `SENT` mailbox.
+
+There are three ways to write an email:
+
+ - `W)rite` starts a blank email.  You will be prompted for the recipient, cc and subject line.  The date is automatically filled in.  Note that you may leave the cc entry blank, if no carbon copies are to be sent.
+ - `R)eply` creates a reply to the selected email, with the email included inline.  You will be prompted for the cc only (you can leave this blank).
+ - `F)wd` forwards the selected email.  You will be prompted for the recipient and cc (you can leave the cc blank, if desired.)
+
+However you create your template email, take note of the filename which is displayed in the status line.  The file will be created in the `OUTBOX` directory (`/H1/DOCUMENTS/EMAIL/OUTBOX` with our example settings.)
 
 ## `SMTP65.SYSTEM`
 
