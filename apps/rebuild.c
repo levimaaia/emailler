@@ -192,7 +192,7 @@ void repair_mailbox(void) {
     headerchars = 0;
     hdrs.emailnum = emailnum;
     hdrs.skipbytes = 0; // Just in case it doesn't get set
-    hdrs.status = 'N';
+    hdrs.status = 'R';
     hdrs.tag = ' ';
     while ((chars = get_line(fp)) != -1) {
       if (headers) {

@@ -4,7 +4,7 @@
 // Bobbi June, July 2020
 /////////////////////////////////////////////////////////////////
 
-// - TODO: Make an EMAIL.DB rebuilder tool
+// - TODO: Bug where messages get duplicated after purge??
 // - TODO: Get rid of all uses of malloc(). Don't need it.
 // - TODO: See TODOs further down for error handling
 // - TODO: Editor for email composition functions
