@@ -7,8 +7,7 @@
 // - TODO: Bunch of small bugs ...
 //         1) If there is no trailing newlines, the last line of the
 //            message seems to be shown twice. Probably get_line() error.
-//            This is most obvious in SENT box.
-//         2) If there are no messages in mailbox, reverse view is not happy.
+//            This is most obvious in SENT box if you don't CR final line.
 //         3) If there are no message in mailbox attempting to open a message
 //            tries to fetch some random EMAIL.xxxx
 // - TODO: Get rid of all uses of malloc(). Don't need it.
@@ -291,17 +290,20 @@ uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox)
   if (reverse) {
     // TODO Streamline this once it works
     if (fseek(fp, 0, SEEK_END)) {
+      fclose(fp);
       error(switchmbox ? ERR_NONFATAL : ERR_FATAL, "Can't seek in %s", filename);
       if (switchmbox)
         return 1;
     }
+    // If the mailbox is empty this seek will fail
     if (fseek(fp, ftell(fp) - startnum * EMAILHDRS_SZ_ON_DISK, SEEK_SET)) {
-      error(switchmbox ? ERR_NONFATAL : ERR_FATAL, "Can't seek in %s", filename);
-      if (switchmbox)
-        return 1;
+      fclose(fp);
+      num_msgs = total_new = total_msgs = total_tag = 0;
+      return 0;
     }
   } else {
     if (fseek(fp, (startnum - 1) * EMAILHDRS_SZ_ON_DISK, SEEK_SET)) {
+      fclose(fp);
       error(switchmbox ? ERR_NONFATAL : ERR_FATAL, "Can't seek in %s", filename);
       if (switchmbox)
         return 1;
@@ -755,10 +757,9 @@ void load_screen_from_scrollback(FILE *fp, uint8_t screen) {
  * Display email with simple pager functionality
  * Includes support for decoding MIME headers
  */
-void email_pager(void) {
+void email_pager(struct emailhdrs *h) {
   uint32_t pos = 0;
   uint8_t *cursorrow = (uint8_t*)CURSORROW, mime = 0;
-  struct emailhdrs *h = get_headers(selection);
   FILE *sbackfp = NULL;
   FILE *attachfp;
   uint16_t linecount, chars;
@@ -1588,7 +1589,7 @@ void keyboard_hdlr(void) {
         h->status = 'R'; // Mark email read
         write_updated_headers(h, get_db_index());
       }
-      email_pager();
+      email_pager(h);
       email_summary();
       break;
     case 'd':
