@@ -77,7 +77,7 @@ You can create these directories in ProDOS `BASIC.SYSTEM` as follows:
 ] CREATE /H1/DOCUMENTS/EMAIL/ATTACHMENTS
 ```
 
-You will also want to create a couple of mailboxes such as `RECEIVED` and `SENT`.  If you do not create a `SENT` mailbox then SMTP65 will be unable to complete the sending of messages and will give an error.  To create these mailboxes, run `EMAIL.SYSTEM` and press `N` for N)ew mailbox.  At the prompt, enter the name of the mailbox to be created: `RECEIVED`, and press return.  Repeat this to create the the `SENT` mailbox.
+You will also want to create a couple of mailboxes such as `RECEIVED` and `SENT`.  If you do not create a `SENT` mailbox then SMTP65 will be unable to complete the sending of messages and will give an error.  To create these mailboxes, run `EMAIL.SYSTEM` and press `N` for N)ew mailbox.  At the prompt, enter the name of the mailbox to be created: `RECEIVED`, and press return.  Repeat this to create the `SENT` mailbox.
 
 These are the minimum mailboxes you need to get started.  You may create more mailboxes to organize your mail at any time.
 
@@ -139,7 +139,9 @@ When the EMAIL application is started it will show the `INBOX` in the summary sc
 
   - Tag - Shows `T` if the message is tagged.
   - Read/Unread/Deleted - Shows `*` if the message is new (unread).  Shows `D` if the message is marked to be deleted.
-  - From, To, Date and Subject) for 18 messages at a time.
+  - From, Date and Subject headers
+
+18 messages may be shown on the summary screen.  If the mailbox has more than 18 messages there will be multiple screens.
 
 Main menu commands:
 
