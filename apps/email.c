@@ -1235,9 +1235,11 @@ done:
  * fp2  - File handle of the destination mail message
  * h    - headers of the message being replied/forwarded
  * mode - 'R' for reply, 'F' for forward
+ * fwd_to - Recipient (used for mode=='F' only)
  * Returns 0 if okay, 1 on error
  */
-uint8_t write_email_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h, char mode) {
+uint8_t write_email_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h,
+                            char mode, char *fwd_to) {
   struct datetime dt;
   fprintf(fp2, "From: %s\r", cfg_emailaddr);
   truncate_header(h->subject, buf, 80);
@@ -1250,12 +1252,8 @@ uint8_t write_email_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h, char mode
     if (parse_from_addr(filename, buf))
       return 1;
     fprintf(fp2, "To: %s\r", buf);
-  } else {
-    prompt_for_name("Fwd to", 0);
-    if (strlen(userentry) == 0)
-      return 0;
-    fprintf(fp2, "To: %s\r", userentry);
-  }
+  } else
+    fprintf(fp2, "To: %s\r", fwd_to);
   prompt_for_name("cc", 0);
   if (strlen(userentry) > 0)
     fprintf(fp2, "cc: %s\r", userentry);
@@ -1294,6 +1292,12 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
   uint16_t num, buflen, written, l;
   FILE *fp2;
 
+  if (mode == 'F') {
+    prompt_for_name("Fwd to", 0);
+    if (strlen(userentry) == 0)
+      return;
+  }
+
   // Read next number from dest/NEXT.EMAIL
   if (get_next_email(mbox, &num))
     return;
@@ -1318,7 +1322,7 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
   }
 
   if (mode != ' ')
-    if (write_email_headers(fp, fp2, h, mode)) {
+    if (write_email_headers(fp, fp2, h, mode, userentry)) {
       error(ERR_NONFATAL, "Invalid email header");
       fclose(fp);
       fclose(fp2);
@@ -1512,7 +1516,8 @@ void create_blank_outgoing() {
   datetimelong(&dt, userentry);
   fprintf(fp, "Date: %s\r", userentry);
   prompt_for_name("cc", 0);
-  fprintf(fp, "cc: %s\r", userentry);
+  if (strlen(userentry) > 0)
+    fprintf(fp, "cc: %s\r", userentry);
   fprintf(fp, "X-Mailer: %s - Apple II Forever!\r\r", PROGNAME);
   fclose(fp);
 
