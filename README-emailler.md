@@ -100,7 +100,7 @@ If the `EMAIL.DB` file for a mailbox gets corrupted, it will no longer possible 
 
 ## `POP65.SYSTEM`
 
-<p align="center"><img src="img/POP65.jpg" alt="Summary Screen" height="400px"></p>
+<p align="center"><img src="img/POP65.jpg" alt="POP65" height="400px"></p>
 
 POP65 is a Post Office Protocol v3 (POP3) client for the Apple II.  It requires an Uthernet-II ethernet card and will not work with other interfaces without modification, because it uses the W5100 hardware TCP/IP stack.  POP65 is used to download new email messages from a POP3 email server.  (I use Dovecot on the Raspberry Pi as my POP3 server, but other POP3 servers should work too.)
 
@@ -163,14 +163,15 @@ Main menu commands:
  - '>' - Switch the order of the email summary to show the most recently added messages last.  The indicator in the status bar will change to `<` to indicate the order.
  - `Q)uit` - Quit from the EMAIL user interface.
 
-<p align="center"><img src="img/raw-text.png" alt="Email Pager" height="400px">
-Plain Text View</p>
+#### Plain Text View `T)op`
+<p align="center"><img src="img/raw-text.png" alt="Email Pager" height="400px"></p>
 
-<p align="center"><img src="img/headers-view.png" alt="Email Pager" height="400px">
-Headers View</p>
+#### Headers View `H)drs`
+<p align="center"><img src="img/headers-view.png" alt="Email Pager" height="400px"></p>
 
+#### MIME View `M)IME`
 <p align="center"><img src="img/mime-view.png" alt="Email Pager" height="400px">
-MIME View</p>
+</p>
 
 ### Mail Pager
 
@@ -195,8 +196,7 @@ Long lines are word-wrapped at 80 columns in all three views.
 
 ### MIME Support
 
-<p align="center"><img src="img/attachment.png" alt="Downloading Attachment" height="400px">
-Downloading Attachment</p>
+<p align="center"><img src="img/attachment.png" alt="Downloading Attachment" height="400px"></p>
 
 EMAIL is able to decode messages encoded with the Multipurpose Internet Mail Extensions (MIME).  This allows email bodies which are encoded as anything other than plain text email to be extracted and formatted for the screen, and also provides support for extracting and saving to disk email attachments.
 
@@ -284,7 +284,7 @@ However you create your template email, take note of the filename which is displ
 
 ## `SMTP65.SYSTEM`
 
-<p align="center"><img src="img/SMTP65.jpg" alt="Summary Screen" height="400px"></p>
+<p align="center"><img src="img/SMTP65.jpg" alt="SMTP65" height="400px"></p>
 
 SMTP65 is a Simple Mail Transport Protocol (SMTP65) client for the Apple II.  It requires an Uthernet-II ethernet card and will not work with other interfaces without modification, because it uses the W5100 hardware TCP/IP stack.  POP65 is used to send outgoing email messages to an SMTP email server.  (I use Postfix on the Raspberry Pi as my SMTP server, but other SMTP servers should work too.)
 
