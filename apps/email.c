@@ -8,8 +8,6 @@
 //         1) If there is no trailing newlines, the last line of the
 //            message seems to be shown twice. Probably get_line() error.
 //            This is most obvious in SENT box if you don't CR final line.
-//         3) If there are no message in mailbox attempting to open a message
-//            tries to fetch some random EMAIL.xxxx
 // - TODO: Get rid of all uses of malloc(). Don't need it.
 // - TODO: See TODOs further down for error handling
 // - TODO: Editor for email composition functions
@@ -1533,8 +1531,10 @@ void create_blank_outgoing() {
  */
 void keyboard_hdlr(void) {
   struct emailhdrs *h;
+  char c;
   while (1) {
-    char c = cgetc();
+    h = get_headers(selection);
+    c = cgetc();
     switch (c) {
     case 'k':
     case 'K':
@@ -1552,7 +1552,6 @@ void keyboard_hdlr(void) {
       break;
     case 't':
     case 'T':
-      h = get_headers(selection);
       if (h) {
         if (h->tag == 'T') {
           h->tag = ' ';
@@ -1582,19 +1581,17 @@ void keyboard_hdlr(void) {
       break;
     case RETURN:
     case ' ':
-      h = get_headers(selection);
       if (h) {
         if (h->status == 'N')
           --total_new;
         h->status = 'R'; // Mark email read
         write_updated_headers(h, get_db_index());
+        email_pager(h);
+        email_summary();
       }
-      email_pager(h);
-      email_summary();
       break;
     case 'd':
     case 'D':
-      h = get_headers(selection);
       if (h) {
         h->status = 'D';
         write_updated_headers(h, get_db_index());
@@ -1603,7 +1600,6 @@ void keyboard_hdlr(void) {
       break;
     case 'u':
     case 'U':
-      h = get_headers(selection);
       if (h) {
         h->status = 'R';
         write_updated_headers(h, get_db_index());
@@ -1612,29 +1608,47 @@ void keyboard_hdlr(void) {
       break;
     case 'c':
     case 'C':
-      if (prompt_for_name("Copy to mbox", 1))
-        copy_to_mailbox_tagged(userentry, 0);
+      if (h)
+        if (prompt_for_name("Copy to mbox", 1))
+          copy_to_mailbox_tagged(userentry, 0);
       break;
     case 'm':
     case 'M':
-      if (prompt_for_name("Move to mbox", 1))
-        copy_to_mailbox_tagged(userentry, 1);
+      if (h)
+        if (prompt_for_name("Move to mbox", 1))
+          copy_to_mailbox_tagged(userentry, 1);
       break;
     case 'a':
     case 'A':
-      goto_prompt_row();
-      copy_to_mailbox_tagged("RECEIVED", 1);
+      if (h) {
+        goto_prompt_row();
+        copy_to_mailbox_tagged("RECEIVED", 1);
+      }
       break;
     case 'p':
     case 'P':
-      if (prompt_okay("Purge - ")) {
-        purge_deleted();
-        first_msg = 1;
-        read_email_db(first_msg, 1, 0);
-        selection = 1;
-        email_summary();
+      if (h) {
+        if (prompt_okay("Purge - ")) {
+          purge_deleted();
+          first_msg = 1;
+          read_email_db(first_msg, 1, 0);
+          selection = 1;
+          email_summary();
+        }
       }
       break;
+    case 'r':
+    case 'R':
+      if (h)
+        copy_to_mailbox(h, get_db_index(), "OUTBOX", 0, 'R');
+      break;
+    case 'f':
+    case 'F':
+      if (h)
+        copy_to_mailbox(h, get_db_index(), "OUTBOX", 0, 'F');
+      break;
+    // Everything above here needs a selected message (h != NULL)
+    // Everything below here does NOT need a selected message
     case 'n':
     case 'N':
       if (prompt_for_name("New mbox", 1))
@@ -1648,16 +1662,6 @@ void keyboard_hdlr(void) {
     case 'w':
     case 'W':
       create_blank_outgoing();
-      break;
-    case 'r':
-    case 'R':
-      h = get_headers(selection);
-      copy_to_mailbox(h, get_db_index(), "OUTBOX", 0, 'R');
-      break;
-    case 'f':
-    case 'F':
-      h = get_headers(selection);
-      copy_to_mailbox(h, get_db_index(), "OUTBOX", 0, 'F');
       break;
     case ',':
     case '<':
