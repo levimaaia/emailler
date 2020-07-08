@@ -2,11 +2,12 @@
 
 <p align="center"><img src="img/emailler-logo.png" alt="emai//er-logo" height="200px"></p>
 
-The AppleII Email Suite consists of the following three ProDOS programs:
+The AppleII Email Suite consists of the following four ProDOS programs:
 
  - `POP65.SYSTEM` is a Post Office Protocol version 3 (POP3) client for the Apple II with Uthernet-II card.
  - `EMAIL.SYSTEM` is a simple user interface for reading and managing email.  It works together with `POP65` and `SMTP65`.
  - `SMTP65.SYSTEM` is a Simple Mail Transport Protocol (SMTP) client for the Apple II with Uthernet-II card.
+ - `REBUILD.SYSTEM` is a utility for rebuilding mailbox databases, should they become corrupted.  This can also be used for bulk import of messages.
 
 ## Overview
 
@@ -64,6 +65,7 @@ To get started, you will need to create the following directories:
  - The `SPOOL` directory, used by POP65, within the email root directory.  This will be `/H1/DOCUMENTS/EMAIL/SPOOL` for our example configuration.
  - The `INBOX` directory, used by POP65, within the email root directory.  This will be `/H1/DOCUMENTS/EMAIL/INBOX` for our example configuration.
  - The `OUTBOX` directory, used by SMTP65, within the email root directory.  This will be `/H1/DOCUMENTS/EMAIL/OUTBOX` for our example configuration.
+ - The `ATTACHMENTS` directory, used by EMAIL for storing downloaded MIME attachments, within the email root directory.  This will be `/H1/DOCUMENTS/EMAIL/ATTACHMENTS` for our example configuration.
 
 You can create these directories in ProDOS `BASIC.SYSTEM` as follows:
 
@@ -72,6 +74,7 @@ You can create these directories in ProDOS `BASIC.SYSTEM` as follows:
 ] CREATE /H1/DOCUMENTS/EMAIL/SPOOL
 ] CREATE /H1/DOCUMENTS/EMAIL/INBOX
 ] CREATE /H1/DOCUMENTS/EMAIL/OUTBOX
+] CREATE /H1/DOCUMENTS/EMAIL/ATTACHMENTS
 ```
 
 You will also want to create a couple of mailboxes such as `RECEIVED` and `SENT`.  If you do not create a `SENT` mailbox then SMTP65 will be unable to complete the sending of messages and will give an error.  To create these mailboxes, run `EMAIL.SYSTEM` and press `N` for N)ew mailbox.  At the prompt, enter the name of the mailbox to be created: `RECEIVED`, and press return.  Repeat this to create the the `SENT` mailbox.
@@ -92,6 +95,8 @@ The easiest way to create additional mailboxes is using the `N)ew` command in `E
 `POP65.SYSTEM` knows how to initialize `INBOX` but the directory must have been created first.
 
 Note that `SPOOL` is not a mailbox, just a directory.  `OUTBOX` is also not a 'proper' mailbox - it has `NEXT.EMAIL` but not `EMAIL.DB`.
+
+If the `EMAIL.DB` file for a mailbox gets corrupted, it will no longer possible to browse the summary and read the messages in `EMAIL.SYSTEM`.  The utility `REBUILD.SYSTEM` can be used to rebuild the `EMAIL.DB` and `NEXT.EMAIL` files for an existing mailbox (see below.)
 
 ## `POP65.SYSTEM`
 
@@ -131,7 +136,7 @@ EMAIL is a simple mail user agent for reading and managing email.
 When the EMAIL application is started it will show the `INBOX` in the summary screen.  This shows the following important information for each message:
 
   - Tag - Shows `T` if the message is tagged.
-  - Read/Unread/Deleted - Shows `*` if the message is new (unread).  Shows `D` if the message is markedto be deleted.
+  - Read/Unread/Deleted - Shows `*` if the message is new (unread).  Shows `D` if the message is marked to be deleted.
   - From, To, Date and Subject) for 18 messages at a time.
 
 Main menu commands:
@@ -152,11 +157,53 @@ Main menu commands:
  - `W)rite` - Prepare a new blank outgoing email and place it in `OUTBOX` ready for editing.
  - `R)eply` - Prepare a reply to the selected email and place it in `OUTBOX` ready for editing.
  - `F)orward` - Prepare a forwarded copy of the selected email and place it in `OUTBOX` ready for editing.
+ - '<' - Switch the order of the email summary to show the most recently added messages first.  The indicator in the status bar will change to `>` to indicate the order.
+ - '>' - Switch the order of the email summary to show the most recently added messages last.  The indicator in the status bar will change to `<` to indicate the order.
  - `Q)uit` - Quit from the EMAIL user interface.
 
 <p align="center"><img src="img/email-pager.png" alt="Email Pager" height="400px"></p>
 
+### MIME Support
 
+EMAIL is able to decode messages encoded with the Multipurpose Internet Mail Extensions (MIME).  This allows email bodies which are encoded as anything other than plain text email to be extracted and formatted for the screen, and also provides support for extracting and saving to disk email attachments.
+
+Support for *composing* message with attachments is planned for a later release.
+
+#### Encodings
+
+MIME allows a number of message encodings, and EMAIL supports all those that make sense (everything except 8bit and Binary).
+
+ - 7bit
+ - Quoted-printable
+ - Base64
+
+Quoted-printable encoding is commonly used for email bodies where the majority of the characters are US ASCII, with a few UTF-8 chars here and there.  Base64 is most often used for encoding binary files.  However it is possible (although unusual) to encode a binary attachment in Quoted-printable or to use Base64 for encoding ASCII text.  The important point is that the *encoding* is independent of the *deposition* (ie: whether the object is to be shown inline or offered as an attachment to download.
+
+#### Inline Rendering
+
+All email body text (which could be non-MIME text, or `text/plain` content represented in one of the encodings described above is filtered to remove non-ASCII characters and word-wrapped to fit the 80 column screen.
+
+Unicode UTF-8 characters are not supported and will either be omitted or displayed as a couple of garbage characters.  It is not feasible to (fully) support UTF-8 on an 8 bit system, unfortunately.
+
+EMAIL will not display objects of type `text/html` but will instead show a placeholder, so the user is aware the HTML was omitted.
+
+#### Attachments
+
+Objects of any other type will be treated as attachments and offered for download.
+
+Any object which has a MIME `filename=` field, regardless of type, will be treated as an attachment and offered for download.
+
+When an attachment is encountered, while reading an email in `M)IME` mode, the following prompt will be shown:
+
+```
+Okay to download /H1/DOCUMENTS/EMAIL/ATTACHMENTS/filename.typ? (y/n) >
+```	
+
+If you respond in the affirmative, the attachment will be decoded (usually from Base64) and saved to the filename indicated.  If you are unable to download attachments, be sure the `ATTACHMENTS` directory exists and is writable.
+
+If you enter `n`, the attachment will be skipped.  Due to the large size of some attachments, even skipping over them may take several seconds.
+
+A progress spinner is shown in either case.
 
 ### Persistence of Tags and Read/Unread/Deleted Status
 
@@ -198,4 +245,12 @@ SMTP65 runs without any user interaction and performs the following tasks:
    - If the message was successfully sent, copy it to the `SENT` mailbox.
    - Remove the sent message from `OUTBOX`.
    - Iterate until all messages in `OUTBOX` have been sent, and copied to `SENT`.  Rejected messages are left in `OUTBOX` where they may be edited and retransmitted.
+
+## `REBUILD.SYSTEM`
+
+REBUILD is a utility for converting a folder of email messages (text files named `EMAIL.nnn` where `nnn` is an integer) into a mailbox.  It will erase any existing `EMAIL.DB` and `NEXT.EMAIL` files, parse the message files and create new `EMAIL.DB` and `NEXT.EMAIL` files.  This tool may be used for bulk import of messages or for recreating the `EMAIL.DB` file for a mailbox which has become corrupted.
+
+REBUILD simply prompts for the path of the directory to process.
+
+If you use this tool for bulk import, be sure that all the `EMAIL.nnn` files are in Apple II text format with carriage return line endings (not MS-DOS or UNIX style.)
 

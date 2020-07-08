@@ -4,8 +4,7 @@
 // Bobbi June, July 2020
 /////////////////////////////////////////////////////////////////
 
-// - TODO: Bunch of small bugs ...
-//         1) If there is no trailing newlines, the last line of the
+// - TODO: BUG- If there is no trailing newlines, the last line of the
 //            message seems to be shown twice. Probably get_line() error.
 //            This is most obvious in SENT box if you don't CR final line.
 // - TODO: Get rid of all uses of malloc(). Don't need it.
