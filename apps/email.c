@@ -4,7 +4,6 @@
 // Bobbi June, July 2020
 /////////////////////////////////////////////////////////////////
 
-// - TODO: BUG- Fix get_line() in other apps (email.c has been fixed)
 // - TODO: Get rid of all uses of malloc(). Don't need it.
 // - TODO: See TODOs further down for error handling
 // - TODO: Editor for email composition functions

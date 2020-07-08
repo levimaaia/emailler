@@ -309,31 +309,31 @@ void readconfigfile(void) {
  * Converts line endings from CRLF -> CR (Apple ][ style)
  */
 int16_t get_line(FILE *fp) {
-  static uint16_t rd = 0;
-  static uint16_t buflen = 0;
+  static uint16_t rd = 0; // Read
+  static uint16_t wt = 0; // Write
   uint8_t found = 0;
   uint16_t j = 0;
   uint16_t i;
   while (1) {
-    for (i = rd; i < buflen; ++i) {
-      linebuf[j++] = buf[i];
+    while (rd < wt) {
+      linebuf[j++] = buf[rd++];
       // The following line is safe because of linebuf_pad[]
       if ((linebuf[j - 1] == '\n') && (linebuf[j - 2] == '\r')) {
         found = 1;
         break;
       }
     }
+    linebuf[j] = '\0';
+    if (rd == wt) // Empty buf[]
+      rd = wt = 0;
     if (found) {
-      rd = i + 1;
       linebuf[j - 1] = '\0'; // Remove LF from end
       return j - 1;
     }
-    buflen = fread(buf, 1, READSZ, fp);
-    if (buflen == 0) {
-      rd = 0;
-      return -1; // Hit EOF before we found EOL
-    }
-    rd = 0;
+    if (feof(fp))
+      return -1;
+    i = fread(&buf[wt], 1, READSZ - wt, fp);
+    wt += i;
   }
 }
 

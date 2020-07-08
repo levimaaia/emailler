@@ -313,34 +313,34 @@ void readconfigfile(void) {
  * reset - if 1 then just reset the buffer and return
  */
 int16_t get_line(FILE *fp, uint8_t reset) {
-  static uint16_t rd = 0;
-  static uint16_t buflen = 0;
+  static uint16_t rd = 0; // Read
+  static uint16_t wt = 0; // Write
   uint8_t found = 0;
   uint16_t j = 0;
   uint16_t i;
   if (reset) {
-    rd = buflen = 0;
+    rd = wt = 0;
     return 0;
   }
   while (1) {
-    for (i = rd; i < buflen; ++i) {
-      linebuf[j++] = buf[i];
+    while (rd < wt) {
+      linebuf[j++] = buf[rd++];
       if (linebuf[j - 1] == '\r') {
         found = 1;
         break;
       }
     }
+    linebuf[j] = '\0';
+    if (rd == wt) // Empty buf
+      rd = wt = 0;
     if (found) {
-      rd = i + 1;
-      linebuf[j] = '\0';
       return j;
     }
-    buflen = fread(buf, 1, READSZ, fp);
-    if (buflen == 0) {
-      rd = 0;
-      return -1; // Hit EOF before we found EOL
+    if (feof(fp)) {
+      return -1;
     }
-    rd = 0;
+    i = fread(&buf[wt], 1, READSZ - wt, fp);
+    wt += i;
   }
 }
 
@@ -545,8 +545,6 @@ void main(void) {
 
   while (d = readdir(dp)) {
 
-skiptonext:
-
     sprintf(filename, "%s/OUTBOX/%s", cfg_emaildir, d->d_name);
     fp = fopen(filename, "rb");
     if (!fp) {
@@ -556,9 +554,9 @@ skiptonext:
 
     // Skip special files
     if (!strncmp(d->d_name, "EMAIL.DB", 8))
-      continue;
+      goto skiptonext;
     if (!strncmp(d->d_name, "NEXT.EMAIL", 10))
-      continue;
+      goto skiptonext;
 
     printf("\n** Processing file %s ...\n", d->d_name);
 
@@ -569,7 +567,6 @@ skiptonext:
       if ((get_line(fp, 0) == -1) || (linecount == 20)) {
         if (strlen(recipients) == 0) {
           printf("No recipients (To or Cc) in %s. Skipping msg.\n", d->d_name);
-          fclose(fp);
           goto skiptonext;
         }
         break;
@@ -591,7 +588,7 @@ skiptonext:
     }
     if (expect(buf, "250 ")) {
       printf("Skipping msg\n");
-      continue;
+      goto skiptonext;
     }
 
     // Handle multiple comma-separated recipients
@@ -606,7 +603,6 @@ skiptonext:
       }
       if (expect(buf, "250 ")) {
         printf("Skipping msg\n");
-        fclose(fp);
         goto skiptonext;
       }
       p = q + 1;
@@ -619,8 +615,7 @@ skiptonext:
     }
     if (expect(buf, "250 ")) {
       printf("Skipping msg\n");
-      fclose(fp);
-      continue;
+      goto skiptonext;
     }
 
     sprintf(sendbuf, "DATA\r\n");
@@ -629,8 +624,7 @@ skiptonext:
     }
     if (expect(buf, "354 ")) {
       printf("Skipping msg\n");
-      fclose(fp);
-      continue;
+      goto skiptonext;
     }
 
     fseek(fp, 0, SEEK_SET);
@@ -649,6 +643,10 @@ skiptonext:
     sprintf(filename, "%s/OUTBOX/%s", cfg_emaildir, d->d_name);
     if (unlink(filename))
       printf("Can't remove %s\n", filename);
+
+skiptonext:
+    if (fp)
+      fclose(fp);
   }
   closedir(dp);
 
