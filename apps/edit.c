@@ -3,8 +3,6 @@
 // Bobbi July 2020
 /////////////////////////////////////////////////////////////////////////////
 
-// TODO: Scroll-up / scroll-down should not mess with cursor position (but
-//       they do it we hit EOF or BOF)
 // TODO: it is possible to scroll off beginning or end of doc
 // TODO: Probably should convert tabs to space in loading and when tab key
 //       is pressed.  Much easier to deal with.  Implications for reading
@@ -134,6 +132,7 @@ uint8_t jump_pos(uint16_t pos) {
  * Returns 0 on success
  *         1 if file can't be opened
  *         2 if file too big
+ * TODO: Convert tabs to spaces
  */
 uint8_t load_file(char *filename) {
   FILE *fp = fopen(filename, "r");
@@ -192,9 +191,7 @@ uint8_t next_tabstop(uint8_t col) {
  */
 uint8_t read_char_update_pos(void) {
   char c;
-  c = gapbuf[pos++];
-  switch (c) {
-  case EOL:
+  if ((c = gapbuf[pos++]) == EOL) {
     if (do_print) {
       rowlen[row] = col + 1;
       putchar(CLREOL);
@@ -203,17 +200,10 @@ uint8_t read_char_update_pos(void) {
     ++row;
     col = 0;
     return 1;
-  case '\t':
-    if (do_print)
-      for (c = 0; c < next_tabstop(col) - col; ++c)
-        putchar(' ');
-    col = next_tabstop(col);
-    break;
-  default:
-    if (do_print)
-      putchar(c);
-    ++col;
   }
+  if (do_print)
+    putchar(c);
+  ++col;
   if (col >= NCOLS) {
     if (do_print)
       rowlen[row] = NCOLS;
@@ -533,6 +523,7 @@ void page_up(void) {
 int main() {
   char c;
   uint16_t pos;
+  uint8_t i;
   videomode(VIDEOMODE_80COL);
   if (load_file("test.txt")) {
     puts("load_file error");
@@ -576,6 +567,13 @@ int main() {
     case 0x08:  // Left
       cursor_left();
       break;
+    case 0x09:  // Tab
+      c = next_tabstop(curscol) - curscol;
+      for (i = 0; i < c; ++i) {
+        insert_char(' ');
+        update_after_insert_char();
+      }
+      break;
     case 0x15:  // Right
       cursor_right();
       break;
@@ -586,6 +584,7 @@ int main() {
       cursor_down();
       break;
     default:
+      //printf("**%02x**", c);
       insert_char(c);
       update_after_insert_char();
     }
