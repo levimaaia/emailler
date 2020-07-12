@@ -3,8 +3,6 @@
 // Bobbi July 2020
 /////////////////////////////////////////////////////////////////////////////
 
-// TODO: There is still an issue where if deleting (left or right) removes
-//       lines, the rest of the screen doesn't get drawn as it should.
 // TODO: it is possible to scroll off beginning or end of doc
 // TODO: Probably should convert tabs to space in loading and when tab key
 //       is pressed.  Much easier to deal with.  Implications for reading
@@ -315,7 +313,7 @@ void update_after_delete_char_right(void) {
   }
 
   // If necessary, print rest of screen
-  if ((gapbuf[gapend] == EOL) || (prevcol == 0))
+  if ((gapbuf[gapend] == EOL) || (prevcol == NCOLS - 1))
     while ((pos < BUFSZ) && (row < NROWS))
       read_char_update_pos();
 
@@ -370,7 +368,7 @@ void update_after_delete_char(void) {
   }
 
   // If necessary, print rest of screen
-  if ((gapbuf[gapbegin] == EOL) || (prevcol == 0))
+  if ((gapbuf[gapbegin] == EOL) || (prevcol == NCOLS - 1))
     while ((pos < BUFSZ) && (row < NROWS))
       read_char_update_pos();
 
