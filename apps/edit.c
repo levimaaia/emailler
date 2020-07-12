@@ -3,6 +3,8 @@
 // Bobbi July 2020
 /////////////////////////////////////////////////////////////////////////////
 
+// TODO: Scroll-up / scroll-down should not mess with cursor position (but
+//       they do it we hit EOF or BOF)
 // TODO: it is possible to scroll off beginning or end of doc
 // TODO: Probably should convert tabs to space in loading and when tab key
 //       is pressed.  Much easier to deal with.  Implications for reading
@@ -16,7 +18,7 @@
 #include <peekpoke.h>
 
 #define NCOLS     80 // Width of editing screen
-#define NROWS     21 // Height of editing screen
+#define NROWS     23 // Height of editing screen
 #define CURSORROW 10 // Row cursor is initially shown on (if enough text)
 
 #define EOL '\r' // For ProDOS
@@ -462,10 +464,8 @@ void cursor_right(void) {
  */
 void cursor_up(void) {
   uint8_t i;
-  if (cursrow == 0) {
+  if (cursrow == 0)
     scroll_up();
-    ++cursrow;
-  }
   for (i = 0; i < curscol; ++i)
     gapbuf[gapend--] = gapbuf[--gapbegin];
   --cursrow;
@@ -482,10 +482,8 @@ void cursor_up(void) {
  */
 void cursor_down(void) {
   uint8_t i;
-  if (cursrow == NROWS) {
+  if (cursrow == NROWS - 1)
     scroll_down();
-    --cursrow;
-  }
   for (i = 0; i < rowlen[cursrow] - curscol; ++i)
     gapbuf[gapbegin++] = gapbuf[++gapend];
   ++cursrow;
