@@ -3,7 +3,6 @@
 // Bobbi July 2020
 /////////////////////////////////////////////////////////////////////////////
 
-// TODO: it is possible to scroll off end of doc
 // TODO: Convert tabs to spaces in load_file()
 // TODO: The code doesn't check for error cases when calling gap buffer
 //       functions.
@@ -217,6 +216,11 @@ uint8_t read_char_update_pos(void) {
 void draw_screen(void) {
   uint16_t startpos;
   uint8_t rowsabove, cursorrow;
+
+  // Initialize all rows to length 1 to cover those rows that may have
+  // no text and would otherwise be unitialized.
+  for (rowsabove = 0; rowsabove < NROWS; ++rowsabove)
+    rowlen[rowsabove] = 1;
 
   // First we have to scan back to work out where in the buffer to
   // start drawing on the screen at the top left. This is at most
@@ -491,14 +495,21 @@ void cursor_down(void) {
       return;
     }
   }
-  for (i = 0; i < rowlen[cursrow] - curscol; ++i)
-    gapbuf[gapbegin++] = gapbuf[++gapend];
+  for (i = 0; i < rowlen[cursrow] - curscol; ++i) {
+    if (gapbegin < DATASIZE())          /// THIS STOPS IT CRASHING BUT MISALIGNED AFTER
+      gapbuf[gapbegin++] = gapbuf[++gapend];
+    else { 
+      putchar(BELL);
+      return;
+    }
+  }
   ++cursrow;
   // Short line ...
   if (curscol >= rowlen[cursrow])
     curscol = rowlen[cursrow] - 1;
   for (i = 0; i < curscol; ++i)
-    gapbuf[gapbegin++] = gapbuf[++gapend];
+    if (gapbegin < DATASIZE())          /// THIS STOPS IT CRASHING BUT MISALIGNED AFTER
+      gapbuf[gapbegin++] = gapbuf[++gapend];
   gotoxy(curscol, cursrow);
 }
 
@@ -602,8 +613,10 @@ int main() {
       break;
     default:
       //printf("**%02x**", c);
-      insert_char(c);
-      update_after_insert_char();
+      if ((c >= 0x20) && (c < 0x80) || (c == EOL)) {
+        insert_char(c);
+        update_after_insert_char();
+      }
     }
   }
 }
