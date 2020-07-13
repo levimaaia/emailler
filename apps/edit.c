@@ -3,10 +3,8 @@
 // Bobbi July 2020
 /////////////////////////////////////////////////////////////////////////////
 
-// TODO: it is possible to scroll off beginning or end of doc
-// TODO: Probably should convert tabs to space in loading and when tab key
-//       is pressed.  Much easier to deal with.  Implications for reading
-//       long file in chunks??
+// TODO: it is possible to scroll off end of doc
+// TODO: Convert tabs to spaces in load_file()
 // TODO: The code doesn't check for error cases when calling gap buffer
 //       functions.
 
@@ -127,6 +125,13 @@ uint8_t jump_pos(uint16_t pos) {
 }
 
 /*
+ * Go to next tabstop
+ */
+uint8_t next_tabstop(uint8_t col) {
+  return (col / 8) * 8 + 8;
+}
+
+/*
  * Load a file from disk into the gapbuf
  * filename - name of file to load
  * Returns 0 on success
@@ -173,13 +178,6 @@ uint8_t save_file(char *filename) {
 }
 
 /*
- * Go to next tabstop
- */
-uint8_t next_tabstop(uint8_t col) {
-  return (col / 8) * 8 + 8;
-}
-
-/*
  * Read next char from gapbuf[] and update state.
  * Returns 1 on EOL, 0 otherwise
  * If do_print is set, print char on the screen.
@@ -204,7 +202,7 @@ uint8_t read_char_update_pos(void) {
   if (do_print)
     putchar(c);
   ++col;
-  if (col >= NCOLS) {
+  if (col == NCOLS) {
     if (do_print)
       rowlen[row] = NCOLS;
     ++row;
@@ -418,10 +416,14 @@ void cursor_left(void) {
     return;
   }
   if (curscol == 0) {
-    if (cursrow == 0)
+    if (cursrow == 0) {
       scroll_up();
-    else
-      --cursrow;
+      if (cursrow == 0) {
+        putchar(BELL);
+        return;
+      }
+    }
+    --cursrow;
     curscol = rowlen[cursrow];
   } else
     --curscol;
@@ -440,10 +442,14 @@ void cursor_right(void) {
   }
   ++curscol;
   if (curscol == rowlen[cursrow]) {
-    if (cursrow == NROWS)
+    if (cursrow == NROWS - 1) {
       scroll_down();
-    else
-      ++cursrow;
+      if (cursrow == NROWS - 1) {
+        putchar(BELL);
+        return;
+      }
+    }
+    ++cursrow;
     curscol = 0;
   }
   gotoxy(curscol, cursrow);
@@ -454,8 +460,14 @@ void cursor_right(void) {
  */
 void cursor_up(void) {
   uint8_t i;
-  if (cursrow == 0)
+  if (cursrow == 0) {
     scroll_up();
+    if (cursrow == 0) {
+      putchar(BELL);
+      gotoxy(curscol, cursrow);
+      return;
+    }
+  }
   for (i = 0; i < curscol; ++i)
     gapbuf[gapend--] = gapbuf[--gapbegin];
   --cursrow;
@@ -472,8 +484,13 @@ void cursor_up(void) {
  */
 void cursor_down(void) {
   uint8_t i;
-  if (cursrow == NROWS - 1)
+  if (cursrow == NROWS - 1) {
     scroll_down();
+    if (cursrow == NROWS - 1) {
+      putchar(BELL);
+      return;
+    }
+  }
   for (i = 0; i < rowlen[cursrow] - curscol; ++i)
     gapbuf[gapbegin++] = gapbuf[++gapend];
   ++cursrow;
