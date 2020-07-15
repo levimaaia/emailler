@@ -156,12 +156,12 @@ void spinner(void) {
 }
 
 /*
- * Read parms from POP65.CFG
+ * Read parms from EMAIL.CFG
  */
 void readconfigfile(void) {
-  fp = fopen("POP65.CFG", "r");
+  fp = fopen("EMAIL.CFG", "r");
   if (!fp)
-    error(ERR_FATAL, "Can't open config file POP65.CFG");
+    error(ERR_FATAL, "Can't open config file EMAIL.CFG");
   fscanf(fp, "%s", cfg_server);
   fscanf(fp, "%s", cfg_user);
   fscanf(fp, "%s", cfg_pass);
