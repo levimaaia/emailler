@@ -1527,25 +1527,11 @@ void create_blank_outgoing() {
 
 /*
  * Load EDIT.SYSTEM to $2000 and jump to it
- * (Code is in language card space so it can't possibly be trashed)
+ * (This code is in language card space so it can't possibly be trashed)
  */
 #pragma code-name (push, "LC")
 void load_editor(void) {
-  static char *editor = "EDIT.SYSTEM";
-  FILE *fp = fopen(editor, "rb");
-  char *p = 0x280;
-  uint16_t l;
-  if (!fp)
-    goto err;
-  l = fread((void*)0x2000, 1, 512, fp);
-  if (l == 0)
-    goto err;
-  strcpy(p + 1, editor);
-  *p = strlen(editor);
-  __asm__("jmp $2000");  // That's all folks!
-err:
-  error(ERR_NONFATAL, "Can't load EDIT.SYSTEM");
-  fclose(fp);
+  exec("/IP65/EDIT.SYSTEM", NULL);
 }
 #pragma code-name (pop)
 

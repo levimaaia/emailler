@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <conio.h>
 #include <peekpoke.h>
 
@@ -567,26 +568,20 @@ void page_up(void) {
 }
 
 /*
+ * Delete from cursor to EOL.
+ * If at EOL, delete EOL char.
+ */
+void kill_line(void) {
+  // TODO
+}
+
+/*
  * Load EMAIL.SYSTEM to $2000 and jump to it
- * (Code is in language card space so it can't possibly be trashed)
+ * (This code is in language card space so it can't possibly be trashed)
  */
 #pragma code-name (push, "LC")
 void load_email(void) {
-  static char *emailer = "EMAIL.SYSTEM";
-  FILE *fp = fopen(emailer, "rb");
-  char *p = 0x280;
-  uint16_t l;
-  if (!fp)
-    goto err;
-  l = fread((void*)0x2000, 1, 512, fp);
-  if (l == 0)
-    goto err;
-  strcpy(p + 1, emailer);
-  *p = strlen(emailer);
-  __asm__("jmp $2000");  // That's all folks!
-err:
-  printf("Can't load EMAIL.SYSTEM");
-  fclose(fp);
+  exec("/IP65/EMAIL.SYSTEM", NULL);
 }
 #pragma code-name (pop)
 
@@ -627,6 +622,10 @@ int edit() {
     case 0x06:  // Ctrl-F "PAGE DOWN"
       page_down();
       break;
+//    case 0x0b:  // Ctrl-K "KILL LINE"
+//      kill_line();
+//      draw_screen();
+//      break;
     case 0x0C:  // Ctrl-L "REFRESH"
       draw_screen();
       break;
