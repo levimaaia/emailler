@@ -3,8 +3,6 @@
 // Bobbi July 2020
 /////////////////////////////////////////////////////////////////////////////
 
-// TODO: Convert tabs to spaces in load_file()
-// TODO: Add '\r' to final line in load_file(), if it doesn't have one
 // TODO: The code doesn't check for error cases when calling gap buffer
 //       functions.
 
@@ -141,14 +139,33 @@ uint8_t next_tabstop(uint8_t col) {
  * TODO: Convert tabs to spaces
  */
 uint8_t load_file(char *filename) {
+  char c;
+  uint8_t i;
   FILE *fp = fopen(filename, "r");
   if (!fp)
     return 1;
   gapbegin = 0;
   gapend = BUFSZ - 1;
+  col = 0;
   while (!feof(fp)) {
-    gapbuf[gapbegin++] = fgetc(fp);
-    if (!FREESPACE()) {
+    c = fgetc(fp);
+    switch (c) {
+    case '\r': // Native Apple2 files
+    case '\n': // UNIX files
+      col = 0;
+      gapbuf[gapbegin++] = '\r';
+      break;
+    case '\t':
+      c = next_tabstop(col) - col;
+      for (i = 0; i < c; ++i)
+	gapbuf[gapbegin++] = ' ';
+      col += c;
+      break;
+    default:
+      ++col;
+      gapbuf[gapbegin++] = c;      
+    }
+    if (FREESPACE() < 1000) {
       fclose(fp);
       return 2;
     }
@@ -614,8 +631,10 @@ int edit() {
       draw_screen();
       break;
     case 0x11:  // Ctrl-Q "QUIT"
+      exit(0);
+      break;
+    case 0x1a:  // Ctrl-Z Debugging command to load EMAIL.SYSTEM
       load_email();
-      //exit(0);
       break;
     case 0x7f:  // DEL "BACKSPACE"
       delete_char();
