@@ -4,11 +4,13 @@
 /////////////////////////////////////////////////////////////////////////////
 
 // TODO: Convert tabs to spaces in load_file()
+// TODO: Add '\r' to final line in load_file(), if it doesn't have one
 // TODO: The code doesn't check for error cases when calling gap buffer
 //       functions.
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <conio.h>
 #include <peekpoke.h>
 
@@ -547,8 +549,34 @@ void page_up(void) {
     cursor_up();
 }
 
+/*
+ * Load EMAIL.SYSTEM to $2000 and jump to it
+ * (Code is in language card space so it can't possibly be trashed)
+ */
+#pragma code-name (push, "LC")
+void load_email(void) {
+  static char *emailer = "EMAIL.SYSTEM";
+  FILE *fp = fopen(emailer, "rb");
+  char *p = 0x280;
+  uint16_t l;
+  if (!fp)
+    goto err;
+  l = fread((void*)0x2000, 1, 512, fp);
+  if (l == 0)
+    goto err;
+  strcpy(p + 1, emailer);
+  *p = strlen(emailer);
+  __asm__("jmp $2000");  // That's all folks!
+err:
+  printf("Can't load EMAIL.SYSTEM");
+  fclose(fp);
+}
+#pragma code-name (pop)
 
-int main() {
+/*
+ * Main editor routine
+ */
+int edit() {
   char c;
   uint16_t pos;
   uint8_t i;
@@ -586,7 +614,8 @@ int main() {
       draw_screen();
       break;
     case 0x11:  // Ctrl-Q "QUIT"
-      exit(0);
+      load_email();
+      //exit(0);
       break;
     case 0x7f:  // DEL "BACKSPACE"
       delete_char();
@@ -620,4 +649,9 @@ int main() {
     }
   }
 }
+
+int main() {
+  edit();
+}
+
 

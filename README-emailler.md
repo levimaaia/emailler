@@ -29,7 +29,7 @@ A few design principles that I have tried to apply:
 
 ### Configuration File
 
-The system configuration file is called `POP65.CFG`.  It is a straightforward ProDOS text file, with one parameter per line.  You may edit this file using any ProDOS text editor.  When editing the file be careful not to add or delete any lines - this file has no grammar and the lines *must* appear in the expected order.
+The system configuration file is called `EMAIL.CFG`.  It is a straightforward ProDOS text file, with one parameter per line.  You may edit this file using any ProDOS text editor.  When editing the file be careful not to add or delete any lines - this file has no grammar and the lines *must* appear in the expected order.
 
 All three of the mail programs `POP65.SYSTEM`, `EMAIL.SYSTEM` and `SMTP65.SYSTEM` share this configuration file.
 
@@ -110,7 +110,7 @@ POP65 runs without any user interaction and performs the following tasks:
 
  - Detect Uthernet-II
  - Obtain IP address using DHCP
- - Connect to POP3 server using parameters from first three lines of `POP65.CFG`. (`USER` and `PASS` commands)
+ - Connect to POP3 server using parameters from first three lines of `EMAIL.CFG`. (`USER` and `PASS` commands)
  - Enquire how many email messages are waiting. (`STAT` command)
  - Download each email in turn (`RETR` command) and store it in the `SPOOL` directory.
  - If configured to delete messages on the POP3 server, messages are deleted after successful download (`DELE` command)
@@ -296,13 +296,13 @@ SMTP65 runs without any user interaction and performs the following tasks:
 
  - Detect Uthernet-II
  - Obtain IP address using DHCP
- - Connect to SMTP server using parameters from lines 5 and 6 of `POP65.CFG`. (`HELO` command)
+ - Connect to SMTP server using parameters from lines 5 and 6 of `EMAIL.CFG`. (`HELO` command)
  - Iterate through each message in the `OUTBOX` mailbox (which is `/H1/DOCUMENTS/EMAIL/OUTBOX` with our sample configuration)
    - Scan each message looking for the following headers:
      - `To:`
      - `From:`
      - `cc:`
-   - Notify the SMTP server of our email address (from `POP65.CFG`). (`MAIL FROM:` command)
+   - Notify the SMTP server of our email address (from `EMAIL.CFG`). (`MAIL FROM:` command)
    - Notify the SMTP server of each recipient listed in `To:` and `From:` headers (`RCPT TO:` command)
    - Send the email body to the SMTP sender. (`DATA` command)
    - If the message was successfully sent, copy it to the `SENT` mailbox.
