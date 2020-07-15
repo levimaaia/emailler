@@ -37,6 +37,7 @@
 static unsigned char buf[NETBUFSZ+1];    // One extra byte for null terminator
 static char          linebuf[LINEBUFSZ];
 
+uint8_t  exec_email_on_exit = 0;
 char     filename[80];
 int      len;
 FILE     *fp;
@@ -48,6 +49,10 @@ uint32_t filesize;
 void confirm_exit(void) {
   printf("\nPress any key ");
   cgetc();
+  if (exec_email_on_exit) {
+    sprintf(filename, "%s/EMAIL.SYSTEM", cfg_instdir);
+    exec(filename, NULL);
+  }
   exit(0);
 }
 
@@ -286,12 +291,12 @@ uint8_t expect(char *buf, char *s) {
 }
 
 /*
- * Read parms from POP65.CFG
+ * Read parms from EMAIL.CFG
  */
 void readconfigfile(void) {
-    fp = fopen("POP65.CFG", "r");
+    fp = fopen("EMAIL.CFG", "r");
     if (!fp) {
-      puts("Can't open config file POP65.CFG");
+      puts("Can't open config file EMAIL.CFG");
       error_exit();
     }
     fscanf(fp, "%s", cfg_server);
@@ -300,6 +305,7 @@ void readconfigfile(void) {
     fscanf(fp, "%s", cfg_pop_delete);
     fscanf(fp, "%s", cfg_smtp_server);
     fscanf(fp, "%s", cfg_smtp_domain);
+    fscanf(fp, "%s", cfg_instdir);
     fscanf(fp, "%s", cfg_emaildir);
     fscanf(fp, "%s", cfg_emailaddr);
     fclose(fp);
@@ -471,7 +477,7 @@ void update_sent_mbox(char *name) {
   write_next_email(nextemail);
 }
 
-void main(void) {
+void main(int argc, char *argv[]) {
   static char sendbuf[80], recipients[160];
   uint8_t eth_init = ETH_INIT_DEFAULT;
   uint8_t linecount;
@@ -479,10 +485,13 @@ void main(void) {
   struct dirent *d;
   char *p, *q;
 
+  if ((argc == 2) && (strcmp(argv[1], "EMAIL") == 0))
+    exec_email_on_exit = 1;
+
   videomode(VIDEOMODE_80COL);
   printf("%c%s SMTP%c\n", 0x0f, PROGNAME, 0x0e);
 
-  printf("\nReading POP65.CFG            -");
+  printf("\nReading EMAIL.CFG            -");
   readconfigfile();
   printf(" Ok");
 

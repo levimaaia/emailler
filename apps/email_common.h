@@ -13,6 +13,7 @@ char cfg_pass[40];           // POP3 password
 char cfg_pop_delete[40];     // If 'DELETE', delete message from POP3
 char cfg_smtp_server[40];    // IP of SMTP server
 char cfg_smtp_domain[40];    // Our domain
+char cfg_instdir[80];        // ProDOS directory where apps are installed
 char cfg_emaildir[80];       // ProDOS directory at root of email tree
 char cfg_emailaddr[80];      // Our email address
 

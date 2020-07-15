@@ -42,6 +42,7 @@ pi
 NODELETE
 192.168.10.2
 apple2.local
+/IP65
 /H1/DOCUMENTS/EMAIL
 bobbi.8bit@gmail.com
 ```
@@ -54,8 +55,9 @@ The lines are as follows, in order:
  4) If this string is exactly `DELETE` then messages will be deleted from the POP3 server after downloading.  Otherwise they are left on the server.  `DELETE` is the normal setting, but `NODELETE` (or any other nonsense value) can be helpful for debugging, allowing the same messages to be downloaded from the POP3 server again and again.
  5) IP address of the SMTP server for sending outgoing mail.
  6) Domain name that is passed to the SMTP server on connection.  The way my SMTP server (Postfix) is configured, it doesn't seem to care about this.
- 7) ProDOS path to the root of the email folder tree.  Mailboxes will be created and managed under this root path.
- 8) Your email address.  Used as the sender's address in outgoing messages.
+ 7) ProDOS path of the directory where the email executables are installed.
+ 8) ProDOS path to the root of the email folder tree.  Mailboxes will be created and managed under this root path.
+ 9) Your email address.  Used as the sender's address in outgoing messages.
 
 ### Creating Directories
 

@@ -168,6 +168,7 @@ void readconfigfile(void) {
   fscanf(fp, "%s", cfg_pop_delete);
   fscanf(fp, "%s", cfg_smtp_server);
   fscanf(fp, "%s", cfg_smtp_domain);
+  fscanf(fp, "%s", cfg_instdir);
   fscanf(fp, "%s", cfg_emaildir);
   fscanf(fp, "%s", cfg_emailaddr);
   fclose(fp);
@@ -1525,13 +1526,21 @@ void create_blank_outgoing() {
   error(ERR_NONFATAL, filename);
 }
 
-/*
- * Load EDIT.SYSTEM to $2000 and jump to it
- * (This code is in language card space so it can't possibly be trashed)
- */
+// Shove this up in the Language Card out of an abundance of caution
 #pragma code-name (push, "LC")
 void load_editor(void) {
-  exec("/IP65/EDIT.SYSTEM", NULL);
+  sprintf(filename, "%s/EDIT.SYSTEM", cfg_instdir);
+  exec(filename, NULL);
+}
+
+void load_pop65(void) {
+  sprintf(filename, "%s/POP65.SYSTEM", cfg_instdir);
+  exec(filename, "EMAIL");
+}
+
+void load_smtp65(void) {
+  sprintf(filename, "%s/SMTP65.SYSTEM", cfg_instdir);
+  exec(filename, "EMAIL");
 }
 #pragma code-name (pop)
 
@@ -1682,8 +1691,14 @@ void keyboard_hdlr(void) {
       reverse = 0;
       switch_mailbox(curr_mbox);
       break;
+    case 0x12: // Ctrl-R 'Receive messages from server'
+      load_pop65();
+      break;
+    case 0x13: // Ctrl-S 'Send queued messages'
+      load_smtp65();
+      break;
     case '!': // Secret debug command!!!
-      load_editor();
+      load_pop65();
       break;
     case 'q':
     case 'Q':
