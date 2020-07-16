@@ -338,16 +338,16 @@ The following commands are implemented (but could change at any time):
 
  - Movement:
    - Arrow keys move around the document
-   - `Ctrl`-`B` - Page up
-   - `Ctrl`-`F` - Page down
-   - `Ctrl`-`A` - Goto beginning of line
-   - `Ctrl`-`E` - Goto end of line
+   - `Open Apple`-`Up` - Page up
+   - `Open Apple`-`Down` - Page down
+   - `Open Apple`-`Left` - Goto beginning of line
+   - `Open Apple`-`Right` - Goto end of line
  - Inserting text - just type.
  - Deleting text:
    - `Delete` key deletes character to left of cursor
-   - `Ctrl`-`D` key deletes character to right of cursor
+   - `Open Apple`-`Delete` or `Ctrl`-`D` key deletes character to right of cursor
  - Miscellaneous:
-   - `Ctrl`-`S` - Save file to disk
+   - `Open Apple`-`S` - Save file to disk
+   - `Open Apple`-`Q` - Quit and load `EMAIL.SYSTEM`
+   - `Open Apple`-`X` - Quit to ProDOS
    - `Ctrl`-`L` - Refresh screen (useful it it get garbled!)
-   - `Ctrl`-`Q` - Quit to ProDOS
-   - `Ctrl`-`Z` - Return to `EMAIL.SYSTEM`

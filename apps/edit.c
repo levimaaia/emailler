@@ -3,6 +3,7 @@
 // Bobbi July 2020
 /////////////////////////////////////////////////////////////////////////////
 
+// TODO: update_after_delete() does do CLREOL when it should
 // TODO: The code doesn't check for error cases when calling gap buffer
 //       functions.
 
@@ -223,9 +224,9 @@ uint8_t read_char_update_pos(void) {
   if (do_print)
     putchar(c);
   ++col;
+  if (do_print)
+    rowlen[row] = col;
   if (col == NCOLS) {
-    if (do_print)
-      rowlen[row] = NCOLS;
     ++row;
     col = 0;
   }
@@ -246,9 +247,7 @@ void draw_screen(void) {
 
   // First we have to scan back to work out where in the buffer to
   // start drawing on the screen at the top left. This is at most
-  // CURSORROW * NCOLS chars, however we go a little bit further back
-  // in order to handle the case where files have extremely long lines
-  // better.
+  // NROWS * NCOLS chars.
   startpos = gapbegin;
   if (startpos > NROWS * NCOLS)
     startpos -= NROWS * NCOLS;
@@ -483,15 +482,16 @@ void cursor_right(void) {
 
 /*
  * Move the cursor up
+ * Returns 1 if at top, 0 otherwise
  */
-void cursor_up(void) {
+uint8_t cursor_up(void) {
   uint8_t i;
   if (cursrow == 0) {
     scroll_up();
     if (cursrow == 0) {
       putchar(BELL);
       gotoxy(curscol, cursrow);
-      return;
+      return 1;
     }
   }
   for (i = 0; i < curscol; ++i)
@@ -503,18 +503,20 @@ void cursor_up(void) {
   for (i = 0; i < rowlen[cursrow] - curscol; ++i)
     gapbuf[gapend--] = gapbuf[--gapbegin];
   gotoxy(curscol, cursrow);
+  return 0;
 }
 
 /*
  * Move the cursor down
+ * Returns 1 if at bottom, 0 otherwise
  */
-void cursor_down(void) {
+uint8_t cursor_down(void) {
   uint8_t i;
   if (cursrow == NROWS - 1) {
     scroll_down();
     if (cursrow == NROWS - 1) {
       putchar(BELL);
-      return;
+      return 1;
     }
   }
   for (i = 0; i < rowlen[cursrow] - curscol; ++i) {
@@ -522,7 +524,7 @@ void cursor_down(void) {
       gapbuf[gapbegin++] = gapbuf[++gapend];
     else { 
       putchar(BELL);
-      return;
+      return 1;
     }
   }
   ++cursrow;
@@ -533,6 +535,7 @@ void cursor_down(void) {
     if (gapbegin < DATASIZE())          /// THIS STOPS IT CRASHING BUT MISALIGNED AFTER
       gapbuf[gapbegin++] = gapbuf[++gapend];
   gotoxy(curscol, cursrow);
+  return 0;
 }
 
 /*
@@ -557,7 +560,8 @@ void goto_eol(void) {
 void page_down(void) {
   uint8_t i;
   for (i = 0; i < 15; ++i)
-    cursor_down();
+    if (cursor_down() == 1)
+      break;
 }
 
 /*
@@ -566,7 +570,8 @@ void page_down(void) {
 void page_up(void) {
   uint8_t i;
   for (i = 0; i < 15; ++i)
-    cursor_up();
+    if (cursor_up() == 1)
+      break;
 }
 
 /*
@@ -595,58 +600,55 @@ int edit(char *filename) {
   uint16_t pos;
   uint8_t i;
   videomode(VIDEOMODE_80COL);
-  printf("Loading file %s ", filename);
-  if (load_file(filename)) {
-    puts("load_file error");
-    exit(1);
+  if (filename) {
+    printf("Loading file %s ", filename);
+    if (load_file(filename)) {
+      puts("Load error");
+      exit(1); // TODO
+    }
   }
-  if (jump_pos(0)) {
-    puts("move error");
-    exit(1);
-  }
+  jump_pos(0);
   pos = 0;
   draw_screen();
   while (1) {
+    cursor(1);
     c = cgetc();
     switch (c) {
-    case 0x01:  // Ctrl-A "HOME"
+    case 0x88:  // OA-Left "Home"
       goto_bol();
       break;
-    case 0x02:  // Ctrl-B "PAGE UP"
+    case 0x8b:  // OA-Up "Page Up"
       page_up();
       break;
+    case 0x95:  // OA-Right "End"
+      goto_eol();
+      break;
+    case 0x8a:  // OA-Down "Page Down"
+      page_down();
+      break;
+    case 0x80 + 0x51: // OA-Q "Quit"
+    case 0x80 + 0x71: // OA-q
+      load_email();
+      break;
+    case 0x80 + 0x53: // OA-S "Save"
+    case 0x80 + 0x73: // OA-s
+      save_file(filename);
+      break;
+    case 0x80 + 0x58: // OA-X "eXit"
+    case 0x80 + 0x78: // OA-x
+      exit(0);
+      break;
+    case 0x80 + 0x7f: // OA-Backspace
     case 0x04:  // Ctrl-D "DELETE"
       delete_char_right();
       update_after_delete_char_right();
       break;
-    case 0x05:  // Ctrl-E "END"
-      goto_eol();
-      break;
-    case 0x06:  // Ctrl-F "PAGE DOWN"
-      page_down();
-      break;
-//    case 0x0b:  // Ctrl-K "KILL LINE"
-//      kill_line();
-//      draw_screen();
-//      break;
     case 0x0c:  // Ctrl-L "REFRESH"
       draw_screen();
-      break;
-    case 0x11:  // Ctrl-Q "QUIT"
-      exit(0);
-      break;
-    case 0x13:  // Ctrl-S "SAVE"
-      save_file(filename);
-      break;
-    case 0x1a:  // Ctrl-Z Debugging command to load EMAIL.SYSTEM
-      load_email();
       break;
     case 0x7f:  // DEL "BACKSPACE"
       delete_char();
       update_after_delete_char();
-      break;
-    case 0x08:  // Left
-      cursor_left();
       break;
     case 0x09:  // Tab
       c = next_tabstop(curscol) - curscol;
@@ -654,6 +656,9 @@ int edit(char *filename) {
         insert_char(' ');
         update_after_insert_char();
       }
+      break;
+    case 0x08:  // Left
+      cursor_left();
       break;
     case 0x15:  // Right
       cursor_right();
