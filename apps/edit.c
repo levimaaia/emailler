@@ -3,7 +3,10 @@
 // Bobbi July 2020
 /////////////////////////////////////////////////////////////////////////////
 
-// TODO: update_after_delete() does do CLREOL when it should
+// TODO: We need to erase rest of screen to deal with updates where we are
+//       close to end of buffer. Junk was being left behind at end of screen.
+// TODO: Sometimes backspacing doesn't delete chars on screen.
+// TODO: update_after_delete() does do CLREOL when it should sometimes (?)
 // TODO: The code doesn't check for error cases when calling gap buffer
 //       functions.
 
@@ -138,7 +141,6 @@ uint8_t next_tabstop(uint8_t col) {
  * Returns 0 on success
  *         1 if file can't be opened
  *         2 if file too big
- * TODO: Convert tabs to spaces
  */
 uint8_t load_file(char *filename) {
   char c;
@@ -240,10 +242,10 @@ void draw_screen(void) {
   uint16_t startpos;
   uint8_t rowsabove, cursorrow;
 
-  // Initialize all rows to length 1 to cover those rows that may have
+  // Initialize all rows to length 0 to cover those rows that may have
   // no text and would otherwise be unitialized.
   for (rowsabove = 0; rowsabove < NROWS; ++rowsabove)
-    rowlen[rowsabove] = 1;
+    rowlen[rowsabove] = 0;
 
   // First we have to scan back to work out where in the buffer to
   // start drawing on the screen at the top left. This is at most
@@ -498,10 +500,11 @@ uint8_t cursor_up(void) {
     gapbuf[gapend--] = gapbuf[--gapbegin];
   --cursrow;
   // Short line ...
-  if (curscol >= rowlen[cursrow])
+  if (curscol > rowlen[cursrow] - 1)
     curscol = rowlen[cursrow] - 1;
   for (i = 0; i < rowlen[cursrow] - curscol; ++i)
-    gapbuf[gapend--] = gapbuf[--gapbegin];
+    if (gapbegin > 0)
+      gapbuf[gapend--] = gapbuf[--gapbegin];
   gotoxy(curscol, cursrow);
   return 0;
 }
@@ -519,20 +522,22 @@ uint8_t cursor_down(void) {
       return 1;
     }
   }
-  for (i = 0; i < rowlen[cursrow] - curscol; ++i) {
-    if (gapbegin < DATASIZE())          /// THIS STOPS IT CRASHING BUT MISALIGNED AFTER
-      gapbuf[gapbegin++] = gapbuf[++gapend];
-    else { 
-      putchar(BELL);
-      return 1;
+  if (gapbuf[rowlen[cursrow] - 1] == EOL) {
+    for (i = 0; i < rowlen[cursrow] - curscol; ++i) {
+      if (gapbegin < DATASIZE()) // TODO Not sure this is necessary now
+        gapbuf[gapbegin++] = gapbuf[++gapend];
+      else { 
+        putchar(BELL);
+        return 1;
+      }
     }
+    ++cursrow;
   }
-  ++cursrow;
   // Short line ...
-  if (curscol >= rowlen[cursrow])
+  if (curscol > rowlen[cursrow] - 1)
     curscol = rowlen[cursrow] - 1;
   for (i = 0; i < curscol; ++i)
-    if (gapbegin < DATASIZE())          /// THIS STOPS IT CRASHING BUT MISALIGNED AFTER
+    if (gapbegin < DATASIZE()) // TODO Not sure this is necessary now
       gapbuf[gapbegin++] = gapbuf[++gapend];
   gotoxy(curscol, cursrow);
   return 0;
