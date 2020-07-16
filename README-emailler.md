@@ -2,10 +2,11 @@
 
 <p align="center"><img src="img/emailler-logo.png" alt="emai//er-logo" height="200px"></p>
 
-The AppleII Email Suite consists of the following four ProDOS programs:
+The AppleII Email Suite consists of the following five ProDOS programs:
 
  - `POP65.SYSTEM` is a Post Office Protocol version 3 (POP3) client for the Apple II with Uthernet-II card.
  - `EMAIL.SYSTEM` is a simple user interface for reading and managing email.  It works together with `POP65` and `SMTP65`.
+ - `EDIT.SYSTEM` is a simple screen editor, integrated with `EMAIL.SYSTEM`.  This is currently under development (and hence may be a little rough - you have been warned ;) )
  - `SMTP65.SYSTEM` is a Simple Mail Transport Protocol (SMTP) client for the Apple II with Uthernet-II card.
  - `REBUILD.SYSTEM` is a utility for rebuilding mailbox databases, should they become corrupted.  This can also be used for bulk import of messages.
 
@@ -43,7 +44,7 @@ NODELETE
 192.168.10.2
 apple2.local
 /IP65
-/H1/DOCUMENTS/EMAIL
+/H1/EMAIL
 bobbi.8bit@gmail.com
 ```
 
@@ -163,9 +164,13 @@ Main menu commands:
  - `W)rite` - Prepare a new blank outgoing email and place it in `OUTBOX` ready for editing.
  - `R)eply` - Prepare a reply to the selected email and place it in `OUTBOX` ready for editing.
  - `F)orward` - Prepare a forwarded copy of the selected email and place it in `OUTBOX` ready for editing.
- - '<' - Switch the order of the email summary to show the most recently added messages first.  The indicator in the status bar will change to `>` to indicate the order.
- - '>' - Switch the order of the email summary to show the most recently added messages last.  The indicator in the status bar will change to `<` to indicate the order.
+ - `<` - Switch the order of the email summary to show the most recently added messages first.  The indicator in the status bar will change to `>` to indicate the order.
+ - `>` - Switch the order of the email summary to show the most recently added messages last.  The indicator in the status bar will change to `<` to indicate the order.
+ - `CTRL`+`R` - Retreive messages from email server.  This runs `POP65.SYSTEM`, which in turn will return you to the `EMAIL.SYSTEM` main menu.
+ - `CTRL`+`S` - Send outbox messages to email server.  This runs `SMTP65.SYSTEM`, which in turn will return you to the `EMAIL.SYSTEM` main menu.
  - `Q)uit` - Quit from the EMAIL user interface.
+
+By using the `CTRL`+`R` command to retrieve messages and the `CTRL`-`S` command to transmit messages to the server, it is possible to retreive, review, respond, compose and transmit messages all without leaving the `EMAIL.SYSTEM` environment.
 
 #### Plain Text View `T)op`
 <p align="center"><img src="img/raw-text.png" alt="Email Pager" height="400px"></p>
@@ -270,13 +275,19 @@ The message state is persisted in the `EMAIL.DB` file:
 
 ### Sending of Messages
 
-The EMAIL system currently does not include a text editor, instead relying on an external editor for message composition.  The advantage to this is you can choose whichever editor you prefer, provided it can handle plain Apple II text files.  I find the editor which is built into the Proterm 3.1 communications program to be quite satisfactory for this purpose.
+The EMAIL system currently includes a basic screen editor for message composition.  This editor is currently under development and may be a little rough.  It is also possible to use and external editor of your choice for composing emails.  The advantage to this is you can choose whichever editor you prefer, provided it can handle plain Apple II text files.  I find the editor which is built into the Proterm 3.1 communications program to be quite satisfactory for this purpose.
 
 Sending of an email message is a three step process:
 
  - Use the `W)rite`, `R)eply` or `F)wd` functions in EMAIL to create an email template file and store it in `OUTBOX`.
- - Edit this file in your favourite text editor to add the email body.  You may also modify the `To:`, `cc:`, `Subject:` or `Date:` headers.
- - Once you are satisfied with your edits and have saved the file, run `SMTP65.SYSTEM` to send the file to your mail server and copy it to the `SENT` mailbox.
+ - The system will display the full pathname of the template file created. And prompt `Open in editor - sure? (y/n)'
+   - If you respond in the affirmative:
+   - `EMAIL.SYSTEM` will load `EDIT.SYSTEM`, the integrated editor, passing the filename of the template file as a parameter, so the file is automatically opened for editing.
+   - You may edit the file in `EDIT.SYSTEM` using the editing keys listed below.  Press `Ctrl`-`S` to save the file to disk and `Ctrl-Z` to return to `EMAIL.SYSTEM`.
+   - If you are ready to send the email, press `Ctrl`-`S` at the `EMAIL.SYSTEM` main menu to send the messages in `OUTBOX` to your mail server and copy them to the `SENT` mailbox.
+ - If you answer `n` to the `Open in editor - sure? (y/n)` prompt:
+   - The template file will simply be placed in the `OUTBOX` where you can use your favourite text editor to add the email body.  You may also modify the `To:`, `cc:`, `Subject:` or `Date:` headers.
+   - Once you are satisfied with your edits and have saved the file, run `SMTP65.SYSTEM` to send the file to your mail server and copy it to the `SENT` mailbox.
 
 There are three ways to write an email:
 
@@ -319,3 +330,24 @@ REBUILD simply prompts for the path of the directory to process.
 
 If you use this tool for bulk import, be sure that all the `EMAIL.nnn` files are in Apple II text format with carriage return line endings (not MS-DOS or UNIX style.)
 
+## `EDIT.SYSTEM`
+
+EDIT is simple full-screen editor.  It is currently under development.
+
+The following commands are implemented (but could change at any time):
+
+ - Movement:
+   - Arrow keys move around the document
+   - `Ctrl`-`B` - Page up
+   - `Ctrl`-`F` - Page down
+   - `Ctrl`-`A` - Goto beginning of line
+   - `Ctrl`-`E` - Goto end of line
+ - Inserting text - just type.
+ - Deleting text:
+   - `Delete` key deletes character to left of cursor
+   - `Ctrl`-`D` key deletes character to right of cursor
+ - Miscellaneous:
+   - `Ctrl`-`S` - Save file to disk
+   - `Ctrl`-`L` - Refresh screen (useful it it get garbled!)
+   - `Ctrl`-`Q` - Quit to ProDOS
+   - `Ctrl`-`Z` - Return to `EMAIL.SYSTEM`
