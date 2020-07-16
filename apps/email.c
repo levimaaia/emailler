@@ -1706,9 +1706,6 @@ void keyboard_hdlr(void) {
     case 0x13: // Ctrl-S 'Send queued messages'
       load_smtp65();
       break;
-    case '!': // Secret debug command!!!
-      load_pop65();
-      break;
     case 'q':
     case 'Q':
       if (prompt_okay("Quit - ")) {
