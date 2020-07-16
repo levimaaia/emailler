@@ -15,19 +15,26 @@
 #include <string.h>
 #include <unistd.h>
 #include <conio.h>
+#include <ctype.h>
 #include <peekpoke.h>
 
-#define NCOLS     80 // Width of editing screen
-#define NROWS     23 // Height of editing screen
-#define CURSORROW 10 // Row cursor is initially shown on (if enough text)
+#define NCOLS      80        // Width of editing screen
+#define NROWS      22        // Height of editing screen
+#define CURSORROW  10        // Row cursor is initially shown on (if enough text)
+#define PROMPT_ROW NROWS + 2 // Row where input prompt is shown
 
 #define EOL '\r' // For ProDOS
 
-#define BELL    0x07
-#define BACKSPC 0x08
-#define NORMAL  0x0e
-#define INVERSE 0x0f
-#define CLREOL  0x1d
+#define BELL      0x07
+#define BACKSPACE 0x08
+#define CURDOWN   0x0a
+#define RETURN    0x0d
+#define NORMAL    0x0e
+#define INVERSE   0x0f
+#define HOME      0x19
+#define CLRLINE   0x1a
+#define CLREOL    0x1d
+#define DELETE    0x7f
 
 typedef unsigned char  uint8_t;
 typedef unsigned short uint16_t;
@@ -39,12 +46,17 @@ uint16_t gapend = BUFSZ - 1;
 
 uint8_t rowlen[NROWS]; // Number of chars on each row of screen
 
+char    filename[80];
+char    userentry[80];
+
 // Interface to read_char_update_pos()
 uint8_t  do_print;
 uint16_t pos;
 uint8_t  row, col;
 
 uint8_t cursrow, curscol; // Cursor position is kept here by draw_screen()
+
+uint8_t  quit_to_email;
 
 /*
  * Return number of bytes of freespace in gapbuf
@@ -60,6 +72,96 @@ uint8_t cursrow, curscol; // Cursor position is kept here by draw_screen()
  * This is the positon where the next character will be inserted
  */
 #define GETPOS()    (gapbegin)
+
+/*
+ * Put cursor at beginning of PROMPT_ROW
+ */
+void goto_prompt_row(void) {
+  uint8_t i;
+  putchar(HOME);
+  for (i = 0; i < PROMPT_ROW - 1; ++i)
+    putchar(CURDOWN);
+}
+
+/*
+ * Prompt for a name in the bottom line of the screen
+ * Returns number of chars read.
+ * prompt - Message to display before > prompt
+ * is_file - if 1, restrict chars to those allowed in ProDOS filename
+ * Returns number of chars read
+ */
+uint8_t prompt_for_name(char *prompt, uint8_t is_file) {
+  uint16_t i;
+  char c;
+  cursor(0);
+  goto_prompt_row();
+  printf("%c%s>", INVERSE, prompt);
+  i = 0;
+  while (1) {
+    c = cgetc();
+    if (is_file && !isalnum(c) && (c != RETURN) && (c != BACKSPACE) &&
+        (c != DELETE) && (c != '.') && (c != '/')) {
+      putchar(BELL);
+      continue;
+    }
+    switch (c) {
+    case RETURN:
+      goto done;
+    case BACKSPACE:
+    case DELETE:
+      if (i > 0) {
+        putchar(BACKSPACE);
+        putchar(' ');
+        putchar(BACKSPACE);
+        --i;
+      } else
+        putchar(BELL);
+      break;
+    default:
+      putchar(c);
+      userentry[i++] = c;
+    }
+    if (i == 79)
+      goto done;
+  }
+done:
+  userentry[i] = '\0';
+  putchar(CLRLINE);
+  gotoxy(curscol, cursrow);
+  cursor(1);
+  return i;
+}
+
+/*
+ * Prompt ok?
+ */
+char prompt_okay(char *msg) {
+  char c;
+  goto_prompt_row();
+  printf("%c%sSure? (y/n)", INVERSE, msg);
+  while (1) {
+    c = cgetc();
+    if ((c == 'y') || (c == 'Y') || (c == 'n') || (c == 'N'))
+      break;
+    putchar(BELL);
+  }
+  if ((c == 'y') || (c == 'Y'))
+    c = 1;
+  else
+    c = 0;
+  putchar(CLRLINE);
+  return c;
+}
+
+/*
+ * Error message
+ */
+void show_error(char *msg) {
+  goto_prompt_row();
+  putchar(BELL);
+  printf("%c%s [Press Any Key]%c", INVERSE, msg, NORMAL);
+  cgetc();
+}
 
 /*
  * Insert a character into gapbuf at current position
@@ -140,7 +242,6 @@ uint8_t next_tabstop(uint8_t col) {
  * filename - name of file to load
  * Returns 0 on success
  *         1 if file can't be opened
- *         2 if file too big
  */
 uint8_t load_file(char *filename) {
   char c;
@@ -171,7 +272,8 @@ uint8_t load_file(char *filename) {
     }
     if (FREESPACE() < 1000) {
       fclose(fp);
-      return 2;
+      show_error("File truncated");
+      return 0;
     }
     if ((gapbegin % 1000) == 0)
       putchar('.');
@@ -247,6 +349,8 @@ void draw_screen(void) {
   for (rowsabove = 0; rowsabove < NROWS; ++rowsabove)
     rowlen[rowsabove] = 0;
 
+  revers(0);
+
   // First we have to scan back to work out where in the buffer to
   // start drawing on the screen at the top left. This is at most
   // NROWS * NCOLS chars.
@@ -294,6 +398,11 @@ void draw_screen(void) {
   while ((pos < BUFSZ) && (row < NROWS))
     read_char_update_pos();
 
+  gotoxy(0, NROWS + 1);
+  revers(1);
+  printf("                                                                              ");
+  revers(0);
+
   gotoxy(curscol, cursrow);
   cursor(1);
 }
@@ -317,7 +426,7 @@ void scroll_down() {
  */
 void update_after_delete_char_right(void) {
   uint8_t eol = 0;
-  uint8_t prevcol;
+  uint8_t i;
   col = curscol;
   row = cursrow;
   do_print = 1;
@@ -325,14 +434,20 @@ void update_after_delete_char_right(void) {
   // Print rest of line up to EOL
   pos = gapend + 1;
   while (!eol && (pos < BUFSZ) && (row < NROWS)) {
-    prevcol = col;
+    i = col;
     eol = read_char_update_pos();
   }
 
   // If necessary, print rest of screen
-  if ((gapbuf[gapend] == EOL) || (prevcol == NCOLS - 1))
+  if ((gapbuf[gapend] == EOL) || (i == NCOLS - 1))
     while ((pos < BUFSZ) && (row < NROWS))
       read_char_update_pos();
+
+  // Erase the rest of the screen (if any)
+  for (i = row; i < NROWS; ++i) {
+    gotoxy(0, eol);
+    putchar(CLREOL);
+  }
 
   gotoxy(curscol, cursrow);
   cursor(1);
@@ -343,7 +458,7 @@ void update_after_delete_char_right(void) {
  */
 void update_after_delete_char(void) {
   uint8_t eol = 0;
-  uint8_t prevcol;
+  uint8_t i;
   col = curscol;
   row = cursrow;
 
@@ -357,7 +472,7 @@ void update_after_delete_char(void) {
     }
   } else {
     // Erase char to left of cursor & update row, col
-    putchar(BACKSPC);
+    putchar(BACKSPACE);
     if (col > 0)
       --col;
     else {
@@ -380,19 +495,24 @@ void update_after_delete_char(void) {
   // Print rest of line up to EOL
   pos = gapend + 1;
   while (!eol && (pos < BUFSZ) && (row < NROWS)) {
-    prevcol = col;
+    i = col;
     eol = read_char_update_pos();
   }
 
   // If necessary, print rest of screen
-  if ((gapbuf[gapbegin] == EOL) || (prevcol == NCOLS - 1))
+  if ((gapbuf[gapbegin] == EOL) || (i == NCOLS - 1))
     while ((pos < BUFSZ) && (row < NROWS))
       read_char_update_pos();
+
+  // Erase the rest of the screen (if any)
+  for (i = row; i < NROWS; ++i) {
+    gotoxy(0, i);
+    putchar(CLREOL);
+  }
 
   gotoxy(curscol, cursrow);
   cursor(1);
 }
-
 
 /*
  * Update screen after insert_char()
@@ -522,7 +642,7 @@ uint8_t cursor_down(void) {
       return 1;
     }
   }
-  if (gapbuf[rowlen[cursrow] - 1] == EOL) {
+//  if (gapbuf[rowlen[cursrow] - 1] == EOL) {
     for (i = 0; i < rowlen[cursrow] - curscol; ++i) {
       if (gapbegin < DATASIZE()) // TODO Not sure this is necessary now
         gapbuf[gapbegin++] = gapbuf[++gapend];
@@ -532,7 +652,7 @@ uint8_t cursor_down(void) {
       }
     }
     ++cursrow;
-  }
+//  }
   // Short line ...
   if (curscol > rowlen[cursrow] - 1)
     curscol = rowlen[cursrow] - 1;
@@ -593,6 +713,8 @@ void kill_line(void) {
  */
 #pragma code-name (push, "LC")
 void load_email(void) {
+  revers(0);
+  clrscr();
   exec("/IP65/EMAIL.SYSTEM", NULL);
 }
 #pragma code-name (pop)
@@ -608,8 +730,8 @@ int edit(char *filename) {
   if (filename) {
     printf("Loading file %s ", filename);
     if (load_file(filename)) {
-      puts("Load error");
-      exit(1); // TODO
+      sprintf(userentry, "%cCan't load %s", filename);
+      show_error(userentry);
     }
   }
   jump_pos(0);
@@ -631,19 +753,52 @@ int edit(char *filename) {
     case 0x8a:  // OA-Down "Page Down"
       page_down();
       break;
-    case 0x80 + 0x51: // OA-Q "Quit"
-    case 0x80 + 0x71: // OA-q
-      load_email();
+    case 0x80 + 'L': // OA-L "Load"
+    case 0x80 + 'l':
+      prompt_for_name("File", 1);
+      strcpy(filename, userentry);
+      gapbegin = 0;
+      gapend = BUFSZ - 1;
+      if (load_file(filename)) {
+        sprintf(userentry, "%cCan't load %s", filename);
+        show_error(userentry);
+      }
+      jump_pos(0);
+      pos = 0;
+      draw_screen();
       break;
-    case 0x80 + 0x53: // OA-S "Save"
-    case 0x80 + 0x73: // OA-s
-      save_file(filename);
+    case 0x80 + 'N': // OA-N "New"
+    case 0x80 + 'n': // OA-n
+      if (prompt_okay("Erase buffer -")) {
+        gapbegin = 0;
+        gapend = BUFSZ - 1;
+        jump_pos(0);
+        pos = 0;
+        draw_screen();
+      }
       break;
-    case 0x80 + 0x58: // OA-X "eXit"
-    case 0x80 + 0x78: // OA-x
-      exit(0);
+    case 0x80 + 'Q': // OA-Q "Quit"
+    case 0x80 + 'q': // OA-q
+      if (quit_to_email) {
+        if (prompt_okay("Quit to EMAIL - "))
+          load_email();
+      } else {
+        if (prompt_okay("Quit to ProDOS - ")) {
+          revers(0);
+          clrscr();
+          exit(0);
+        }
+      }
       break;
-    case 0x80 + 0x7f: // OA-Backspace
+    case 0x80 + 'S': // OA-S "Save"
+    case 0x80 + 's': // OA-s
+      if (save_file(filename)) {
+        sprintf(userentry, "%cCan't save %s", filename);
+        show_error(userentry);
+        draw_screen();
+      }
+      break;
+    case 0x80 + DELETE: // OA-Backspace
     case 0x04:  // Ctrl-D "DELETE"
       delete_char_right();
       update_after_delete_char_right();
@@ -651,7 +806,7 @@ int edit(char *filename) {
     case 0x0c:  // Ctrl-L "REFRESH"
       draw_screen();
       break;
-    case 0x7f:  // DEL "BACKSPACE"
+    case DELETE:  // DEL "BACKSPACE"
       delete_char();
       update_after_delete_char();
       break;
@@ -686,9 +841,12 @@ int edit(char *filename) {
 
 int main(int argc, char *argv[]) {
   if (argc == 2) {
+    quit_to_email = 1;
     edit(argv[1]);
-  } else
+  } else {
+    quit_to_email = 0;
     edit(NULL);
+  }
 }
 
 
