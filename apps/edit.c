@@ -3,10 +3,6 @@
 // Bobbi July 2020
 /////////////////////////////////////////////////////////////////////////////
 
-// TODO: We need to erase rest of screen to deal with updates where we are
-//       close to end of buffer. Junk was being left behind at end of screen.
-// TODO: Sometimes backspacing doesn't delete chars on screen.
-// TODO: update_after_delete() does do CLREOL when it should sometimes (?)
 // TODO: The code doesn't check for error cases when calling gap buffer
 //       functions.
 
@@ -95,6 +91,7 @@ uint8_t prompt_for_name(char *prompt, uint8_t is_file) {
   char c;
   cursor(0);
   goto_prompt_row();
+  putchar(CLREOL);
   printf("%c%s>", INVERSE, prompt);
   i = 0;
   while (1) {
@@ -137,6 +134,7 @@ done:
  */
 char prompt_okay(char *msg) {
   char c;
+  cursor(0);
   goto_prompt_row();
   printf("%c%sSure? (y/n)", INVERSE, msg);
   while (1) {
@@ -150,6 +148,8 @@ char prompt_okay(char *msg) {
   else
     c = 0;
   putchar(CLRLINE);
+  gotoxy(curscol, cursrow);
+  cursor(1);
   return c;
 }
 
@@ -157,10 +157,14 @@ char prompt_okay(char *msg) {
  * Error message
  */
 void show_error(char *msg) {
+  cursor(0);
   goto_prompt_row();
   putchar(BELL);
   printf("%c%s [Press Any Key]%c", INVERSE, msg, NORMAL);
   cgetc();
+  putchar(CLRLINE);
+  gotoxy(curscol, cursrow);
+  cursor(1);
 }
 
 /*
@@ -398,10 +402,18 @@ void draw_screen(void) {
   while ((pos < BUFSZ) && (row < NROWS))
     read_char_update_pos();
 
-  gotoxy(0, NROWS + 1);
+  goto_prompt_row();
   revers(1);
-  printf("                                                                              ");
+  if (strlen(filename)) {
+    printf("File:%s", filename);
+    for (startpos = 0; startpos < 74 - strlen(filename); ++startpos)
+      putchar(' ');
+  } else {
+    printf(
+    "File:NONE                                                                     ");
+  }
   revers(0);
+  putchar(HOME);
 
   gotoxy(curscol, cursrow);
   cursor(1);
@@ -439,14 +451,15 @@ void update_after_delete_char_right(void) {
   }
 
   // If necessary, print rest of screen
-  if ((gapbuf[gapend] == EOL) || (i == NCOLS - 1))
+  if ((gapbuf[gapend] == EOL) || (i == NCOLS - 1)) {
     while ((pos < BUFSZ) && (row < NROWS))
       read_char_update_pos();
 
-  // Erase the rest of the screen (if any)
-  for (i = row; i < NROWS; ++i) {
-    gotoxy(0, eol);
-    putchar(CLREOL);
+    // Erase the rest of the screen (if any)
+    for (i = row; i < NROWS; ++i) {
+      gotoxy(0, i);
+      putchar(CLREOL);
+    }
   }
 
   gotoxy(curscol, cursrow);
@@ -500,14 +513,15 @@ void update_after_delete_char(void) {
   }
 
   // If necessary, print rest of screen
-  if ((gapbuf[gapbegin] == EOL) || (i == NCOLS - 1))
+  if ((gapbuf[gapbegin] == EOL) || (i == NCOLS - 1)) {
     while ((pos < BUFSZ) && (row < NROWS))
       read_char_update_pos();
 
-  // Erase the rest of the screen (if any)
-  for (i = row; i < NROWS; ++i) {
-    gotoxy(0, i);
-    putchar(CLREOL);
+    // Erase the rest of the screen (if any)
+    for (i = row; i < NROWS; ++i) {
+      gotoxy(0, i);
+      putchar(CLREOL);
+    }
   }
 
   gotoxy(curscol, cursrow);
@@ -722,12 +736,13 @@ void load_email(void) {
 /*
  * Main editor routine
  */
-int edit(char *filename) {
+int edit(char *fname) {
   char c;
   uint16_t pos;
   uint8_t i;
   videomode(VIDEOMODE_80COL);
-  if (filename) {
+  if (fname) {
+    strcpy(filename, fname);
     printf("Loading file %s ", filename);
     if (load_file(filename)) {
       sprintf(userentry, "%cCan't load %s", filename);
