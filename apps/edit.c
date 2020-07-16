@@ -28,7 +28,7 @@
 typedef unsigned char  uint8_t;
 typedef unsigned short uint16_t;
 
-#define BUFSZ 10000 // 65535
+#define BUFSZ 20000 // 65535
 char     gapbuf[BUFSZ];
 uint16_t gapbegin = 0;
 uint16_t gapend = BUFSZ - 1;
@@ -629,11 +629,14 @@ int edit(char *filename) {
 //      kill_line();
 //      draw_screen();
 //      break;
-    case 0x0C:  // Ctrl-L "REFRESH"
+    case 0x0c:  // Ctrl-L "REFRESH"
       draw_screen();
       break;
     case 0x11:  // Ctrl-Q "QUIT"
       exit(0);
+      break;
+    case 0x13:  // Ctrl-S "SAVE"
+      save_file(filename);
       break;
     case 0x1a:  // Ctrl-Z Debugging command to load EMAIL.SYSTEM
       load_email();
