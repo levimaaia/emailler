@@ -77,6 +77,24 @@ static unsigned char  buf[READSZ];
 #define ERR_NONFATAL 0
 #define ERR_FATAL    1
 
+// Shove this up in the Language Card out of an abundance of caution
+#pragma code-name (push, "LC")
+void load_editor(void) {
+  sprintf(userentry, "%s/EDIT.SYSTEM", cfg_instdir);
+  exec(userentry, filename);
+}
+
+void load_pop65(void) {
+  sprintf(filename, "%s/POP65.SYSTEM", cfg_instdir);
+  exec(filename, "EMAIL");
+}
+
+void load_smtp65(void) {
+  sprintf(filename, "%s/SMTP65.SYSTEM", cfg_instdir);
+  exec(filename, "EMAIL");
+}
+#pragma code-name (pop)
+
 /*
  * Put cursor at beginning of PROMPT_ROW
  */
@@ -1275,6 +1293,27 @@ uint8_t write_email_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h,
 }
 
 /*
+ * Prompt ok?
+ */
+char prompt_okay(char *msg) {
+  char c;
+  goto_prompt_row();
+  printf("%sSure? (y/n)", msg);
+  while (1) {
+    c = cgetc();
+    if ((c == 'y') || (c == 'Y') || (c == 'n') || (c == 'N'))
+      break;
+    putchar(BELL);
+  } 
+  if ((c == 'y') || (c == 'Y'))
+    c = 1;
+  else
+    c = 0;
+  putchar(CLRLINE);
+  return c;
+}
+
+/*
  * Copies the current message to mailbox mbox.
  * h is a pointer to the emailheaders for the message to copy
  * idx is the index of the message in EMAIL.DB in the source mailbox (1-based)
@@ -1388,28 +1427,11 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
     sprintf(filename, "Created %s %s/OUTBOX/EMAIL.%u",
             (mode == 'R' ? "reply" : "fwded msg"), cfg_emaildir, num);
     error(ERR_NONFATAL, filename);
+    if (prompt_okay("Open in editor - ")) {
+      sprintf(filename, "%s/OUTBOX/EMAIL.%u", cfg_emaildir, num);
+      load_editor();
+    }
   }
-}
-
-/*
- * Prompt ok?
- */
-char prompt_okay(char *msg) {
-  char c;
-  goto_prompt_row();
-  printf("%sSure? (y/n)", msg);
-  while (1) {
-    c = cgetc();
-    if ((c == 'y') || (c == 'Y') || (c == 'n') || (c == 'N'))
-      break;
-    putchar(BELL);
-  } 
-  if ((c == 'y') || (c == 'Y'))
-    c = 1;
-  else
-    c = 0;
-  putchar(CLRLINE);
-  return c;
 }
 
 /*
@@ -1524,25 +1546,12 @@ void create_blank_outgoing() {
   // Not really an error but useful to have an alert
   sprintf(filename, "Created file %s/OUTBOX/EMAIL.%u", cfg_emaildir, num);
   error(ERR_NONFATAL, filename);
-}
 
-// Shove this up in the Language Card out of an abundance of caution
-#pragma code-name (push, "LC")
-void load_editor(void) {
-  sprintf(filename, "%s/EDIT.SYSTEM", cfg_instdir);
-  exec(filename, NULL);
+  if (prompt_okay("Open in editor - ")) {
+    sprintf(filename, "%s/OUTBOX/EMAIL.%u", cfg_emaildir, num);
+    load_editor();
+  }
 }
-
-void load_pop65(void) {
-  sprintf(filename, "%s/POP65.SYSTEM", cfg_instdir);
-  exec(filename, "EMAIL");
-}
-
-void load_smtp65(void) {
-  sprintf(filename, "%s/SMTP65.SYSTEM", cfg_instdir);
-  exec(filename, "EMAIL");
-}
-#pragma code-name (pop)
 
 /*
  * Keyboard handler

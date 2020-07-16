@@ -170,6 +170,8 @@ uint8_t load_file(char *filename) {
       fclose(fp);
       return 2;
     }
+    if ((gapbegin % 1000) == 0)
+      putchar('.');
   }
   --gapbegin; // Eat EOF character
   fclose(fp);
@@ -588,12 +590,13 @@ void load_email(void) {
 /*
  * Main editor routine
  */
-int edit() {
+int edit(char *filename) {
   char c;
   uint16_t pos;
   uint8_t i;
   videomode(VIDEOMODE_80COL);
-  if (load_file("test.txt")) {
+  printf("Loading file %s ", filename);
+  if (load_file(filename)) {
     puts("load_file error");
     exit(1);
   }
@@ -668,8 +671,11 @@ int edit() {
   }
 }
 
-int main() {
-  edit();
+int main(int argc, char *argv[]) {
+  if (argc == 2) {
+    edit(argv[1]);
+  } else
+    edit(NULL);
 }
 
 
