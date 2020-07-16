@@ -1700,6 +1700,11 @@ void keyboard_hdlr(void) {
       reverse = 0;
       switch_mailbox(curr_mbox);
       break;
+    case 'e':
+    case 'E':
+      sprintf(filename, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, h->emailnum);
+      load_editor();
+      break;
     case 0x12: // Ctrl-R 'Receive messages from server'
       load_pop65();
       break;
