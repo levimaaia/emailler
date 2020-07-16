@@ -151,6 +151,7 @@ Main menu commands:
  - Up arrow / `K` - Move the selection to the previous message. If this is the first message on the summary screen but this is not the first page, then load the previous page of messages and select the last item.
  - Down arrow / `J` - Move the selection to the next message.  If this is the last message on the summary screen but there are further messages on subsequent pages, then load the next page of messages and select the first item.
  - `SPC` / `RET` - View the currently selected message in the message pager.
+ - `E)ditor` - Open the currently selected message in `EDIT.SYSTEM`.
  - `S)witch` mbox - Switch to viewing a different mailbox. Press `S` then enter the name of the mailbox to switch to at the prompt.  The mailbox must already exist or an error message will be shown.  You may enter `.` as a shortcut to switch back to `INBOX`.
  - `N)ew mbox` - Create a new mailbox.  Press 'N' then enter the name of the mailbox to be created.  It will be created as a directory within the email root directory and `NEXT.EMAIL` and `EMAIL.DB` files will be created for the new mailbox.
  - `C)opy` - Copy message(s) to another mailbox.  If no messages are tagged (see below) then the copy operation will apply to the current message only.  If messages are tagged then the copy operation will apply to the tagged messages.
@@ -337,7 +338,10 @@ EDIT is simple full-screen editor.  It is currently under development.
 The following commands are implemented (but could change at any time):
 
  - Movement:
-   - Arrow keys move around the document
+   - `Up` - Up one row.
+   - `Down` - Down one row.
+   - `Left` - Left one column.
+   - `Right` - Right one column.
    - `Open Apple`-`Up` - Page up
    - `Open Apple`-`Down` - Page down
    - `Open Apple`-`Left` - Goto beginning of line
@@ -346,8 +350,12 @@ The following commands are implemented (but could change at any time):
  - Deleting text:
    - `Delete` key deletes character to left of cursor
    - `Open Apple`-`Delete` or `Ctrl`-`D` key deletes character to right of cursor
- - Miscellaneous:
+ - File handling:
+   - `Open Apple`-`N` - New file (clear buffer)
+   - `Open Apple`-`L` - Load file from disk
    - `Open Apple`-`S` - Save file to disk
-   - `Open Apple`-`Q` - Quit and load `EMAIL.SYSTEM`
-   - `Open Apple`-`X` - Quit to ProDOS
+   
+ - Miscellaneous:
+   - `Open Apple`-`Q` - Quit. If launched from `EMAIL.SYSTEM` then `EMAIL.SYSTEM` will be launched again.  Otherwise, just return to ProDOS.
    - `Ctrl`-`L` - Refresh screen (useful it it get garbled!)
+
