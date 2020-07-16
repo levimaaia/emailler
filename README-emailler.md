@@ -280,10 +280,10 @@ The EMAIL system currently includes a basic screen editor for message compositio
 Sending of an email message is a three step process:
 
  - Use the `W)rite`, `R)eply` or `F)wd` functions in EMAIL to create an email template file and store it in `OUTBOX`.
- - The system will display the full pathname of the template file created. And prompt `Open in editor - sure? (y/n)'
+ - The system will display the full pathname of the template file created. And prompt `Open in editor - sure? (y/n)`
    - If you respond in the affirmative:
    - `EMAIL.SYSTEM` will load `EDIT.SYSTEM`, the integrated editor, passing the filename of the template file as a parameter, so the file is automatically opened for editing.
-   - You may edit the file in `EDIT.SYSTEM` using the editing keys listed below.  Press `Ctrl`-`S` to save the file to disk and `Ctrl-Z` to return to `EMAIL.SYSTEM`.
+   - You may edit the file in `EDIT.SYSTEM` using the editing keys listed below.  Press `Ctrl`-`S` to save the file to disk and `Ctrl`-`Z` to return to `EMAIL.SYSTEM`.
    - If you are ready to send the email, press `Ctrl`-`S` at the `EMAIL.SYSTEM` main menu to send the messages in `OUTBOX` to your mail server and copy them to the `SENT` mailbox.
  - If you answer `n` to the `Open in editor - sure? (y/n)` prompt:
    - The template file will simply be placed in the `OUTBOX` where you can use your favourite text editor to add the email body.  You may also modify the `To:`, `cc:`, `Subject:` or `Date:` headers.
