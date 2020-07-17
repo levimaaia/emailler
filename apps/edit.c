@@ -3,6 +3,8 @@
 // Bobbi July 2020
 /////////////////////////////////////////////////////////////////////////////
 
+// TODO: Start prototyping selection
+// TODO: Modify/extend keybindings to be more like Appleworks
 // TODO: The code doesn't check for error cases when calling gap buffer
 //       functions.
 
@@ -35,7 +37,7 @@
 typedef unsigned char  uint8_t;
 typedef unsigned short uint16_t;
 
-#define BUFSZ 20000 // 65535
+#define BUFSZ 20000
 char     gapbuf[BUFSZ];
 uint16_t gapbegin = 0;
 uint16_t gapend = BUFSZ - 1;
@@ -47,12 +49,15 @@ char    userentry[80];
 
 // Interface to read_char_update_pos()
 uint8_t  do_print;
-uint16_t pos;
+uint16_t pos, startsel, endsel;
 uint8_t  row, col;
 
 uint8_t cursrow, curscol; // Cursor position is kept here by draw_screen()
 
 uint8_t  quit_to_email;
+
+enum selmode {SEL_NONE, SEL_DEL, SEL_MOVE, SEL_COPY}; 
+enum selmode mode;
 
 /*
  * Return number of bytes of freespace in gapbuf
@@ -456,8 +461,10 @@ void update_after_delete_char_right(void) {
     while ((pos < BUFSZ) && (row < NROWS))
       read_char_update_pos();
 
+    putchar(CLREOL);
+
     // Erase the rest of the screen (if any)
-    for (i = row; i < NROWS; ++i) {
+    for (i = row + 1; i < NROWS; ++i) {
       gotoxy(0, i);
       putchar(CLRLINE);
     }
@@ -518,8 +525,10 @@ void update_after_delete_char(void) {
     while ((pos < BUFSZ) && (row < NROWS))
       read_char_update_pos();
 
+    putchar(CLREOL);
+
     // Erase the rest of the screen (if any)
-    for (i = row; i < NROWS; ++i) {
+    for (i = row + 1; i < NROWS; ++i) {
       gotoxy(0, i);
       putchar(CLRLINE);
     }
@@ -747,7 +756,8 @@ int edit(char *fname) {
     }
   }
   jump_pos(0);
-  pos = 0;
+  pos = startsel = endsel = 0;
+  mode = SEL_NONE;
   draw_screen();
   while (1) {
     cursor(1);
@@ -776,7 +786,14 @@ int edit(char *fname) {
         show_error(userentry);
       }
       jump_pos(0);
-      pos = 0;
+      pos = startsel = endsel = 0;
+      mode = SEL_NONE;
+      draw_screen();
+      break;
+    case 0x80 + 'M': // OA-M "Move"
+    case 0x80 + 'm': // OA-m
+      mode = SEL_MOVE;
+      startsel = pos;
       draw_screen();
       break;
     case 0x80 + 'N': // OA-N "New"
@@ -785,7 +802,8 @@ int edit(char *fname) {
         gapbegin = 0;
         gapend = BUFSZ - 1;
         jump_pos(0);
-        pos = 0;
+        pos = startsel = endsel = 0;
+        mode = SEL_NONE;
         draw_screen();
       }
       break;
@@ -841,9 +859,13 @@ int edit(char *fname) {
     case 0x0a:  // Down
       cursor_down();
       break;
+    case EOL:   // Return
+      insert_char(c);
+      update_after_insert_char();
+      break;
     default:
       //printf("**%02x**", c);
-      if ((c >= 0x20) && (c < 0x80) || (c == EOL)) {
+      if ((c >= 0x20) && (c < 0x80)) {
         insert_char(c);
         update_after_insert_char();
       }
