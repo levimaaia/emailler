@@ -136,6 +136,7 @@ char prompt_okay(char *msg) {
   char c;
   cursor(0);
   goto_prompt_row();
+  putchar(CLREOL);
   printf("%c%sSure? (y/n)", INVERSE, msg);
   while (1) {
     c = cgetc();
@@ -458,7 +459,7 @@ void update_after_delete_char_right(void) {
     // Erase the rest of the screen (if any)
     for (i = row; i < NROWS; ++i) {
       gotoxy(0, i);
-      putchar(CLREOL);
+      putchar(CLRLINE);
     }
   }
 
@@ -520,7 +521,7 @@ void update_after_delete_char(void) {
     // Erase the rest of the screen (if any)
     for (i = row; i < NROWS; ++i) {
       gotoxy(0, i);
-      putchar(CLREOL);
+      putchar(CLRLINE);
     }
   }
 
@@ -574,6 +575,7 @@ void cursor_left(void) {
     gapbuf[gapend--] = gapbuf[--gapbegin];
   else {
     putchar(BELL);
+    gotoxy(curscol, cursrow);
     return;
   }
   if (curscol == 0) {
@@ -595,23 +597,21 @@ void cursor_left(void) {
  * Move the cursor right
  */
 void cursor_right(void) {
-  if (gapbegin < DATASIZE())
+  if (gapend < BUFSZ - 1)
     gapbuf[gapbegin++] = gapbuf[++gapend];
   else {
     putchar(BELL);
+    gotoxy(curscol, cursrow);
     return;
   }
   ++curscol;
   if (curscol == rowlen[cursrow]) {
-    if (cursrow == NROWS - 1) {
-      scroll_down();
-      if (cursrow == NROWS - 1) {
-        putchar(BELL);
-        return;
-      }
+    if (gapbuf[gapbegin - 1] == EOL) {
+      if (cursrow == NROWS - 1)
+        scroll_down();
+      ++cursrow;
+      curscol = 0;
     }
-    ++cursrow;
-    curscol = 0;
   }
   gotoxy(curscol, cursrow);
 }
@@ -649,29 +649,26 @@ uint8_t cursor_up(void) {
  */
 uint8_t cursor_down(void) {
   uint8_t i;
-  if (cursrow == NROWS - 1) {
+  if (cursrow == NROWS - 1)
     scroll_down();
-    if (cursrow == NROWS - 1) {
+  if ((gapbuf[gapend + rowlen[cursrow] - curscol] != EOL) &&
+      (rowlen[cursrow] != NCOLS))
+    return 1; // Last line
+
+  for (i = 0; i < rowlen[cursrow] - curscol; ++i) {
+    if (gapend < BUFSZ - 1)
+      gapbuf[gapbegin++] = gapbuf[++gapend];
+    else { 
       putchar(BELL);
       return 1;
     }
   }
-//  if (gapbuf[rowlen[cursrow] - 1] == EOL) {
-    for (i = 0; i < rowlen[cursrow] - curscol; ++i) {
-      if (gapbegin < DATASIZE()) // TODO Not sure this is necessary now
-        gapbuf[gapbegin++] = gapbuf[++gapend];
-      else { 
-        putchar(BELL);
-        return 1;
-      }
-    }
-    ++cursrow;
-//  }
+  ++cursrow;
   // Short line ...
   if (curscol > rowlen[cursrow] - 1)
     curscol = rowlen[cursrow] - 1;
   for (i = 0; i < curscol; ++i)
-    if (gapbegin < DATASIZE()) // TODO Not sure this is necessary now
+    if (gapend < BUFSZ - 1)
       gapbuf[gapbegin++] = gapbuf[++gapend];
   gotoxy(curscol, cursrow);
   return 0;
