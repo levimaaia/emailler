@@ -829,7 +829,8 @@ int edit(char *fname) {
     }
   }
   jump_pos(0);
-  pos = startsel = endsel = 0;
+  pos = 0;
+  startsel = endsel = 65535U;
   mode = SEL_NONE;
   draw_screen();
   while (1) {
@@ -967,7 +968,8 @@ int edit(char *fname) {
         show_error(userentry);
       }
       jump_pos(0);
-      pos = startsel = endsel = 0;
+      pos = 0;
+      startsel = endsel = 65535U;
       mode = SEL_NONE;
       draw_screen();
       break;
@@ -984,7 +986,8 @@ int edit(char *fname) {
         gapbegin = 0;
         gapend = BUFSZ - 1;
         jump_pos(0);
-        pos = startsel = endsel = 0;
+        pos = 0;
+        startsel = endsel = 65535U;
         mode = SEL_NONE;
         draw_screen();
       }
@@ -1087,7 +1090,7 @@ int edit(char *fname) {
             jump_pos(startsel);
             gapend += (endsel - startsel);
           }
-          startsel = endsel = 0;
+          startsel = endsel = 65535U;
           mode = SEL_NONE;
           draw_screen();
           break;
@@ -1123,7 +1126,7 @@ int edit(char *fname) {
             }
           }
 copymove2_cleanup:
-          startsel = endsel = 0;
+          startsel = endsel = 65535U;
           mode = SEL_NONE;
           draw_screen();
           break;
