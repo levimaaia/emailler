@@ -5,8 +5,7 @@
 
 // TODO: Bug when copying or moving text to earlier in doc
 // TODO: Add OA-R "Replace" command
-// TODO: Add 'modified' flag and warning if quit with unsaved changes
-// TODO: Add 'Rename' command (OA-N ?)
+// TODO: Add 'Rename' command (OA-N ?) Do we need the existing clear now?
 // TODO: Should be smarter about redrawing in when updating selection!!!
 // TODO: Doesn't check for error cases when calling gap buffer functions
 // TODO: Make use of 3K LC memory to allow bigger buffer.  Aux mem???
@@ -55,7 +54,7 @@ char    userentry[80] = "";
 char    search[80]    = "";
 
 // Interface to read_char_update_pos()
-uint8_t  do_print;
+uint8_t  do_print, modified;
 uint16_t pos, startsel, endsel;
 uint8_t  row, col;
 
@@ -440,8 +439,8 @@ void draw_screen(void) {
   goto_prompt_row();
   revers(1);
   if (strlen(filename)) {
-    printf("File:%s", filename);
-    for (startpos = 0; startpos < 66 - strlen(filename); ++startpos)
+    printf("%c File:%s", modified ? '*' : ' ', filename);
+    for (startpos = 0; startpos < 64 - strlen(filename); ++startpos)
       putchar(' ');
   } else {
     printf(
@@ -813,6 +812,19 @@ void load_email(void) {
 #pragma code-name (pop)
 
 /*
+ * Save file to disk, handle user interface
+ */
+void save(void) {
+  if (save_file(filename)) {
+    sprintf(userentry, "%cCan't save %s", filename);
+    show_error(userentry);
+    draw_screen();
+  } else {
+    modified = 0;
+  }
+}
+
+/*
  * Main editor routine
  */
 int edit(char *fname) {
@@ -830,6 +842,7 @@ int edit(char *fname) {
   }
   jump_pos(0);
   pos = 0;
+  modified = 0;
   startsel = endsel = 65535U;
   mode = SEL_NONE;
   draw_screen();
@@ -940,6 +953,7 @@ int edit(char *fname) {
           break;
         if (!prompt_okay("Repeat - "))
           break;
+        cursor_right();
       }
       p = strstr(gapbuf + gapend + 1, search);
       if (!p) {
@@ -969,6 +983,7 @@ int edit(char *fname) {
       }
       jump_pos(0);
       pos = 0;
+      modified = 0;
       startsel = endsel = 65535U;
       mode = SEL_NONE;
       draw_screen();
@@ -986,6 +1001,7 @@ int edit(char *fname) {
         gapbegin = 0;
         gapend = BUFSZ - 1;
         jump_pos(0);
+        modified = 0;
         pos = 0;
         startsel = endsel = 65535U;
         mode = SEL_NONE;
@@ -994,6 +1010,11 @@ int edit(char *fname) {
       break;
     case 0x80 + 'Q': // OA-Q "Quit"
     case 0x80 + 'q': // OA-q
+      if (modified) {
+        sprintf(userentry, "Save unsaved changes to %s - ", filename);
+        if (prompt_okay(userentry))
+          save();
+      }
       if (quit_to_email) {
         if (prompt_okay("Quit to EMAIL - "))
           load_email();
@@ -1011,17 +1032,14 @@ int edit(char *fname) {
       break;
     case 0x80 + 'S': // OA-S "Save"
     case 0x80 + 's': // OA-s
-      if (save_file(filename)) {
-        sprintf(userentry, "%cCan't save %s", filename);
-        show_error(userentry);
-        draw_screen();
-      }
+      save();
       break;
     case 0x80 + DELETE: // OA-Backspace
     case 0x04:  // Ctrl-D "DELETE"
       if (mode == SEL_NONE) {
         delete_char_right();
         update_after_delete_char_right();
+        modified = 1;
       }
       break;
     case 0x80 + '?': // OA-? "Help"
@@ -1035,6 +1053,7 @@ int edit(char *fname) {
       if (mode == SEL_NONE) {
         delete_char();
         update_after_delete_char();
+        modified = 1;
       }
       break;
     case 0x09:  // Tab
@@ -1044,6 +1063,7 @@ int edit(char *fname) {
           insert_char(' ');
           update_after_insert_char();
         }
+        modified = 1;
       }
       break;
     case 0x08:  // Left
@@ -1078,6 +1098,7 @@ int edit(char *fname) {
       if (mode == SEL_NONE) {
         insert_char(c);
         update_after_insert_char();
+        modified = 1;
       } else {
         if (startsel > endsel) {
           tmp = endsel;
@@ -1092,6 +1113,7 @@ int edit(char *fname) {
           }
           startsel = endsel = 65535U;
           mode = SEL_NONE;
+          modified = 1;
           draw_screen();
           break;
         case SEL_COPY:
@@ -1128,6 +1150,7 @@ int edit(char *fname) {
 copymove2_cleanup:
           startsel = endsel = 65535U;
           mode = SEL_NONE;
+          modified = 1;
           draw_screen();
           break;
         }
@@ -1138,6 +1161,7 @@ copymove2_cleanup:
       if ((c >= 0x20) && (c < 0x80)) {
         insert_char(c);
         update_after_insert_char();
+        modified = 1;
       }
     }
   }
