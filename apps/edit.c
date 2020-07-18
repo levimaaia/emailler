@@ -4,9 +4,12 @@
 /////////////////////////////////////////////////////////////////////////////
 
 // TODO: Bug when copying or moving text to earlier in doc
-// TODO: Modify/extend keybindings to be more like Appleworks
-// TODO: The code doesn't check for error cases when calling gap buffer
-//       functions.
+// TODO: Add OA-F "Find" and OA-R "Replace" commands
+// TODO: Add 'modified' flag and warning if quit with unsaved changes
+// TODO: Add 'Rename' command (OA-N ?)
+// TODO: Should be smarter about redrawing in when updating selection!!!
+// TODO: Doesn't check for error cases when calling gap buffer functions
+// TODO: Make use of 3K LC memory to allow bigger buffer.  Aux mem???
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,23 +24,25 @@
 #define CURSORROW  10        // Row cursor is initially shown on (if enough text)
 #define PROMPT_ROW NROWS + 2 // Row where input prompt is shown
 
-#define EOL '\r' // For ProDOS
+#define EOL       '\r'       // For ProDOS
 
-#define BELL      0x07
-#define BACKSPACE 0x08
-#define CURDOWN   0x0a
-#define RETURN    0x0d
-#define NORMAL    0x0e
-#define INVERSE   0x0f
-#define HOME      0x19
-#define CLRLINE   0x1a
-#define CLREOL    0x1d
-#define DELETE    0x7f
+#define BELL       0x07
+#define BACKSPACE  0x08
+#define CURDOWN    0x0a
+#define RETURN     0x0d
+#define NORMAL     0x0e
+#define INVERSE    0x0f
+#define NOMOUSETXT 0x1b
+#define HOME       0x19
+#define CLRLINE    0x1a
+#define MOUSETXT   0x1b
+#define CLREOL     0x1d
+#define DELETE     0x7f
 
 typedef unsigned char  uint8_t;
 typedef unsigned short uint16_t;
 
-#define BUFSZ 20000
+#define BUFSZ 19000
 char     gapbuf[BUFSZ];
 uint16_t gapbegin = 0;
 uint16_t gapend = BUFSZ - 1;
@@ -54,11 +59,14 @@ uint8_t  row, col;
 
 uint8_t cursrow, curscol; // Cursor position is kept here by draw_screen()
 
-uint8_t  quit_to_email;
+uint8_t  quit_to_email;   // If 1, launch EMAIL.SYSTEM on quit
+uint8_t  modified;        // If 1, file contents have been modified
 
 // The order of the cases matters!
 enum selmode {SEL_NONE, SEL_COPY2, SEL_MOVE2, SEL_DEL, SEL_MOVE, SEL_COPY}; 
 enum selmode mode;
+
+char openapple[] = "\x0f\x1b""A\x18\x0e";
 
 /*
  * Return number of bytes of freespace in gapbuf
@@ -431,13 +439,13 @@ void draw_screen(void) {
   revers(1);
   if (strlen(filename)) {
     printf("File:%s", filename);
-    for (startpos = 0; startpos < 74 - strlen(filename); ++startpos)
+    for (startpos = 0; startpos < 66 - strlen(filename); ++startpos)
       putchar(' ');
   } else {
     printf(
-    "File:NONE                                                                     ");
+    "File:NONE                                                             ");
   }
-  revers(0);
+  printf("%s-? Help", openapple);
   putchar(HOME);
 
   gotoxy(curscol, cursrow);
@@ -759,6 +767,38 @@ void page_up(void) {
 }
 
 /*
+ * Help screen
+ */
+void help(void) {
+  cursor(0);
+  clrscr();
+  printf("EDITOR HELP\n\n");
+  printf("  %s-C           Copy text (includes cut & paste)\n", openapple);
+  printf("  %s-D           Delete text\n", openapple);
+  printf("  %s-F           Find string\n", openapple);
+  printf("  %s-L           Load file\n", openapple);
+  printf("  %s-M           Move text (includes cut & paste)\n", openapple);
+  printf("  %s-N           New file\n", openapple);
+  printf("  %s-Q           Quit\n", openapple);
+  printf("  %s-R           Replace string\n", openapple);
+  printf("  %s-S           Save file\n", openapple);
+  printf("  [Return]      Mark end of paragraph\n");
+  printf("  [Delete]      Delete character left\n");
+  printf("  %s-[Delete]    Delete character right\n", openapple);
+  printf("  Arrows        Move the cursor\n");
+  printf("  %s-Up arrow    Page up\n", openapple);
+  printf("  %s-Down arrow  Page down\n", openapple);
+  printf("  %s-Left arrow  Word left\n", openapple);
+  printf("  %s-Right arrow Word right\n", openapple);
+  printf("  %s-<           Beginning of line\n", openapple);
+  printf("  %s->           End of line\n", openapple);
+  printf("  [Tab]         Go to next tabstop\n");
+  printf("  %s-1 to %s-9    Beginning of file through end of file\n", openapple, openapple);
+  printf("                                                             [Press Any Key]");
+  cgetc();
+}
+
+/*
  * Load EMAIL.SYSTEM to $2000 and jump to it
  * (This code is in language card space so it can't possibly be trashed)
  */
@@ -948,6 +988,10 @@ int edit(char *fname) {
         delete_char_right();
         update_after_delete_char_right();
       }
+      break;
+    case 0x80 + '?': // OA-? "Help"
+      help();
+      draw_screen();
       break;
     case 0x0c:  // Ctrl-L "REFRESH"
       draw_screen();
