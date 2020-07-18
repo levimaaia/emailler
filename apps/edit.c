@@ -4,7 +4,7 @@
 /////////////////////////////////////////////////////////////////////////////
 
 // TODO: Bug when copying or moving text to earlier in doc
-// TODO: Add OA-R "Replace" command
+// TODO: Still some lingering screen update bugs
 // TODO: Add 'Rename' command (OA-N ?) Do we need the existing clear now?
 // TODO: Should be smarter about redrawing in when updating selection!!!
 // TODO: Doesn't check for error cases when calling gap buffer functions
@@ -944,31 +944,49 @@ int edit(char *fname) {
       draw_screen();
       show_info("Go to end of selection, then [Return]");
       break;
+    case 0x80 + 'R': // OA-R "Replace"
+    case 0x80 + 'r': // OA-r
+      tmp = 65535U;
     case 0x80 + 'F': // OA-F "Find"
     case 0x80 + 'f': // OA-F "Find"
+      ++tmp;
       if (prompt_for_name("Search string", 0))
         strcpy(search, userentry);
       else {
         if (strlen(search) == 0)
           break;
-        if (!prompt_okay("Repeat - "))
+        if (!prompt_okay("Repeat previous - "))
           break;
         cursor_right();
       }
+      if (tmp == 0) // Replace mode
+        prompt_for_name("Replacement string", 0);
       p = strstr(gapbuf + gapend + 1, search);
       if (!p) {
-        show_error("Not found, wrapping to beginning");
+        show_error("Not found, wrapping to top");
         gapbuf[gapbegin] = '\0';
-        p = strstr(gapbuf, userentry);
+        p = strstr(gapbuf, search);
         if (!p) {
           show_error("Not found");
           break;
         }
         jump_pos(p - gapbuf);
+        if (tmp == 0) { // Replace mode
+          for (i = 0; i < strlen(search); ++i)
+            delete_char_right();
+          memcpy(gapbuf + gapbegin, userentry, strlen(userentry));
+          gapbegin += strlen(userentry);
+        }
         draw_screen();
         break;
       }
       jump_pos(gapbegin + p - (gapbuf + gapend + 1));
+      if (tmp == 0) { // Replace mode
+        for (i = 0; i < strlen(search); ++i)
+          delete_char_right();
+        memcpy(gapbuf + gapbegin, userentry, strlen(userentry));
+        gapbegin += strlen(userentry);
+      }
       draw_screen();
       break;
     case 0x80 + 'L': // OA-L "Load"
@@ -1025,10 +1043,6 @@ int edit(char *fname) {
           exit(0);
         }
       }
-      break;
-    case 0x80 + 'R': // OA-R "Replace"
-    case 0x80 + 'r': // OA-r
-      // TODO
       break;
     case 0x80 + 'S': // OA-S "Save"
     case 0x80 + 's': // OA-s
