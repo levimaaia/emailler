@@ -42,7 +42,7 @@
 typedef unsigned char  uint8_t;
 typedef unsigned short uint16_t;
 
-#define BUFSZ 19000
+#define BUFSZ 18000
 char     gapbuf[BUFSZ];
 char     padding = 0;  // To null terminate for strstr()
 uint16_t gapbegin = 0;
@@ -50,8 +50,9 @@ uint16_t gapend = BUFSZ - 1;
 
 uint8_t rowlen[NROWS]; // Number of chars on each row of screen
 
-char    filename[80];
-char    userentry[80];
+char    filename[80]  = "";
+char    userentry[80] = "";
+char    search[80]    = "";
 
 // Interface to read_char_update_pos()
 uint8_t  do_print;
@@ -931,23 +932,29 @@ int edit(char *fname) {
       break;
     case 0x80 + 'F': // OA-F "Find"
     case 0x80 + 'f': // OA-F "Find"
-      if (prompt_for_name("Search string", 0)) {
-        p = strstr(gapbuf + gapend + 1, userentry);
+      if (prompt_for_name("Search string", 0))
+        strcpy(search, userentry);
+      else {
+        if (strlen(search) == 0)
+          break;
+        if (!prompt_okay("Repeat - "))
+          break;
+      }
+      p = strstr(gapbuf + gapend + 1, search);
+      if (!p) {
+        show_error("Not found, wrapping to beginning");
+        gapbuf[gapbegin] = '\0';
+        p = strstr(gapbuf, userentry);
         if (!p) {
-          show_error("Not found, wrapping to beginning");
-          gapbuf[gapbegin] = '\0';
-          p = strstr(gapbuf, userentry);
-          if (!p) {
-            show_error("Not found");
-            break;
-          }
-          jump_pos(p - gapbuf);
-          draw_screen();
+          show_error("Not found");
           break;
         }
-        jump_pos(gapbegin + p - (gapbuf + gapend + 1));
+        jump_pos(p - gapbuf);
         draw_screen();
+        break;
       }
+      jump_pos(gapbegin + p - (gapbuf + gapend + 1));
+      draw_screen();
       break;
     case 0x80 + 'L': // OA-L "Load"
     case 0x80 + 'l':
