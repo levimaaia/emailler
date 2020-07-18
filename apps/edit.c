@@ -4,7 +4,7 @@
 /////////////////////////////////////////////////////////////////////////////
 
 // TODO: Bug when copying or moving text to earlier in doc
-// TODO: Add OA-F "Find" and OA-R "Replace" commands
+// TODO: Add OA-R "Replace" command
 // TODO: Add 'modified' flag and warning if quit with unsaved changes
 // TODO: Add 'Rename' command (OA-N ?)
 // TODO: Should be smarter about redrawing in when updating selection!!!
@@ -44,6 +44,7 @@ typedef unsigned short uint16_t;
 
 #define BUFSZ 19000
 char     gapbuf[BUFSZ];
+char     padding = 0;  // To null terminate for strstr()
 uint16_t gapbegin = 0;
 uint16_t gapend = BUFSZ - 1;
 
@@ -107,7 +108,7 @@ uint8_t prompt_for_name(char *prompt, uint8_t is_file) {
   cursor(0);
   goto_prompt_row();
   putchar(CLREOL);
-  printf("%c%s>", INVERSE, prompt);
+  printf("%c%s>%c", INVERSE, prompt, NORMAL);
   i = 0;
   while (1) {
     c = cgetc();
@@ -814,7 +815,7 @@ void load_email(void) {
  * Main editor routine
  */
 int edit(char *fname) {
-  char c;
+  char c, *p;
   uint16_t pos, tmp;
   uint8_t i;
   videomode(VIDEOMODE_80COL);
@@ -928,6 +929,26 @@ int edit(char *fname) {
       draw_screen();
       show_info("Go to end of selection, then [Return]");
       break;
+    case 0x80 + 'F': // OA-F "Find"
+    case 0x80 + 'f': // OA-F "Find"
+      if (prompt_for_name("Search string", 0)) {
+        p = strstr(gapbuf + gapend + 1, userentry);
+        if (!p) {
+          show_error("Not found, wrapping to beginning");
+          gapbuf[gapbegin] = '\0';
+          p = strstr(gapbuf, userentry);
+          if (!p) {
+            show_error("Not found");
+            break;
+          }
+          jump_pos(p - gapbuf);
+          draw_screen();
+          break;
+        }
+        jump_pos(gapbegin + p - (gapbuf + gapend + 1));
+        draw_screen();
+      }
+      break;
     case 0x80 + 'L': // OA-L "Load"
     case 0x80 + 'l':
       prompt_for_name("File", 1);
@@ -973,6 +994,10 @@ int edit(char *fname) {
           exit(0);
         }
       }
+      break;
+    case 0x80 + 'R': // OA-R "Replace"
+    case 0x80 + 'r': // OA-r
+      // TODO
       break;
     case 0x80 + 'S': // OA-S "Save"
     case 0x80 + 's': // OA-s
