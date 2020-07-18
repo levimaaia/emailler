@@ -56,7 +56,7 @@ uint8_t cursrow, curscol; // Cursor position is kept here by draw_screen()
 
 uint8_t  quit_to_email;
 
-enum selmode {SEL_NONE, SEL_DEL, SEL_MOVE, SEL_COPY}; 
+enum selmode {SEL_NONE, SEL_DEL, SEL_MOVE, SEL_MOVE2, SEL_COPY, SEL_COPY2}; 
 enum selmode mode;
 
 /*
@@ -325,7 +325,12 @@ uint8_t save_file(char *filename) {
  */
 uint8_t read_char_update_pos(void) {
   char c;
+  if ((pos >= startsel) && (pos <= endsel))
+    revers(1);
+  else
+    revers(0);
   if ((c = gapbuf[pos++]) == EOL) {
+    revers(0);
     if (do_print) {
       rowlen[row] = col + 1;
       putchar(CLREOL);
@@ -344,6 +349,7 @@ uint8_t read_char_update_pos(void) {
     ++row;
     col = 0;
   }
+  revers(0);
   return 0;
 }
 
@@ -765,15 +771,43 @@ int edit(char *fname) {
     switch (c) {
     case 0x88:  // OA-Left "Home"
       goto_bol();
+      if (mode != SEL_NONE) {
+        endsel = gapbegin;
+        draw_screen();
+      }
       break;
     case 0x8b:  // OA-Up "Page Up"
       page_up();
+      if (mode != SEL_NONE) {
+        endsel = gapbegin;
+        draw_screen();
+      }
       break;
     case 0x95:  // OA-Right "End"
       goto_eol();
+      if (mode != SEL_NONE) {
+        endsel = gapbegin;
+        draw_screen();
+      }
       break;
     case 0x8a:  // OA-Down "Page Down"
       page_down();
+      if (mode != SEL_NONE) {
+        endsel = gapbegin;
+        draw_screen();
+      }
+      break;
+    case 0x80 + 'C': // OA-C "Copy"
+    case 0x80 + 'c': // OA-c
+      mode = SEL_COPY;
+      endsel = startsel = gapbegin;
+      draw_screen();
+      break;
+    case 0x80 + 'D': // OA-D "Delete"
+    case 0x80 + 'd': // OA-d
+      mode = SEL_DEL;
+      endsel = startsel = gapbegin;
+      draw_screen();
       break;
     case 0x80 + 'L': // OA-L "Load"
     case 0x80 + 'l':
@@ -793,12 +827,12 @@ int edit(char *fname) {
     case 0x80 + 'M': // OA-M "Move"
     case 0x80 + 'm': // OA-m
       mode = SEL_MOVE;
-      startsel = pos;
+      endsel = startsel = gapbegin;
       draw_screen();
       break;
     case 0x80 + 'N': // OA-N "New"
     case 0x80 + 'n': // OA-n
-      if (prompt_okay("Erase buffer -")) {
+      if (prompt_okay("Erase buffer - ")) {
         gapbegin = 0;
         gapend = BUFSZ - 1;
         jump_pos(0);
@@ -830,38 +864,79 @@ int edit(char *fname) {
       break;
     case 0x80 + DELETE: // OA-Backspace
     case 0x04:  // Ctrl-D "DELETE"
-      delete_char_right();
-      update_after_delete_char_right();
+      if (mode == SEL_NONE) {
+        delete_char_right();
+        update_after_delete_char_right();
+      }
       break;
     case 0x0c:  // Ctrl-L "REFRESH"
       draw_screen();
       break;
     case DELETE:  // DEL "BACKSPACE"
-      delete_char();
-      update_after_delete_char();
+      if (mode == SEL_NONE) {
+        delete_char();
+        update_after_delete_char();
+      }
       break;
     case 0x09:  // Tab
-      c = next_tabstop(curscol) - curscol;
-      for (i = 0; i < c; ++i) {
-        insert_char(' ');
-        update_after_insert_char();
+      if (mode == SEL_NONE) {
+        c = next_tabstop(curscol) - curscol;
+        for (i = 0; i < c; ++i) {
+          insert_char(' ');
+          update_after_insert_char();
+        }
       }
       break;
     case 0x08:  // Left
       cursor_left();
+      if (mode != SEL_NONE) {
+        endsel = gapbegin;
+        draw_screen();
+      }
       break;
     case 0x15:  // Right
       cursor_right();
+      if (mode != SEL_NONE) {
+        endsel = gapbegin;
+        draw_screen();
+      }
       break;
     case 0x0b:  // Up
       cursor_up();
+      if (mode != SEL_NONE) {
+        endsel = gapbegin;
+        draw_screen();
+      }
       break;
     case 0x0a:  // Down
       cursor_down();
+      if (mode != SEL_NONE) {
+        endsel = gapbegin;
+        draw_screen();
+      }
       break;
     case EOL:   // Return
-      insert_char(c);
-      update_after_insert_char();
+      if (mode == SEL_NONE) {
+        insert_char(c);
+        update_after_insert_char();
+      } else {
+        switch (mode) {
+        case SEL_DEL:
+          jump_pos(startsel);
+          gapend += (endsel - startsel);
+          startsel = endsel = 0;
+          mode = SEL_NONE;
+          draw_screen();
+          break;
+        case SEL_COPY:
+printf("Copy %d %d", startsel, endsel);
+          break;
+        case SEL_MOVE:
+printf("Move %d %d", startsel, endsel);
+          break;
+        }
+        mode = SEL_NONE;
+      }
       break;
     default:
       //printf("**%02x**", c);
