@@ -3,7 +3,7 @@
 // Bobbi July 2020
 /////////////////////////////////////////////////////////////////////////////
 
-// TODO: Start prototyping selection
+// TODO: Bug when copying or moving text to earlier in doc
 // TODO: Modify/extend keybindings to be more like Appleworks
 // TODO: The code doesn't check for error cases when calling gap buffer
 //       functions.
@@ -56,7 +56,8 @@ uint8_t cursrow, curscol; // Cursor position is kept here by draw_screen()
 
 uint8_t  quit_to_email;
 
-enum selmode {SEL_NONE, SEL_DEL, SEL_MOVE, SEL_MOVE2, SEL_COPY, SEL_COPY2}; 
+// The order of the cases matters!
+enum selmode {SEL_NONE, SEL_COPY2, SEL_MOVE2, SEL_DEL, SEL_MOVE, SEL_COPY}; 
 enum selmode mode;
 
 /*
@@ -68,6 +69,7 @@ enum selmode mode;
  * Return number of bytes of data in gapbuf
  */
 #define DATASIZE() (gapbegin + (BUFSZ - 1 - gapend))
+
 /*
  * Obtain current position in gapbuf
  * This is the positon where the next character will be inserted
@@ -174,6 +176,17 @@ void show_error(char *msg) {
 }
 
 /*
+ * Info message
+ */
+void show_info(char *msg) {
+  cursor(0);
+  goto_prompt_row();
+  printf("%c%s%c", INVERSE, msg, NORMAL);
+  gotoxy(curscol, cursrow);
+  cursor(1);
+}
+
+/*
  * Insert a character into gapbuf at current position
  * c - character to insert
  * Returns 0 on success, 1 on failure (insufficient space)
@@ -273,7 +286,7 @@ uint8_t load_file(char *filename) {
     case '\t':
       c = next_tabstop(col) - col;
       for (i = 0; i < c; ++i)
-	gapbuf[gapbegin++] = ' ';
+        gapbuf[gapbegin++] = ' ';
       col += c;
       break;
     default:
@@ -706,6 +719,26 @@ void goto_eol(void) {
 }
 
 /*
+ * Word left
+ */
+void word_left(void) {
+  do {
+    cursor_left();
+  } while ((gapbuf[gapbegin] != ' ') && (gapbuf[gapbegin] != EOL) &&
+           (gapbegin > 0));
+}
+
+/*
+ * Word right
+ */
+void word_right(void) {
+  do {
+    cursor_right();
+  } while ((gapbuf[gapbegin] != ' ') && (gapbuf[gapbegin] != EOL) &&
+           (gapend < BUFSZ - 1));
+}
+
+/*
  * Jump forward 15 screen lines
  */
 void page_down(void) {
@@ -726,14 +759,6 @@ void page_up(void) {
 }
 
 /*
- * Delete from cursor to EOL.
- * If at EOL, delete EOL char.
- */
-void kill_line(void) {
-  // TODO
-}
-
-/*
  * Load EMAIL.SYSTEM to $2000 and jump to it
  * (This code is in language card space so it can't possibly be trashed)
  */
@@ -750,7 +775,7 @@ void load_email(void) {
  */
 int edit(char *fname) {
   char c;
-  uint16_t pos;
+  uint16_t pos, tmp;
   uint8_t i;
   videomode(VIDEOMODE_80COL);
   if (fname) {
@@ -769,30 +794,82 @@ int edit(char *fname) {
     cursor(1);
     c = cgetc();
     switch (c) {
-    case 0x88:  // OA-Left "Home"
+    case 0x80 + '1': // Top
+      jump_pos(0);
+      draw_screen();
+      break;
+    case 0x80 + '2':
+      jump_pos(DATASIZE() / 8);
+      draw_screen();
+      break;
+    case 0x80 + '3':
+      jump_pos(2 * DATASIZE() / 8);
+      draw_screen();
+      break;
+    case 0x80 + '4':
+      jump_pos(3 * DATASIZE() / 8);
+      draw_screen();
+      break;
+    case 0x80 + '5':
+      jump_pos(4 * DATASIZE() / 8);
+      draw_screen();
+      break;
+    case 0x80 + '6':
+      jump_pos(5 * DATASIZE() / 8);
+      draw_screen();
+      break;
+    case 0x80 + '7':
+      jump_pos(6 * DATASIZE() / 8);
+      draw_screen();
+      break;
+    case 0x80 + '8':
+      jump_pos(7 * DATASIZE() / 8);
+      draw_screen();
+      break;
+    case 0x80 + '9': // Bottom
+      jump_pos(DATASIZE());
+      draw_screen();
+      break;
+    case 0x80 + 0x08:  // OA-Left "Word left"
+      word_left();
+      if (mode > SEL_MOVE2) {
+        endsel = gapbegin;
+        draw_screen();
+      }
+      break;
+    case 0x80 + 0x15:  // OA-Right "Word right"
+      word_right();
+      if (mode > SEL_MOVE2) {
+        endsel = gapbegin;
+        draw_screen();
+      }
+      break;
+    case 0x80 + ',':  // OA-< "Home"
+    case 0x80 + '<':
       goto_bol();
-      if (mode != SEL_NONE) {
+      if (mode > SEL_MOVE2) {
+        endsel = gapbegin;
+        draw_screen();
+      }
+      break;
+    case 0x80 + '.':  // OA-> "End"
+    case 0x80 + '>':
+      goto_eol();
+      if (mode > SEL_MOVE2) {
         endsel = gapbegin;
         draw_screen();
       }
       break;
     case 0x8b:  // OA-Up "Page Up"
       page_up();
-      if (mode != SEL_NONE) {
-        endsel = gapbegin;
-        draw_screen();
-      }
-      break;
-    case 0x95:  // OA-Right "End"
-      goto_eol();
-      if (mode != SEL_NONE) {
+      if (mode > SEL_MOVE2) {
         endsel = gapbegin;
         draw_screen();
       }
       break;
     case 0x8a:  // OA-Down "Page Down"
       page_down();
-      if (mode != SEL_NONE) {
+      if (mode > SEL_MOVE2) {
         endsel = gapbegin;
         draw_screen();
       }
@@ -802,12 +879,14 @@ int edit(char *fname) {
       mode = SEL_COPY;
       endsel = startsel = gapbegin;
       draw_screen();
+      show_info("Go to end of selection, then [Return]");
       break;
     case 0x80 + 'D': // OA-D "Delete"
     case 0x80 + 'd': // OA-d
       mode = SEL_DEL;
       endsel = startsel = gapbegin;
       draw_screen();
+      show_info("Go to end of selection, then [Return]");
       break;
     case 0x80 + 'L': // OA-L "Load"
     case 0x80 + 'l':
@@ -829,6 +908,7 @@ int edit(char *fname) {
       mode = SEL_MOVE;
       endsel = startsel = gapbegin;
       draw_screen();
+      show_info("Go to end of selection, then [Return]");
       break;
     case 0x80 + 'N': // OA-N "New"
     case 0x80 + 'n': // OA-n
@@ -889,28 +969,28 @@ int edit(char *fname) {
       break;
     case 0x08:  // Left
       cursor_left();
-      if (mode != SEL_NONE) {
+      if (mode > SEL_MOVE2) {
         endsel = gapbegin;
         draw_screen();
       }
       break;
     case 0x15:  // Right
       cursor_right();
-      if (mode != SEL_NONE) {
+      if (mode > SEL_MOVE2) {
         endsel = gapbegin;
         draw_screen();
       }
       break;
     case 0x0b:  // Up
       cursor_up();
-      if (mode != SEL_NONE) {
+      if (mode > SEL_MOVE2) {
         endsel = gapbegin;
         draw_screen();
       }
       break;
     case 0x0a:  // Down
       cursor_down();
-      if (mode != SEL_NONE) {
+      if (mode > SEL_MOVE2) {
         endsel = gapbegin;
         draw_screen();
       }
@@ -920,22 +1000,58 @@ int edit(char *fname) {
         insert_char(c);
         update_after_insert_char();
       } else {
+        if (startsel > endsel) {
+          tmp = endsel;
+          endsel = startsel;
+          startsel = tmp;
+        }
         switch (mode) {
         case SEL_DEL:
-          jump_pos(startsel);
-          gapend += (endsel - startsel);
+          if (prompt_okay("Delete selection - ")) {
+            jump_pos(startsel);
+            gapend += (endsel - startsel);
+          }
           startsel = endsel = 0;
           mode = SEL_NONE;
           draw_screen();
           break;
         case SEL_COPY:
-printf("Copy %d %d", startsel, endsel);
+          mode = SEL_COPY2;
+          show_info("Go to target, then [Return] to copy");
           break;
         case SEL_MOVE:
-printf("Move %d %d", startsel, endsel);
+          mode = SEL_MOVE2;
+          show_info("Go to target, then [Return] to move");
+          break;
+        case SEL_COPY2:
+        case SEL_MOVE2:
+          if ((gapbegin > startsel) && (gapbegin < endsel)) {
+            show_error("Bad destination");
+            goto copymove2_cleanup;
+          }
+          if ((endsel - startsel) > FREESPACE()) {
+            show_error("No space");
+            goto copymove2_cleanup;
+          }
+          sprintf(userentry, "%s selection - ", mode == SEL_COPY2 ? "Copy" : "Move");
+          if (prompt_okay(userentry)) {
+            if (gapbegin >= endsel)
+              memcpy(gapbuf + gapbegin, gapbuf + startsel, endsel - startsel);
+            else
+              memcpy(gapbuf + gapbegin,
+                     gapbuf + gapend + startsel - gapbegin + 1, endsel - startsel);
+            gapbegin += (endsel - startsel);
+            if (mode == SEL_MOVE2) {
+              jump_pos(startsel);
+              gapend += (endsel - startsel);
+            }
+          }
+copymove2_cleanup:
+          startsel = endsel = 0;
+          mode = SEL_NONE;
+          draw_screen();
           break;
         }
-        mode = SEL_NONE;
       }
       break;
     default:
