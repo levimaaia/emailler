@@ -4,7 +4,6 @@
 /////////////////////////////////////////////////////////////////////////////
 
 // TODO: Still some lingering screen update bugs
-// TODO: Replace should remember name of target string too
 // TODO: Should be smarter about redrawing in when updating selection!!!
 // TODO: Doesn't check for error cases when calling gap buffer functions
 // TODO: Make use aux mem
@@ -51,6 +50,7 @@ uint8_t rowlen[NROWS]; // Number of chars on each row of screen
 char    filename[80]  = "";
 char    userentry[80] = "";
 char    search[80]    = "";
+char    replace[80]   = "";
 
 // Interface to read_char_update_pos()
 uint8_t  do_print, modified;
@@ -887,6 +887,7 @@ int edit(char *fname) {
     if (load_file(filename)) {
       sprintf(userentry, "Can't load %s", filename);
       show_error(userentry);
+      strcpy(filename, "");
     }
   }
   jump_pos(0);
@@ -999,17 +1000,29 @@ int edit(char *fname) {
     case 0x80 + 'F': // OA-F "Find"
     case 0x80 + 'f': // OA-F "Find"
       ++tmp;
-      if (prompt_for_name("Search string", 0))
+      sprintf(userentry, "Search (%s)", search);
+      if (prompt_for_name(userentry, 0))
         strcpy(search, userentry);
       else {
         if (strlen(search) == 0)
           break;
-        if (!prompt_okay("Repeat previous - "))
+        sprintf(userentry, "Search for '%s' - ", search);
+        if (!prompt_okay(userentry))
           break;
         cursor_right();
       }
-      if (tmp == 0) // Replace mode
-        prompt_for_name("Replacement string", 0);
+      if (tmp == 0) { // Replace mode
+        sprintf(userentry, "Replace (%s)", replace);
+        if (prompt_for_name(userentry, 0))
+          strcpy(replace, userentry);
+        else {
+          if (strlen(replace) == 0)
+            break;
+          sprintf(userentry, "Replace with '%s' - ", replace);
+          if (!prompt_okay(userentry))
+            break;
+        }
+      }
       p = strstr(gapbuf + gapend + 1, search);
       if (!p) {
         show_error("Not found, wrapping to top");
@@ -1023,8 +1036,8 @@ int edit(char *fname) {
         if (tmp == 0) { // Replace mode
           for (i = 0; i < strlen(search); ++i)
             delete_char_right();
-          memcpy(gapbuf + gapbegin, userentry, strlen(userentry));
-          gapbegin += strlen(userentry);
+          memcpy(gapbuf + gapbegin, replace, strlen(userentry));
+          gapbegin += strlen(replace);
         }
         draw_screen();
         break;
@@ -1033,8 +1046,8 @@ int edit(char *fname) {
       if (tmp == 0) { // Replace mode
         for (i = 0; i < strlen(search); ++i)
           delete_char_right();
-        memcpy(gapbuf + gapbegin, userentry, strlen(userentry));
-        gapbegin += strlen(userentry);
+        memcpy(gapbuf + gapbegin, replace, strlen(userentry));
+        gapbegin += strlen(replace);
       }
       draw_screen();
       break;
