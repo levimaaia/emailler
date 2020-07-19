@@ -6,8 +6,8 @@
 // Note use my fork of cc65 to get a flashing cursor!!
 
 // TODO: Improve status line, refresh it properly
-// TODO: Still some lingering screen update bugs (prob after status line)
-// TODO: Should be smarter about redrawing in when updating selection!!!
+// TODO: Minor bug - can delete more chars from status line than should be able to
+// TODO: Should be smarter about redrawing when updating selection!!!
 // TODO: Doesn't check for error cases when calling gap buffer functions
 // TODO: Make use of aux mem
 
@@ -22,7 +22,7 @@
 #define NCOLS      80        // Width of editing screen
 #define NROWS      22        // Height of editing screen
 #define CURSORROW  10        // Row cursor is initially shown on (if enough text)
-#define PROMPT_ROW NROWS + 2 // Row where input prompt is shown
+#define PROMPT_ROW NROWS + 1 // Row where input prompt is shown
 
 #define EOL       '\r'       // For ProDOS
 
@@ -96,8 +96,9 @@ char openapple[] = "\x0f\x1b""A\x18\x0e";
 void goto_prompt_row(void) {
   uint8_t i;
   putchar(HOME);
-  for (i = 0; i < PROMPT_ROW - 1; ++i)
+  for (i = 0; i < PROMPT_ROW; ++i)
     putchar(CURDOWN);
+  gotoxy(1, PROMPT_ROW);
 }
 #pragma code-name (pop)
 
@@ -116,6 +117,7 @@ uint8_t prompt_for_name(char *prompt, uint8_t is_file) {
   goto_prompt_row();
   putchar(CLREOL);
   printf("%c%s>%c", INVERSE, prompt, NORMAL);
+  gotox(2 + strlen(prompt));
   i = 0;
   while (1) {
     c = cgetc();
@@ -130,9 +132,9 @@ uint8_t prompt_for_name(char *prompt, uint8_t is_file) {
     case BACKSPACE:
     case DELETE:
       if (i > 0) {
-        putchar(BACKSPACE);
-        putchar(' ');
-        putchar(BACKSPACE);
+        gotox(wherex() - 1);
+        cputc(' ');
+        gotox(wherex() - 1);
         --i;
       } else
         putchar(BELL);
@@ -142,7 +144,7 @@ uint8_t prompt_for_name(char *prompt, uint8_t is_file) {
       i = 255;
       goto esc_pressed;
     default:
-      putchar(c);
+      cputc(c);
       userentry[i++] = c;
     }
     if (i == 79)
@@ -305,6 +307,7 @@ uint8_t load_file(char *filename) {
   FILE *fp = fopen(filename, "r");
   if (!fp)
     return 1;
+  goto_prompt_row();
   gapbegin = 0;
   gapend = BUFSZ - 1;
   col = 0;
@@ -332,7 +335,7 @@ uint8_t load_file(char *filename) {
       return 0;
     }
     if ((gapbegin % 1000) == 0)
-      putchar('.');
+      cputc('.');
   }
   --gapbegin; // Eat EOF character
   fclose(fp);
@@ -345,19 +348,23 @@ uint8_t load_file(char *filename) {
  * filename - name of file to load
  * Returns 0 on success
  *         1 if file can't be opened
- *         2 gapbuf is corrupt
  */
 #pragma code-name (push, "LC")
 uint8_t save_file(char *filename) {
   char c;
+  uint16_t p = gapbegin;
   FILE *fp = fopen(filename, "w");
   if (!fp)
     return 1;
-  if (jump_pos(0))
-    return 2;
-  while (get_char(&c) == 0)
+  jump_pos(0);
+  goto_prompt_row();
+  while (get_char(&c) == 0) {
     fputc(c, fp);
+    if ((gapbegin % 1000) == 0)
+      cputc('.');
+  }
   fclose(fp);
+  jump_pos(p);
   return 0;
 }
 #pragma code-name (pop)
@@ -390,7 +397,7 @@ uint8_t read_char_update_pos(void) {
     return 1;
   }
   if (do_print)
-    putchar(c);
+    cputc(c);
   ++col;
   if (do_print)
     rowlen[row] = col;
@@ -464,17 +471,17 @@ void draw_screen(void) {
     read_char_update_pos();
 
   goto_prompt_row();
+  printf("%s-? Help ", openapple);
+  gotox(10);
   revers(1);
   if (strlen(filename)) {
-    printf("%c File:%s", modified ? '*' : ' ', filename);
-    for (startpos = 0; startpos < 64 - strlen(filename); ++startpos)
-      putchar(' ');
+    cprintf(" %c File:%s", modified ? '*' : ' ', filename);
+    for (startpos = 0; startpos < 62 - strlen(filename); ++startpos)
+      cputc(' ');
   } else {
-    printf(
-    "File:NONE                                                             ");
+    cprintf(
+    "     File:NONE                                                         ");
   }
-  printf("%s-? Help", openapple);
-  putchar(HOME);
 
   gotoxy(curscol, cursrow);
   cursor(1);
@@ -548,7 +555,9 @@ void update_after_delete_char(void) {
     }
   } else {
     // Erase char to left of cursor & update row, col
-    putchar(BACKSPACE);
+    gotox(wherex() - 1);
+    cputc(' ');
+    gotox(wherex() - 1);
     if (col > 0)
       --col;
     else {
@@ -609,6 +618,7 @@ void update_after_insert_char(void) {
 
   curscol = col;
   cursrow = row;
+  gotoxy(curscol, cursrow);
 
   if (cursrow == NROWS) {
     scroll_down();
@@ -793,32 +803,29 @@ void word_right(void) {
 /*
  * Jump forward 15 screen lines
  */
-#pragma code-name (push, "LC")
 void page_down(void) {
   uint8_t i;
   for (i = 0; i < 15; ++i)
     if (cursor_down() == 1)
       break;
 }
-#pragma code-name (pop)
 
 /*
  * Jump back 15 screen lines
  */
-#pragma code-name (push, "LC")
 void page_up(void) {
   uint8_t i;
   for (i = 0; i < 15; ++i)
     if (cursor_up() == 1)
       break;
 }
-#pragma code-name (pop)
 
 /*
  * Help screen
  */
 #pragma code-name (push, "LC")
 void help(void) {
+  revers(0);
   cursor(0);
   clrscr();
   printf("EDITOR HELP\n\n");
@@ -831,9 +838,9 @@ void help(void) {
   printf("  %s-Q           Quit\n", openapple);
   printf("  %s-R           Replace string\n", openapple);
   printf("  %s-S           Save file\n", openapple);
-  printf("  [Return]      Mark end of paragraph\n");
-  printf("  [Delete]      Delete character left\n");
-  printf("  %s-[Delete]    Delete character right\n", openapple);
+  printf("  [Return]      End paragraph\n");
+  printf("  [Delete]      Delete char left\n");
+  printf("  %s-[Delete]    Delete char right\n", openapple);
   printf("  Arrows        Move the cursor\n");
   printf("  %s-Up arrow    Page up\n", openapple);
   printf("  %s-Down arrow  Page down\n", openapple);
@@ -895,7 +902,7 @@ int edit(char *fname) {
   videomode(VIDEOMODE_80COL);
   if (fname) {
     strcpy(filename, fname);
-    printf("Loading file %s ", filename);
+    cprintf("Loading file %s ", filename);
     if (load_file(filename)) {
       sprintf(userentry, "Can't load %s", filename);
       show_error(userentry);
@@ -1122,6 +1129,7 @@ int edit(char *fname) {
     case 0x80 + 'S': // OA-S "Save"
     case 0x80 + 's': // OA-s
       save();
+      draw_screen();
       break;
     case 0x80 + DELETE: // OA-Backspace
     case 0x04:  // Ctrl-D "DELETE"
