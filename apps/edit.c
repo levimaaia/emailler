@@ -6,7 +6,7 @@
 // TODO: Still some lingering screen update bugs
 // TODO: Should be smarter about redrawing in when updating selection!!!
 // TODO: Doesn't check for error cases when calling gap buffer functions
-// TODO: Make use aux mem
+// TODO: Make use of aux mem
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,6 +32,7 @@
 #define NOMOUSETXT 0x1b
 #define HOME       0x19
 #define CLRLINE    0x1a
+#define ESC        0x1b
 #define MOUSETXT   0x1b
 #define CLREOL     0x1d
 #define DELETE     0x7f
@@ -102,7 +103,7 @@ void goto_prompt_row(void) {
  * Returns number of chars read.
  * prompt - Message to display before > prompt
  * is_file - if 1, restrict chars to those allowed in ProDOS filename
- * Returns number of chars read
+ * Returns number of chars read, or 255 if ESC pressed
  */
 #pragma code-name (push, "LC")
 uint8_t prompt_for_name(char *prompt, uint8_t is_file) {
@@ -116,7 +117,7 @@ uint8_t prompt_for_name(char *prompt, uint8_t is_file) {
   while (1) {
     c = cgetc();
     if (is_file && !isalnum(c) && (c != RETURN) && (c != BACKSPACE) &&
-        (c != DELETE) && (c != '.') && (c != '/')) {
+        (c != DELETE) && (c != ESC) && (c != '.') && (c != '/')) {
       putchar(BELL);
       continue;
     }
@@ -133,6 +134,10 @@ uint8_t prompt_for_name(char *prompt, uint8_t is_file) {
       } else
         putchar(BELL);
       break;
+    case ESC:
+      userentry[0] = '\0';
+      i = 255;
+      goto esc_pressed;
     default:
       putchar(c);
       userentry[i++] = c;
@@ -142,6 +147,7 @@ uint8_t prompt_for_name(char *prompt, uint8_t is_file) {
   }
 done:
   userentry[i] = '\0';
+esc_pressed:
   putchar(CLRLINE);
   gotoxy(curscol, cursrow);
   cursor(1);
@@ -158,7 +164,7 @@ char prompt_okay(char *msg) {
   cursor(0);
   goto_prompt_row();
   putchar(CLREOL);
-  printf("%c%sSure? (y/n)", INVERSE, msg);
+  printf("%c%sSure? (y/n)%c", INVERSE, msg, NORMAL);
   while (1) {
     c = cgetc();
     if ((c == 'y') || (c == 'Y') || (c == 'n') || (c == 'N'))
@@ -857,7 +863,10 @@ void load_email(void) {
 #pragma code-name (push, "LC")
 void save(void) {
   if (strlen(filename) == 0) {
-    prompt_for_name("File", 1);
+    if (prompt_for_name("Save file", 1) == 255)
+      return; // If ESC pressed
+    if (strlen(userentry) == 0)
+      return;
     strcpy(filename, userentry);
   }
   sprintf(userentry, "Save to %s - ", filename);
@@ -1000,8 +1009,10 @@ int edit(char *fname) {
     case 0x80 + 'F': // OA-F "Find"
     case 0x80 + 'f': // OA-F "Find"
       ++tmp;
-      sprintf(userentry, "Search (%s)", search);
-      if (prompt_for_name(userentry, 0))
+      sprintf(userentry, "Find (%s)", search);
+      if (prompt_for_name(userentry, 0) == 255)
+        break; // ESC pressed
+      if (strlen(userentry) > 0)
         strcpy(search, userentry);
       else {
         if (strlen(search) == 0)
@@ -1013,7 +1024,9 @@ int edit(char *fname) {
       }
       if (tmp == 0) { // Replace mode
         sprintf(userentry, "Replace (%s)", replace);
-        if (prompt_for_name(userentry, 0))
+        if (prompt_for_name(userentry, 0) == 255)
+          break; // ESC pressed
+        if (strlen(userentry) > 0)
           strcpy(replace, userentry);
         else {
           if (strlen(replace) == 0)
@@ -1053,7 +1066,10 @@ int edit(char *fname) {
       break;
     case 0x80 + 'L': // OA-L "Load"
     case 0x80 + 'l':
-      prompt_for_name("File", 1);
+      if (prompt_for_name("Load File", 1) == 255)
+        break; // ESC pressed
+      if (strlen(userentry) == 0)
+        break;
       strcpy(filename, userentry);
       gapbegin = 0;
       gapend = BUFSZ - 1;
@@ -1077,12 +1093,13 @@ int edit(char *fname) {
       break;
     case 0x80 + 'N': // OA-N "Name"
     case 0x80 + 'n': // OA-n
-      if (prompt_okay("Change filename - ")) {
-        prompt_for_name("File", 1);
-        strcpy(filename, userentry);
-        sprintf(userentry, "Name set to %s", filename);
-        show_info(userentry);
-      }
+      if (prompt_for_name("New filename", 1) == 255)
+        break; // ESC pressed
+      if (strlen(userentry) == 0)
+        break;
+      strcpy(filename, userentry);
+      sprintf(userentry, "Name set to %s", filename);
+      show_info(userentry);
       break;
     case 0x80 + 'Q': // OA-Q "Quit"
     case 0x80 + 'q': // OA-q
