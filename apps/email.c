@@ -1700,15 +1700,17 @@ void keyboard_hdlr(void) {
       reverse = 0;
       switch_mailbox(curr_mbox);
       break;
-    case 'e':
-    case 'E':
+    case 0x80 + 'e': // OA-E "Open message in editor"
+    case 0x80 + 'E':
       sprintf(filename, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, h->emailnum);
       load_editor();
       break;
-    case 0x12: // Ctrl-R 'Receive messages from server'
+    case 0x80 + 'r': // OA-R "Retrieve messages from server"
+    case 0x80 + 'R':
       load_pop65();
       break;
-    case 0x13: // Ctrl-S 'Send queued messages'
+    case 0x80 + 's': // OA-S "Send messages in Outbox to server"
+    case 0x80 + 'S':
       load_smtp65();
       break;
     case 'q':

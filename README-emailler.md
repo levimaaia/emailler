@@ -167,11 +167,12 @@ Main menu commands:
  - `F)orward` - Prepare a forwarded copy of the selected email and place it in `OUTBOX` ready for editing.
  - `<` - Switch the order of the email summary to show the most recently added messages first.  The indicator in the status bar will change to `>` to indicate the order.
  - `>` - Switch the order of the email summary to show the most recently added messages last.  The indicator in the status bar will change to `<` to indicate the order.
- - `CTRL`+`R` - Retreive messages from email server.  This runs `POP65.SYSTEM`, which in turn will return you to the `EMAIL.SYSTEM` main menu.
- - `CTRL`+`S` - Send outbox messages to email server.  This runs `SMTP65.SYSTEM`, which in turn will return you to the `EMAIL.SYSTEM` main menu.
+ - `Open Apple`+`E` - Edit message in `EDIT.SYSTEM`.  From `EDIT.SYSTEM` `Open Apple`-`Q` will return you to `EMAIL.SYSTEM`.
+ - `Open Apple`+`R` - Retreive messages from email server.  This runs `POP65.SYSTEM`, which in turn will return you to the `EMAIL.SYSTEM` main menu.
+ - `Open Apple`+`S` - Send outbox messages to email server.  This runs `SMTP65.SYSTEM`, which in turn will return you to the `EMAIL.SYSTEM` main menu.
  - `Q)uit` - Quit from the EMAIL user interface.
 
-By using the `CTRL`+`R` command to retrieve messages and the `CTRL`-`S` command to transmit messages to the server, it is possible to retreive, review, respond, compose and transmit messages all without leaving the `EMAIL.SYSTEM` environment.
+By using the `Open Apple`+`R` command to retrieve messages and the `Open Apple`-`S` command to transmit messages to the server, it is possible to retreive, review, respond, compose and transmit messages all without leaving the `EMAIL.SYSTEM` environment.
 
 #### Plain Text View `T)op`
 <p align="center"><img src="img/raw-text.png" alt="Email Pager" height="400px"></p>
@@ -284,8 +285,8 @@ Sending of an email message is a three step process:
  - The system will display the full pathname of the template file created. And prompt `Open in editor - sure? (y/n)`
    - If you respond in the affirmative:
    - `EMAIL.SYSTEM` will load `EDIT.SYSTEM`, the integrated editor, passing the filename of the template file as a parameter, so the file is automatically opened for editing.
-   - You may edit the file in `EDIT.SYSTEM` using the editing keys listed below.  Press `Ctrl`-`S` to save the file to disk and `Ctrl`-`Z` to return to `EMAIL.SYSTEM`.
-   - If you are ready to send the email, press `Ctrl`-`S` at the `EMAIL.SYSTEM` main menu to send the messages in `OUTBOX` to your mail server and copy them to the `SENT` mailbox.
+   - You may edit the file in `EDIT.SYSTEM` using the editing keys listed below.  Press `Open Apple`-`S` to save the file to disk and `Open Apple`-`Q` to return to `EMAIL.SYSTEM`.
+   - If you are ready to send the email, press `Open Apple`-`S` at the `EMAIL.SYSTEM` main menu to send the messages in `OUTBOX` to your mail server and copy them to the `SENT` mailbox.
  - If you answer `n` to the `Open in editor - sure? (y/n)` prompt:
    - The template file will simply be placed in the `OUTBOX` where you can use your favourite text editor to add the email body.  You may also modify the `To:`, `cc:`, `Subject:` or `Date:` headers.
    - Once you are satisfied with your edits and have saved the file, run `SMTP65.SYSTEM` to send the file to your mail server and copy it to the `SENT` mailbox.
