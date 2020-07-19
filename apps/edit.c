@@ -3,7 +3,10 @@
 // Bobbi July 2020
 /////////////////////////////////////////////////////////////////////////////
 
-// TODO: Still some lingering screen update bugs
+// Note use my fork of cc65 to get a flashing cursor!!
+
+// TODO: Improve status line, refresh it properly
+// TODO: Still some lingering screen update bugs (prob after status line)
 // TODO: Should be smarter about redrawing in when updating selection!!!
 // TODO: Doesn't check for error cases when calling gap buffer functions
 // TODO: Make use of aux mem
@@ -1071,17 +1074,17 @@ int edit(char *fname) {
       if (strlen(userentry) == 0)
         break;
       strcpy(filename, userentry);
-      gapbegin = 0;
-      gapend = BUFSZ - 1;
       if (load_file(filename)) {
         sprintf(userentry, "Can't load %s", filename);
         show_error(userentry);
+        strcpy(filename, "");
+      } else {
+        jump_pos(0);
+        pos = 0;
+        modified = 0;
+        startsel = endsel = 65535U;
+        mode = SEL_NONE;
       }
-      jump_pos(0);
-      pos = 0;
-      modified = 0;
-      startsel = endsel = 65535U;
-      mode = SEL_NONE;
       draw_screen();
       break;
     case 0x80 + 'M': // OA-M "Move"
