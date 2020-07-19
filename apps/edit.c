@@ -779,7 +779,7 @@ void help(void) {
   printf("  %s-F           Find string\n", openapple);
   printf("  %s-L           Load file\n", openapple);
   printf("  %s-M           Move text (includes cut & paste)\n", openapple);
-  printf("  %s-N           New file\n", openapple);
+  printf("  %s-N           Name file\n", openapple);
   printf("  %s-Q           Quit\n", openapple);
   printf("  %s-R           Replace string\n", openapple);
   printf("  %s-S           Save file\n", openapple);
@@ -815,12 +815,19 @@ void load_email(void) {
  * Save file to disk, handle user interface
  */
 void save(void) {
-  if (save_file(filename)) {
-    sprintf(userentry, "%cCan't save %s", filename);
-    show_error(userentry);
-    draw_screen();
-  } else {
-    modified = 0;
+  if (strlen(filename) == 0) {
+    prompt_for_name("File", 1);
+    strcpy(filename, userentry);
+  }
+  sprintf(userentry, "Save to %s - ", filename);
+  if (prompt_okay(userentry)) {
+    if (save_file(filename)) {
+      sprintf(userentry, "%cCan't save %s", filename);
+      show_error(userentry);
+      draw_screen();
+    } else {
+      modified = 0;
+    }
   }
 }
 
@@ -836,7 +843,7 @@ int edit(char *fname) {
     strcpy(filename, fname);
     printf("Loading file %s ", filename);
     if (load_file(filename)) {
-      sprintf(userentry, "%cCan't load %s", filename);
+      sprintf(userentry, "Can't load %s", filename);
       show_error(userentry);
     }
   }
@@ -996,7 +1003,7 @@ int edit(char *fname) {
       gapbegin = 0;
       gapend = BUFSZ - 1;
       if (load_file(filename)) {
-        sprintf(userentry, "%cCan't load %s", filename);
+        sprintf(userentry, "Can't load %s", filename);
         show_error(userentry);
       }
       jump_pos(0);
@@ -1013,17 +1020,13 @@ int edit(char *fname) {
       draw_screen();
       show_info("Go to end of selection, then [Return]");
       break;
-    case 0x80 + 'N': // OA-N "New"
+    case 0x80 + 'N': // OA-N "Name"
     case 0x80 + 'n': // OA-n
-      if (prompt_okay("Erase buffer - ")) {
-        gapbegin = 0;
-        gapend = BUFSZ - 1;
-        jump_pos(0);
-        modified = 0;
-        pos = 0;
-        startsel = endsel = 65535U;
-        mode = SEL_NONE;
-        draw_screen();
+      if (prompt_okay("Change filename - ")) {
+        prompt_for_name("File", 1);
+        strcpy(filename, userentry);
+        sprintf(userentry, "Name set to %s", filename);
+        show_info(userentry);
       }
       break;
     case 0x80 + 'Q': // OA-Q "Quit"
