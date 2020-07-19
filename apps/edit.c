@@ -3,7 +3,6 @@
 // Bobbi July 2020
 /////////////////////////////////////////////////////////////////////////////
 
-// TODO: Bug when copying or moving text to earlier in doc
 // TODO: Still some lingering screen update bugs
 // TODO: Replace should remember name of target string too
 // TODO: Should be smarter about redrawing in when updating selection!!!
@@ -985,14 +984,14 @@ int edit(char *fname) {
       mode = SEL_COPY;
       endsel = startsel = gapbegin;
       draw_screen();
-      show_info("Go to end of selection, then [Return]");
+      show_info("Copy: Go to end of selection, then [Return]");
       break;
     case 0x80 + 'D': // OA-D "Delete"
     case 0x80 + 'd': // OA-d
       mode = SEL_DEL;
       endsel = startsel = gapbegin;
       draw_screen();
-      show_info("Go to end of selection, then [Return]");
+      show_info("Del: Go to end of selection, then [Return]");
       break;
     case 0x80 + 'R': // OA-R "Replace"
     case 0x80 + 'r': // OA-r
@@ -1061,7 +1060,7 @@ int edit(char *fname) {
       mode = SEL_MOVE;
       endsel = startsel = gapbegin;
       draw_screen();
-      show_info("Go to end of selection, then [Return]");
+      show_info("Move: Go to end of selection, then [Return]");
       break;
     case 0x80 + 'N': // OA-N "Name"
     case 0x80 + 'n': // OA-n
@@ -1074,11 +1073,8 @@ int edit(char *fname) {
       break;
     case 0x80 + 'Q': // OA-Q "Quit"
     case 0x80 + 'q': // OA-q
-      if (modified) {
-        sprintf(userentry, "Save unsaved changes to %s - ", filename);
-        if (prompt_okay(userentry))
-          save();
-      }
+      if (modified)
+        save();
       if (quit_to_email) {
         if (prompt_okay("Quit to EMAIL - "))
           load_email();
@@ -1203,7 +1199,7 @@ int edit(char *fname) {
                      gapbuf + gapend + startsel - gapbegin + 1, endsel - startsel);
             gapbegin += (endsel - startsel);
             if (mode == SEL_MOVE2) {
-              jump_pos(startsel);
+              jump_pos((gapbegin >= endsel) ? startsel : endsel);
               gapend += (endsel - startsel);
             }
           }
