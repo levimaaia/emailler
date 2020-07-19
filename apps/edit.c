@@ -5,10 +5,10 @@
 
 // TODO: Bug when copying or moving text to earlier in doc
 // TODO: Still some lingering screen update bugs
-// TODO: Add 'Rename' command (OA-N ?) Do we need the existing clear now?
+// TODO: Replace should remember name of target string too
 // TODO: Should be smarter about redrawing in when updating selection!!!
 // TODO: Doesn't check for error cases when calling gap buffer functions
-// TODO: Make use of 3K LC memory to allow bigger buffer.  Aux mem???
+// TODO: Make use aux mem
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -41,7 +41,7 @@
 typedef unsigned char  uint8_t;
 typedef unsigned short uint16_t;
 
-#define BUFSZ 18000
+#define BUFSZ (20 * 1024)
 char     gapbuf[BUFSZ];
 char     padding = 0;  // To null terminate for strstr()
 uint16_t gapbegin = 0;
@@ -67,6 +67,7 @@ uint8_t  modified;        // If 1, file contents have been modified
 enum selmode {SEL_NONE, SEL_COPY2, SEL_MOVE2, SEL_DEL, SEL_MOVE, SEL_COPY}; 
 enum selmode mode;
 
+// Mousetext Open-Apple
 char openapple[] = "\x0f\x1b""A\x18\x0e";
 
 /*
@@ -88,12 +89,14 @@ char openapple[] = "\x0f\x1b""A\x18\x0e";
 /*
  * Put cursor at beginning of PROMPT_ROW
  */
+#pragma code-name (push, "LC")
 void goto_prompt_row(void) {
   uint8_t i;
   putchar(HOME);
   for (i = 0; i < PROMPT_ROW - 1; ++i)
     putchar(CURDOWN);
 }
+#pragma code-name (pop)
 
 /*
  * Prompt for a name in the bottom line of the screen
@@ -102,6 +105,7 @@ void goto_prompt_row(void) {
  * is_file - if 1, restrict chars to those allowed in ProDOS filename
  * Returns number of chars read
  */
+#pragma code-name (push, "LC")
 uint8_t prompt_for_name(char *prompt, uint8_t is_file) {
   uint16_t i;
   char c;
@@ -144,10 +148,12 @@ done:
   cursor(1);
   return i;
 }
+#pragma code-name (pop)
 
 /*
  * Prompt ok?
  */
+#pragma code-name (push, "LC")
 char prompt_okay(char *msg) {
   char c;
   cursor(0);
@@ -169,10 +175,12 @@ char prompt_okay(char *msg) {
   cursor(1);
   return c;
 }
+#pragma code-name (pop)
 
 /*
  * Error message
  */
+#pragma code-name (push, "LC")
 void show_error(char *msg) {
   cursor(0);
   goto_prompt_row();
@@ -183,10 +191,12 @@ void show_error(char *msg) {
   gotoxy(curscol, cursrow);
   cursor(1);
 }
+#pragma code-name (pop)
 
 /*
  * Info message
  */
+#pragma code-name (push, "LC")
 void show_info(char *msg) {
   cursor(0);
   goto_prompt_row();
@@ -194,6 +204,7 @@ void show_info(char *msg) {
   gotoxy(curscol, cursrow);
   cursor(1);
 }
+#pragma code-name (pop)
 
 /*
  * Insert a character into gapbuf at current position
@@ -246,6 +257,7 @@ uint8_t get_char(char *c) {
  * pos - position to which to move
  * Returns 0 on success, 1 if pos is invalid
  */
+#pragma code-name (push, "LC")
 uint8_t jump_pos(uint16_t pos) {
   if (pos > BUFSZ - 1)
     return 1;
@@ -261,13 +273,16 @@ uint8_t jump_pos(uint16_t pos) {
     } while (pos < GETPOS());
   return 0;
 }
+#pragma code-name (pop)
 
 /*
  * Go to next tabstop
  */
+#pragma code-name (push, "LC")
 uint8_t next_tabstop(uint8_t col) {
   return (col / 8) * 8 + 8;
 }
+#pragma code-name (pop)
 
 /*
  * Load a file from disk into the gapbuf
@@ -275,6 +290,7 @@ uint8_t next_tabstop(uint8_t col) {
  * Returns 0 on success
  *         1 if file can't be opened
  */
+#pragma code-name (push, "LC")
 uint8_t load_file(char *filename) {
   char c;
   uint8_t i;
@@ -314,6 +330,7 @@ uint8_t load_file(char *filename) {
   fclose(fp);
   return 0;
 }
+#pragma code-name (pop)
 
 /*
  * Save gapbuf to file
@@ -322,6 +339,7 @@ uint8_t load_file(char *filename) {
  *         1 if file can't be opened
  *         2 gapbuf is corrupt
  */
+#pragma code-name (push, "LC")
 uint8_t save_file(char *filename) {
   char c;
   FILE *fp = fopen(filename, "w");
@@ -334,6 +352,7 @@ uint8_t save_file(char *filename) {
   fclose(fp);
   return 0;
 }
+#pragma code-name (pop)
 
 /*
  * Read next char from gapbuf[] and update state.
@@ -607,6 +626,7 @@ void update_after_insert_char(void) {
 /*
  * Move the cursor left
  */
+#pragma code-name (push, "LC")
 void cursor_left(void) {
   if (gapbegin > 0)
     gapbuf[gapend--] = gapbuf[--gapbegin];
@@ -629,10 +649,12 @@ void cursor_left(void) {
     --curscol;
   gotoxy(curscol, cursrow);
 }
+#pragma code-name (pop)
 
 /*
  * Move the cursor right
  */
+#pragma code-name (push, "LC")
 void cursor_right(void) {
   if (gapend < BUFSZ - 1)
     gapbuf[gapbegin++] = gapbuf[++gapend];
@@ -652,11 +674,13 @@ void cursor_right(void) {
   }
   gotoxy(curscol, cursrow);
 }
+#pragma code-name (pop)
 
 /*
  * Move the cursor up
  * Returns 1 if at top, 0 otherwise
  */
+#pragma code-name (push, "LC")
 uint8_t cursor_up(void) {
   uint8_t i;
   if (cursrow == 0) {
@@ -679,11 +703,13 @@ uint8_t cursor_up(void) {
   gotoxy(curscol, cursrow);
   return 0;
 }
+#pragma code-name (pop)
 
 /*
  * Move the cursor down
  * Returns 1 if at bottom, 0 otherwise
  */
+#pragma code-name (push, "LC")
 uint8_t cursor_down(void) {
   uint8_t i;
   if (cursrow == NROWS - 1)
@@ -710,66 +736,80 @@ uint8_t cursor_down(void) {
   gotoxy(curscol, cursrow);
   return 0;
 }
+#pragma code-name (pop)
 
 /*
  * Goto beginning of line
  */
+#pragma code-name (push, "LC")
 void goto_bol(void) {
   while (curscol > 0)
     cursor_left();  
 }
+#pragma code-name (pop)
 
 /*
  * Goto end of line
  */
+#pragma code-name (push, "LC")
 void goto_eol(void) {
   while (curscol < rowlen[cursrow] - 1)
     cursor_right();  
 }
+#pragma code-name (pop)
 
 /*
  * Word left
  */
+#pragma code-name (push, "LC")
 void word_left(void) {
   do {
     cursor_left();
   } while ((gapbuf[gapbegin] != ' ') && (gapbuf[gapbegin] != EOL) &&
            (gapbegin > 0));
 }
+#pragma code-name (pop)
 
 /*
  * Word right
  */
+#pragma code-name (push, "LC")
 void word_right(void) {
   do {
     cursor_right();
   } while ((gapbuf[gapbegin] != ' ') && (gapbuf[gapbegin] != EOL) &&
            (gapend < BUFSZ - 1));
 }
+#pragma code-name (pop)
 
 /*
  * Jump forward 15 screen lines
  */
+#pragma code-name (push, "LC")
 void page_down(void) {
   uint8_t i;
   for (i = 0; i < 15; ++i)
     if (cursor_down() == 1)
       break;
 }
+#pragma code-name (pop)
 
 /*
  * Jump back 15 screen lines
  */
+#pragma code-name (push, "LC")
 void page_up(void) {
   uint8_t i;
   for (i = 0; i < 15; ++i)
     if (cursor_up() == 1)
       break;
 }
+#pragma code-name (pop)
 
 /*
  * Help screen
  */
+#pragma code-name (push, "LC")
 void help(void) {
   cursor(0);
   clrscr();
@@ -798,6 +838,7 @@ void help(void) {
   printf("                                                             [Press Any Key]");
   cgetc();
 }
+#pragma code-name (pop)
 
 /*
  * Load EMAIL.SYSTEM to $2000 and jump to it
@@ -814,6 +855,7 @@ void load_email(void) {
 /*
  * Save file to disk, handle user interface
  */
+#pragma code-name (push, "LC")
 void save(void) {
   if (strlen(filename) == 0) {
     prompt_for_name("File", 1);
@@ -830,6 +872,7 @@ void save(void) {
     }
   }
 }
+#pragma code-name (pop)
 
 /*
  * Main editor routine
