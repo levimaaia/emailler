@@ -829,170 +829,167 @@ restart:
   fputs("\n\n", stdout);
   get_line(fp, 1, linebuf, &pos); // Reset buffer
   while (1) {
-    if (!readp) {
-      if (get_line(fp, 0, linebuf, &pos) == -1)
-        eof = 1;
-      readp = linebuf;
-      ++linecount;
-    } else {
-      if ((mime >= 1) && (!strncmp(linebuf, "--", 2))) {
-        if (attachfp)
-          fclose(attachfp);
-        if ((mime == 4) && mime_binary) {
-          putchar(BACKSPACE); // Erase spinner
-          puts("[OK]");
-        }
-        attachfp = NULL;
-        mime = 2;
-        mime_enc = ENC_7BIT;
-        mime_binary = 0;
-        readp = NULL; // Read next line from disk
-      } else if ((mime < 4) && (mime >= 2)) {
-        if (!strncasecmp(linebuf, "Content-Type: ", 14)) {
-          if (!strncmp(linebuf + 14, "text/plain", 10)) {
-            mime = 3;
-          } else if (!strncmp(linebuf + 14, "text/html", 9)) {
-            printf("\n<Not showing HTML>\n");
-            mime = 1;
-          } else {
-            mime_binary = 1;
-            mime = 3;
-          }
-        } else if (!strncasecmp(linebuf, "Content-Transfer-Encoding: ", 27)) {
-          mime = 3;
-          if (!strncmp(linebuf + 27, "7bit", 4))
-            mime_enc = ENC_7BIT;
-          else if (!strncmp(linebuf + 27, "quoted-printable", 16))
-            mime_enc = ENC_QP;
-          else if (!strncmp(linebuf + 27, "base64", 6))
-            mime_enc = ENC_B64;
-          else {
-            printf("** Unsupp encoding %s\n", linebuf + 27);
-            mime = 1;
-          }
-        } else if (strstr(linebuf, "filename=")) {
-          sprintf(filename, "%s/ATTACHMENTS/%s",
-                  cfg_emaildir, strstr(linebuf, "filename=") + 9);
-          sanitize_filename(filename);
-          if (prompt_okay_attachment(filename)) {
-            printf("** Attachment -> %s  ", filename);
-            attachfp = fopen(filename, "wb");
-            if (!attachfp)
-              printf("\n** Can't open %s  ", filename);
-          } else
-            attachfp = NULL;
-        } else if ((mime == 3) && (!strncmp(linebuf, "\r", 1))) {
-          mime = 4;
-          if (!attachfp && mime_binary) {
-            mime_enc = ENC_SKIP; // Skip over binary MIME parts with no filename
-            fputs("Skipping  ", stdout);
-          }
-        }
-        readp = NULL; // Read next line from disk
-      } else if (mime == 4) {
-        switch (mime_enc) {
-        case ENC_QP:
-          chars = decode_quoted_printable(linebuf);
-          readp = linebuf; // Decoded text is in linebuf[]
-          break;
-         case ENC_B64:
-          chars = decode_base64(linebuf);
-          readp = linebuf; // Decoded text is in linebuf[]
-          break;
-         case ENC_SKIP:
-          readp = NULL; // Read next line from disk
-          break;
-        }
-        if (mime_binary && !(linecount % 10))
-          spinner();
+    if (get_line(fp, 0, linebuf, &pos) == -1)
+      eof = 1;
+    readp = linebuf;
+    ++linecount;
+    if ((mime >= 1) && (!strncmp(linebuf, "--", 2))) {
+      if (attachfp)
+        fclose(attachfp);
+      if ((mime == 4) && mime_binary) {
+        putchar(BACKSPACE); // Erase spinner
+        puts("[OK]");
       }
-      do {
-        if (readp) {
-          if (mime == 0)
+      attachfp = NULL;
+      mime = 2;
+      mime_enc = ENC_7BIT;
+      mime_binary = 0;
+      readp = NULL; // Read next line from disk
+    } else if ((mime < 4) && (mime >= 2)) {
+      if (!strncasecmp(linebuf, "Content-Type: ", 14)) {
+        if (!strncmp(linebuf + 14, "text/plain", 10)) {
+          mime = 3;
+        } else if (!strncmp(linebuf + 14, "text/html", 9)) {
+          printf("\n<Not showing HTML>\n");
+          mime = 1;
+        } else {
+          mime_binary = 1;
+          mime = 3;
+        }
+      } else if (!strncasecmp(linebuf, "Content-Transfer-Encoding: ", 27)) {
+        mime = 3;
+        if (!strncmp(linebuf + 27, "7bit", 4))
+          mime_enc = ENC_7BIT;
+        else if (!strncmp(linebuf + 27, "quoted-printable", 16))
+          mime_enc = ENC_QP;
+        else if (!strncmp(linebuf + 27, "base64", 6))
+          mime_enc = ENC_B64;
+        else {
+          printf("** Unsupp encoding %s\n", linebuf + 27);
+          mime = 1;
+        }
+      } else if (strstr(linebuf, "filename=")) {
+        sprintf(filename, "%s/ATTACHMENTS/%s",
+                cfg_emaildir, strstr(linebuf, "filename=") + 9);
+        sanitize_filename(filename);
+        if (prompt_okay_attachment(filename)) {
+          printf("** Attachment -> %s  ", filename);
+          attachfp = fopen(filename, "wb");
+          if (!attachfp)
+            printf("\n** Can't open %s  ", filename);
+        } else
+          attachfp = NULL;
+      } else if ((mime == 3) && (!strncmp(linebuf, "\r", 1))) {
+        mime = 4;
+        if (!attachfp && mime_binary) {
+          mime_enc = ENC_SKIP; // Skip over binary MIME parts with no filename
+          fputs("Skipping  ", stdout);
+        }
+      }
+      readp = NULL; // Read next line from disk
+    } else if (mime == 4) {
+      switch (mime_enc) {
+      case ENC_QP:
+        chars = decode_quoted_printable(linebuf);
+        readp = linebuf; // Decoded text is in linebuf[]
+        break;
+       case ENC_B64:
+        chars = decode_base64(linebuf);
+        readp = linebuf; // Decoded text is in linebuf[]
+        break;
+       case ENC_SKIP:
+        readp = NULL; // Read next line from disk
+        break;
+      }
+      if (mime_binary && !(linecount % 10))
+        spinner();
+    }
+    do {
+      if (readp) {
+        if (mime == 0)
+          word_wrap_line(stdout, &readp);
+        if (mime == 1)
+          readp = NULL;
+        if (mime == 4) {
+          if (mime_binary) {
+            if (attachfp)
+              fwrite(linebuf, 1, chars, attachfp);
+            readp = 0;
+          } else {
             word_wrap_line(stdout, &readp);
-          if (mime == 1)
-            readp = NULL;
-          if (mime == 4) {
-            if (mime_binary) {
-              if (attachfp)
-                fwrite(linebuf, 1, chars, attachfp);
-              readp = 0;
-            } else {
-              word_wrap_line(stdout, &readp);
-            }
           }
         }
-        if ((*cursorrow == 22) || eof) {
-          printf("\n%c[%05lu] %s | B)ack | T)op | H)drs | M)IME | Q)uit%c",
-                 INVERSE,
-                 pos,
-                 (eof ? "       ** END **      " : "SPACE continue reading"),
-                 NORMAL);
-          if (sbackfp) {
-            save_screen_to_scrollback(sbackfp);
-            ++screennum;
-            ++maxscreennum;
-          }
+      }
+      if ((*cursorrow == 22) || eof) {
+        printf("\n%c[%05lu] %s | B)ack | T)op | H)drs | M)IME | Q)uit%c",
+               INVERSE,
+               pos,
+               (eof ? "       ** END **      " : "SPACE continue reading"),
+               NORMAL);
+        if (sbackfp) {
+          save_screen_to_scrollback(sbackfp);
+          ++screennum;
+          ++maxscreennum;
+        }
 retry:
-          c = cgetc();
-          switch (c) {
-          case ' ':
-            if (sbackfp && (screennum < maxscreennum)) {
-              load_screen_from_scrollback(sbackfp, ++screennum);
-              goto retry;
-            } else {
-              if (eof) {
-                putchar(BELL);
-                goto retry;
-              }
-            }
-            break;
-          case 'B':
-          case 'b':
-            if (sbackfp && (screennum > 1)) {
-              load_screen_from_scrollback(sbackfp, --screennum);
-              goto retry;
-            } else {
+        c = cgetc();
+        switch (c) {
+        case ' ':
+          if (sbackfp && (screennum < maxscreennum)) {
+            load_screen_from_scrollback(sbackfp, ++screennum);
+            goto retry;
+          } else {
+            if (eof) {
               putchar(BELL);
               goto retry;
             }
-            break;
-          case 'T':
-          case 't':
-            mime = 0;
-            pos = h->skipbytes;
-            fseek(fp, pos, SEEK_SET);
-            goto restart;
-            break;
-          case 'H':
-          case 'h':
-            mime = 0;
-            pos = 0;
-            fseek(fp, pos, SEEK_SET);
-            goto restart;
+          }
           break;
-          case 'M':
-          case 'm':
-            mime = 1;
-            pos = h->skipbytes;
-            fseek(fp, pos, SEEK_SET);
-            goto restart;
-          case 'Q':
-          case 'q':
-            if (attachfp)
-              fclose(attachfp);
-            if (sbackfp)
-              fclose(sbackfp);
-            fclose(fp);
-            return;
-          default:
+        case 'B':
+        case 'b':
+          if (sbackfp && (screennum > 1)) {
+            load_screen_from_scrollback(sbackfp, --screennum);
+            goto retry;
+          } else {
             putchar(BELL);
             goto retry;
           }
-          clrscr2();
+          break;
+        case 'T':
+        case 't':
+          mime = 0;
+          pos = h->skipbytes;
+          fseek(fp, pos, SEEK_SET);
+          goto restart;
+          break;
+        case 'H':
+        case 'h':
+          mime = 0;
+          pos = 0;
+          fseek(fp, pos, SEEK_SET);
+          goto restart;
+        break;
+        case 'M':
+        case 'm':
+          mime = 1;
+          pos = h->skipbytes;
+          fseek(fp, pos, SEEK_SET);
+          goto restart;
+        case 'Q':
+        case 'q':
+          if (attachfp)
+            fclose(attachfp);
+          if (sbackfp)
+            fclose(sbackfp);
+          fclose(fp);
+          return;
+        default:
+          putchar(BELL);
+          goto retry;
         }
-      } while (readp);
-    }
+        clrscr2();
+      }
+    } while (readp);
   }
 }
 
