@@ -1264,7 +1264,7 @@ copymove2_cleanup:
   }
 }
 
-int main(int argc, char *argv[]) {
+void main(int argc, char *argv[]) {
   if (argc == 2) {
     quit_to_email = 1;
     edit(argv[1]);
