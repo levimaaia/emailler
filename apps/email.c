@@ -549,27 +549,29 @@ uint8_t hexdigit(char c) {
 
 /*
  * Decode linebuf[] from quoted-printable format in place
+ * p - Pointer to buffer to decode. Results written in place.
+ * Returns number of bytes decoded
  */
-uint16_t decode_quoted_printable(void) {
+uint16_t decode_quoted_printable(char *p) {
   uint16_t i = 0, j = 0;
   char c;
-  while (c = linebuf[i]) {
+  while (c = p[i]) {
     if (c == '=') {
-      if (linebuf[i + 1] == '\r') { // Trailing '=' is a soft '\r'
-        linebuf[j] = '\0';
+      if (p[i + 1] == '\r') { // Trailing '=' is a soft '\r'
+        p[j] = '\0';
         return j;
       }
       // Otherwise '=xx' where x is a hex digit
       c = 16 * hexdigit(linebuf[i + 1]) + hexdigit(linebuf[i + 2]);
       if ((c >= 0x20) && (c <= 0x7e))
-        linebuf[j++] = c;
+        p[j++] = c;
       i += 3;
     } else {
-      linebuf[j++] = c;
+      p[j++] = c;
       ++i;
     }
   }
-  linebuf[j] = '\0';
+  p[j] = '\0';
   return j;
 }
 
@@ -589,15 +591,17 @@ static const int8_t b64dec[] =
 /*
  * Decode linebuf[] from Base64 format in place
  * Each line of base64 has up to 76 chars, which decodes to up to 57 bytes
+ * p - Pointer to buffer to decode. Results written in place.
+ * Returns number of bytes decoded
  */
-uint16_t decode_base64(void) {
+uint16_t decode_base64(char *p) {
   uint16_t i = 0, j = 0;
-  while (linebuf[i] != '\r') {
-    linebuf[j++] = b64dec[linebuf[i] - 43] << 2 | b64dec[linebuf[i + 1] - 43] >> 4;
-    if (linebuf[i + 2] != '=')
-      linebuf[j++] = b64dec[linebuf[i + 1] - 43] << 4 | b64dec[linebuf[i + 2] - 43] >> 2;
+  while (p[i] != '\r') {
+    p[j++] = b64dec[p[i] - 43] << 2 | b64dec[p[i + 1] - 43] >> 4;
+    if (p[i + 2] != '=')
+      p[j++] = b64dec[p[i + 1] - 43] << 4 | b64dec[p[i + 2] - 43] >> 2;
     if (linebuf[i + 3] != '=')
-      linebuf[j++] = b64dec[linebuf[i + 2] - 43] << 6 | b64dec[linebuf[i + 3] - 43];
+      p[j++] = b64dec[p[i + 2] - 43] << 6 | b64dec[p[i + 3] - 43];
     i += 4;
   }
   return j;
@@ -888,11 +892,11 @@ restart:
       } else if (mime == 4) {
         switch (mime_enc) {
         case ENC_QP:
-          chars = decode_quoted_printable();
+          chars = decode_quoted_printable(linebuf);
           readp = linebuf; // Decoded text is in linebuf[]
           break;
          case ENC_B64:
-          chars = decode_base64();
+          chars = decode_base64(linebuf);
           readp = linebuf; // Decoded text is in linebuf[]
           break;
          case ENC_SKIP:
