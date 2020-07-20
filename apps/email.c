@@ -497,13 +497,15 @@ void update_highlighted(void) {
 }
 
 /*
- * Read a text file a line at a time leaving the line in linebuf[]
+ * Read a text file a line at a time
  * Returns number of chars in the line, or -1 if EOF.
  * Expects Apple ][ style line endings (CR) and does no conversion
  * fp - file to read from
  * reset - if 1 then just reset the buffer and return
+ * writep - Pointer to buffer into which line will be written
+ * pos - position in file is updated via this pointer
  */
-int16_t get_line(FILE *fp, uint8_t reset, uint32_t *pos) {
+int16_t get_line(FILE *fp, uint8_t reset, char *writep, uint32_t *pos) {
   static uint16_t rd = 0; // Read
   static uint16_t wt = 0; // Write
   uint8_t found = 0;
@@ -516,14 +518,14 @@ int16_t get_line(FILE *fp, uint8_t reset, uint32_t *pos) {
   }
   while (1) {
     while (rd < wt) {
-      linebuf[j++] = buf[rd++];
+      writep[j++] = buf[rd++];
       ++(*pos);
-      if (linebuf[j - 1] == '\r') {
+      if (writep[j - 1] == '\r') {
         found = 1;
         break;
       }
     }
-    linebuf[j] = '\0';
+    writep[j] = '\0';
     if (rd == wt) // Empty buf[]
       rd = wt = 0;
     if (found)
@@ -821,10 +823,10 @@ restart:
   fputs("\nSubject: ", stdout);
   printfield(h->subject, 0, 70);
   fputs("\n\n", stdout);
-  get_line(fp, 1, &pos); // Reset buffer
+  get_line(fp, 1, linebuf, &pos); // Reset buffer
   while (1) {
     if (!readp) {
-      if (get_line(fp, 0, &pos) == -1)
+      if (get_line(fp, 0, linebuf, &pos) == -1)
         eof = 1;
       readp = linebuf;
       ++linecount;
