@@ -4,9 +4,13 @@
 // Bobbi June, July 2020
 /////////////////////////////////////////////////////////////////
 
+// - TODO: Bug in word wrapping quoted-printable content. Code assumes all
+//         lines end in a true line ending, but not true of encoded content.
+// - TODO: Should decode MIME body even if not multipart
+// - TODO: Add Base64 encoding
+// - TODO: Feature to attach files to outgoing messages
 // - TODO: Get rid of all uses of malloc(). Don't need it.
 // - TODO: See TODOs further down for error handling
-// - TODO: Editor for email composition functions
 
 #include <stdio.h>
 #include <stdlib.h>

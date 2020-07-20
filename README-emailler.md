@@ -334,29 +334,7 @@ If you use this tool for bulk import, be sure that all the `EMAIL.nnn` files are
 
 ## `EDIT.SYSTEM`
 
-EDIT is simple full-screen editor.  It is currently under development.
+EDIT is simple full-screen editor.
 
-The following commands are implemented (but could change at any time):
-
- - Movement:
-   - `Up` - Up one row.
-   - `Down` - Down one row.
-   - `Left` - Left one column.
-   - `Right` - Right one column.
-   - `Open Apple`-`Up` - Page up
-   - `Open Apple`-`Down` - Page down
-   - `Open Apple`-`Left` - Goto beginning of line
-   - `Open Apple`-`Right` - Goto end of line
- - Inserting text - just type.
- - Deleting text:
-   - `Delete` key deletes character to left of cursor
-   - `Open Apple`-`Delete` or `Ctrl`-`D` key deletes character to right of cursor
- - File handling:
-   - `Open Apple`-`N` - New file (clear buffer)
-   - `Open Apple`-`L` - Load file from disk
-   - `Open Apple`-`S` - Save file to disk
-   
- - Miscellaneous:
-   - `Open Apple`-`Q` - Quit. If launched from `EMAIL.SYSTEM` then `EMAIL.SYSTEM` will be launched again.  Otherwise, just return to ProDOS.
-   - `Ctrl`-`L` - Refresh screen (useful it it get garbled!)
+<p align="center"><img src="img/edit-help.png" alt="Editor help page" height="200px"></p>
 
