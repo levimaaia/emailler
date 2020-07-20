@@ -336,5 +336,5 @@ If you use this tool for bulk import, be sure that all the `EMAIL.nnn` files are
 
 EDIT is simple full-screen editor.
 
-<p align="center"><img src="img/edit-help.png" alt="Editor help page" height="200px"></p>
+<p align="center"><img src="img/edit-help.png" alt="Editor help page" height="400px"></p>
 
