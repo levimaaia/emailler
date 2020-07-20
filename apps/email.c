@@ -627,8 +627,11 @@ void putline(FILE *fp, char *s) {
  * s - Pointer to pointer to input buffer. If all text is consumed, this is
  *     set to NULL.  If there is text left in the buffer to be consumed then
  *     the pointer will be advanced to point to the next text to process.
+ * mime - Set to 1 if we are wrapping content which was decoded from
+ *        Quoted-Printable or Base64. In this case line does not necessarily
+ *        end in EOL.
  */
-void word_wrap_line(FILE *fp, char **s) {
+void word_wrap_line(FILE *fp, char **s, uint8_t mime) {
   static uint8_t col = 0;        // Keeps track of screen column
   char *ss = *s;
   char *ret = strchr(ss, '\r');
@@ -640,7 +643,9 @@ void word_wrap_line(FILE *fp, char **s) {
       nextline = ss + (ret - ss) + 1; // Keep track of next line(s)
     l = ret - ss;
   }
-  if (col + l <= 80) {           // Fits on this line
+  if ((!mime && (col + l <= 80)) ||
+      (mime && ret && (col + l) <= 80)) {     // Fits on this line
+//  if (col + l <= 80) {           // Fits on this line
     col += l;
     putline(fp, ss);
     if (ret) {
@@ -652,6 +657,8 @@ void word_wrap_line(FILE *fp, char **s) {
     return;
   }
   i = 80 - col;                  // Doesn't fit, need to break
+  if (i > l)
+    i = l;
   while ((ss[--i] != ' ') && (i > 0));
   if (i == 0) {                  // No space character found
     if (col == 0)                // Doesn't fit on full line
@@ -905,7 +912,7 @@ restart:
     do {
       if (readp) {
         if (mime == 0)
-          word_wrap_line(stdout, &readp);
+          word_wrap_line(stdout, &readp, 0);
         if (mime == 1)
           readp = NULL;
         if (mime == 4) {
@@ -914,7 +921,7 @@ restart:
               fwrite(readp, 1, chars, attachfp);
             readp = 0;
           } else {
-            word_wrap_line(stdout, &readp);
+            word_wrap_line(stdout, &readp, 0 /* 1 */);
           }
         }
       }
