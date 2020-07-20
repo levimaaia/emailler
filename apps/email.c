@@ -800,7 +800,7 @@ void email_pager(struct emailhdrs *h) {
 restart:
   eof = 0;
   linecount = 0;
-  readp = NULL;
+  readp = linebuf;
   attachfp = NULL;
   if (sbackfp)
     fclose(sbackfp);
@@ -829,11 +829,11 @@ restart:
   fputs("\n\n", stdout);
   get_line(fp, 1, linebuf, &pos); // Reset buffer
   while (1) {
-    if (get_line(fp, 0, linebuf, &pos) == -1)
-      eof = 1;
     readp = linebuf;
+    if (get_line(fp, 0, readp, &pos) == -1)
+      eof = 1;
     ++linecount;
-    if ((mime >= 1) && (!strncmp(linebuf, "--", 2))) {
+    if ((mime >= 1) && (!strncmp(readp, "--", 2))) {
       if (attachfp)
         fclose(attachfp);
       if ((mime == 4) && mime_binary) {
@@ -846,31 +846,31 @@ restart:
       mime_binary = 0;
       readp = NULL; // Read next line from disk
     } else if ((mime < 4) && (mime >= 2)) {
-      if (!strncasecmp(linebuf, "Content-Type: ", 14)) {
-        if (!strncmp(linebuf + 14, "text/plain", 10)) {
+      if (!strncasecmp(readp, "Content-Type: ", 14)) {
+        if (!strncmp(readp + 14, "text/plain", 10)) {
           mime = 3;
-        } else if (!strncmp(linebuf + 14, "text/html", 9)) {
+        } else if (!strncmp(readp + 14, "text/html", 9)) {
           printf("\n<Not showing HTML>\n");
           mime = 1;
         } else {
           mime_binary = 1;
           mime = 3;
         }
-      } else if (!strncasecmp(linebuf, "Content-Transfer-Encoding: ", 27)) {
+      } else if (!strncasecmp(readp, "Content-Transfer-Encoding: ", 27)) {
         mime = 3;
-        if (!strncmp(linebuf + 27, "7bit", 4))
+        if (!strncmp(readp + 27, "7bit", 4))
           mime_enc = ENC_7BIT;
-        else if (!strncmp(linebuf + 27, "quoted-printable", 16))
+        else if (!strncmp(readp + 27, "quoted-printable", 16))
           mime_enc = ENC_QP;
-        else if (!strncmp(linebuf + 27, "base64", 6))
+        else if (!strncmp(readp + 27, "base64", 6))
           mime_enc = ENC_B64;
         else {
-          printf("** Unsupp encoding %s\n", linebuf + 27);
+          printf("** Unsupp encoding %s\n", readp + 27);
           mime = 1;
         }
-      } else if (strstr(linebuf, "filename=")) {
+      } else if (strstr(readp, "filename=")) {
         sprintf(filename, "%s/ATTACHMENTS/%s",
-                cfg_emaildir, strstr(linebuf, "filename=") + 9);
+                cfg_emaildir, strstr(readp, "filename=") + 9);
         sanitize_filename(filename);
         if (prompt_okay_attachment(filename)) {
           printf("** Attachment -> %s  ", filename);
@@ -879,7 +879,7 @@ restart:
             printf("\n** Can't open %s  ", filename);
         } else
           attachfp = NULL;
-      } else if ((mime == 3) && (!strncmp(linebuf, "\r", 1))) {
+      } else if ((mime == 3) && (!strncmp(readp, "\r", 1))) {
         mime = 4;
         if (!attachfp && mime_binary) {
           mime_enc = ENC_SKIP; // Skip over binary MIME parts with no filename
@@ -890,12 +890,10 @@ restart:
     } else if (mime == 4) {
       switch (mime_enc) {
       case ENC_QP:
-        chars = decode_quoted_printable(linebuf);
-        readp = linebuf; // Decoded text is in linebuf[]
+        chars = decode_quoted_printable(readp);
         break;
        case ENC_B64:
-        chars = decode_base64(linebuf);
-        readp = linebuf; // Decoded text is in linebuf[]
+        chars = decode_base64(readp);
         break;
        case ENC_SKIP:
         readp = NULL; // Read next line from disk
@@ -913,7 +911,7 @@ restart:
         if (mime == 4) {
           if (mime_binary) {
             if (attachfp)
-              fwrite(linebuf, 1, chars, attachfp);
+              fwrite(readp, 1, chars, attachfp);
             readp = 0;
           } else {
             word_wrap_line(stdout, &readp);
