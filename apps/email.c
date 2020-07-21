@@ -4,8 +4,6 @@
 // Bobbi June, July 2020
 /////////////////////////////////////////////////////////////////
 
-// - TODO: Bug in word wrapping quoted-printable content. Code assumes all
-//         lines end in a true line ending, but not true of encoded content.
 // - TODO: Should decode MIME body even if not multipart
 // - TODO: Add Base64 encoding
 // - TODO: Feature to attach files to outgoing messages
@@ -673,25 +671,21 @@ void word_wrap_line_plaintext(FILE *fp, char **s) {
  * input before next call.
  */
 uint8_t word_wrap_line_mime(FILE *fp, char **s) {
-  static uint8_t col = 0;        // Keeps track of screen column
+  static uint8_t col = 0;           // Keeps track of screen column
   char *ss = *s;
   char *ret = strchr(ss, '\r');
   uint16_t l = strlen(ss);
   char *nextline = NULL;
   uint16_t i;
   if (l == 0)
-    return 0;                   // Need more input to proceed
-//printf("word_wrap_line_mine l=%d\n", l);
+    return 0;                      // Need more input to proceed
   if (ret) {
-//printf("RET l=%d rhs=%d\n", l, (ret - ss) + 1);
-    if (l > (ret - ss) + 1)     // If '\r' is not at the end ...
+    if (l > (ret - ss) + 1)        // If '\r' is not at the end ...
       nextline = ss + (ret - ss) + 1; // Keep track of next line(s)
     l = ret - ss;
   }
   if (ret) {
-//printf("RET");
     if ((col + l) <= 80) {         // Fits on this line
-//printf("FITS\n");
       col += l;
       putline(fp, ss);
       if (ret) {
@@ -699,17 +693,14 @@ uint8_t word_wrap_line_mime(FILE *fp, char **s) {
         if (col + l != 80)
           fputc('\r', fp);
       }
-//printf("\nnextline=%p\n", nextline);
       *s = nextline;
       return (*s ? 1 : 0);         // Caller should invoke again
     }
-//printf("NOFIT");
     i = 80 - col;                  // Doesn't fit, need to break
     if (i > l)
       i = l;
     while ((ss[--i] != ' ') && (i > 0));
     if (i == 0) {                  // No space character found
-//printf("NOSPC\n");
       if (col == 0)                // Doesn't fit on full line
         for (i = 0; i < 80; ++i) { // Truncate @80 chars
           fputc(ss[i], fp);
@@ -719,25 +710,20 @@ uint8_t word_wrap_line_mime(FILE *fp, char **s) {
       col = 0;
       return (ret ? (*s ? 0 : 1) : 0); // If EOL, caller should invoke again
     }
-  } else {
-//printf("NORET");
-    // No EOL
+  } else {                         // No ret
     i = 80 - col;                  // Space left on line
     if (i > l)
       return 0;                    // Need more input to proceed
     while ((ss[--i] != ' ') && (i > 0));
-    if (i == 0) {                  // No space character found
-//printf("NOSPC\n");
+    if (i == 0)                    // No space character found
       return 0;                    // Need more input to proceed
-    }
   }
-//printf("SPC %d\n", i);
-  ss[i] = '\0';                  // Space was found, split line
+  ss[i] = '\0';                    // Space was found, split line
   putline(fp, ss);
   fputc('\r', fp);
   col = 0;
   *s = ss + i + 1;
-  return (*s ? 1 : 0);           // Caller should invoke again
+  return (*s ? 1 : 0);             // Caller should invoke again
 }
 
 /*
@@ -992,19 +978,18 @@ restart:
             fwrite(readp, 1, chars, attachfp);
           readp = writep = NULL;
         } else {
-          //while (word_wrap_line_mime(stdout, &readp));
-          do {
-            c = word_wrap_line_mime(stdout, &readp);
-//            cgetc(); //DEBUG
-          } while (c == 1);
-          if (readp)
-            writep += chars;
-          else
+          while (word_wrap_line_mime(stdout, &readp) == 1);
+          if (readp) {
+            chars = strlen(readp);
+            memmove(linebuf, readp, strlen(readp));
+            readp = linebuf;
+            writep = linebuf + chars;
+          } else
             writep = NULL;
         }
       }
     }
-    if ((*cursorrow == 22) || eof) {
+    if ((*cursorrow >= 21) || eof) {
       printf("\n%c[%05lu] %s | B)ack | T)op | H)drs | M)IME | Q)uit%c",
              INVERSE,
              pos,
