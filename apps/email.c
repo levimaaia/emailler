@@ -620,45 +620,29 @@ void putline(FILE *fp, char *s) {
 }
 
 /*
- * Perform word wrapping, for a line of text, which may contain embedded '\r'
- * carriage returns, perform word-wrapping. For each call, this function will
- * output one line of text (or a partial line if there is not enough input).
+ * Perform word wrapping for a line of plain text. For each call, this function
+ * will output one line of text (or a partial line if there is not enough input).
  * fp - File handle to use for output.
  * s - Pointer to pointer to input buffer. If all text is consumed, this is
  *     set to NULL.  If there is text left in the buffer to be consumed then
  *     the pointer will be advanced to point to the next text to process.
- * mime - Set to 1 if we are wrapping content which was decoded from
- *        Quoted-Printable or Base64. In this case line does not necessarily
- *        end in EOL.
  */
-void word_wrap_line(FILE *fp, char **s, uint8_t mime) {
+void word_wrap_line_plaintext(FILE *fp, char **s) {
   static uint8_t col = 0;        // Keeps track of screen column
   char *ss = *s;
-  char *ret = strchr(ss, '\r');
   uint16_t l = strlen(ss);
   char *nextline = NULL;
   uint16_t i;
-  if (ret) {
-    if (l >= (ret - ss) + 1)     // If '\r' is not at the end ...
-      nextline = ss + (ret - ss) + 1; // Keep track of next line(s)
-    l = ret - ss;
-  }
-  if ((!mime && (col + l <= 80)) ||
-      (mime && ret && (col + l) <= 80)) {     // Fits on this line
-//  if (col + l <= 80) {           // Fits on this line
+  if (col + l <= 80) {           // Fits on this line
     col += l;
     putline(fp, ss);
-    if (ret) {
-      col = 0;
-      if (col + l != 80)
-        fputc('\r', fp);
-    }
-    *s = nextline;
+    col = 0;
+    if (col + l != 80)
+      fputc('\r', fp);
+    *s = NULL;
     return;
   }
   i = 80 - col;                  // Doesn't fit, need to break
-  if (i > l)
-    i = l;
   while ((ss[--i] != ' ') && (i > 0));
   if (i == 0) {                  // No space character found
     if (col == 0)                // Doesn't fit on full line
@@ -675,6 +659,85 @@ void word_wrap_line(FILE *fp, char **s, uint8_t mime) {
   fputc('\r', fp);
   col = 0;
   *s = ss + i + 1;
+}
+
+/*
+ * Perform word wrapping, for a line of MIME decoded text, which may contain
+ * multiple embedded '\r' carriage returns, or no carriage return at all.
+ * fp - File handle to use for output.
+ * s - Pointer to pointer to input buffer. If all text is consumed, this is
+ *     set to NULL.  If there is text left in the buffer to be consumed then
+ *     the pointer will be advanced to point to the next text to process.
+ * Returns 1 if the caller should invoke the routine again before obtaining
+ * more input, or 0 if there is nothing more to do or caller needs to get more
+ * input before next call.
+ */
+uint8_t word_wrap_line_mime(FILE *fp, char **s) {
+  static uint8_t col = 0;        // Keeps track of screen column
+  char *ss = *s;
+  char *ret = strchr(ss, '\r');
+  uint16_t l = strlen(ss);
+  char *nextline = NULL;
+  uint16_t i;
+  if (l == 0)
+    return 0;                   // Need more input to proceed
+//printf("word_wrap_line_mine l=%d\n", l);
+  if (ret) {
+//printf("RET l=%d rhs=%d\n", l, (ret - ss) + 1);
+    if (l > (ret - ss) + 1)     // If '\r' is not at the end ...
+      nextline = ss + (ret - ss) + 1; // Keep track of next line(s)
+    l = ret - ss;
+  }
+  if (ret) {
+//printf("RET");
+    if ((col + l) <= 80) {         // Fits on this line
+//printf("FITS\n");
+      col += l;
+      putline(fp, ss);
+      if (ret) {
+        col = 0;
+        if (col + l != 80)
+          fputc('\r', fp);
+      }
+//printf("\nnextline=%p\n", nextline);
+      *s = nextline;
+      return (*s ? 1 : 0);         // Caller should invoke again
+    }
+//printf("NOFIT");
+    i = 80 - col;                  // Doesn't fit, need to break
+    if (i > l)
+      i = l;
+    while ((ss[--i] != ' ') && (i > 0));
+    if (i == 0) {                  // No space character found
+//printf("NOSPC\n");
+      if (col == 0)                // Doesn't fit on full line
+        for (i = 0; i < 80; ++i) { // Truncate @80 chars
+          fputc(ss[i], fp);
+          *s = ss + l + 1;
+      } else                       // There is stuff on this line already
+        fputc('\r', fp);           // Try a blank line
+      col = 0;
+      return (ret ? (*s ? 0 : 1) : 0); // If EOL, caller should invoke again
+    }
+  } else {
+//printf("NORET");
+    // No EOL
+    i = 80 - col;                  // Doesn't fit, need to break
+    if (i > l)
+      i = l;
+    while ((ss[--i] != ' ') && (i > 0));
+    if (i == 0) {                  // No space character found
+//printf("NOSPC\n");
+      return 0;                    // Need more input to proceed
+    }
+  }
+//printf("SPC %d\n", i);
+  ss[i] = '\0';                  // Space was found, split line
+  putline(fp, ss);
+  fputc('\r', fp);
+  col = 0;
+  *s = ss + i + 1;
+  return (*s ? 1 : 0);           // Caller should invoke again
 }
 
 /*
@@ -792,7 +855,7 @@ void email_pager(struct emailhdrs *h) {
   FILE *attachfp;
   uint16_t linecount, chars;
   uint8_t  mime_enc, mime_binary, eof, screennum, maxscreennum;
-  char c, *readp;
+  char c, *readp, *writep;
   clrscr2();
   sprintf(filename, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, h->emailnum);
   fp = fopen(filename, "rb");
@@ -808,6 +871,7 @@ restart:
   eof = 0;
   linecount = 0;
   readp = linebuf;
+  writep = linebuf;
   attachfp = NULL;
   if (sbackfp)
     fclose(sbackfp);
@@ -836,11 +900,15 @@ restart:
   fputs("\n\n", stdout);
   get_line(fp, 1, linebuf, &pos); // Reset buffer
   while (1) {
-    readp = linebuf;
-    if (get_line(fp, 0, readp, &pos) == -1)
+    if (!readp)
+      readp = linebuf;
+    if (!writep)
+      writep = linebuf;
+//printf("READ W=%p R=%p\n", writep, readp);
+    if (get_line(fp, 0, writep, &pos) == -1)
       eof = 1;
     ++linecount;
-    if ((mime >= 1) && (!strncmp(readp, "--", 2))) {
+    if ((mime >= 1) && (!strncmp(writep, "--", 2))) {
       if (attachfp)
         fclose(attachfp);
       if ((mime == 4) && mime_binary) {
@@ -851,33 +919,33 @@ restart:
       mime = 2;
       mime_enc = ENC_7BIT;
       mime_binary = 0;
-      readp = NULL; // Read next line from disk
+      readp = writep = NULL;
     } else if ((mime < 4) && (mime >= 2)) {
-      if (!strncasecmp(readp, "Content-Type: ", 14)) {
-        if (!strncmp(readp + 14, "text/plain", 10)) {
+      if (!strncasecmp(writep, "Content-Type: ", 14)) {
+        if (!strncmp(writep + 14, "text/plain", 10)) {
           mime = 3;
-        } else if (!strncmp(readp + 14, "text/html", 9)) {
+        } else if (!strncmp(writep + 14, "text/html", 9)) {
           printf("\n<Not showing HTML>\n");
           mime = 1;
         } else {
           mime_binary = 1;
           mime = 3;
         }
-      } else if (!strncasecmp(readp, "Content-Transfer-Encoding: ", 27)) {
+      } else if (!strncasecmp(writep, "Content-Transfer-Encoding: ", 27)) {
         mime = 3;
-        if (!strncmp(readp + 27, "7bit", 4))
+        if (!strncmp(writep + 27, "7bit", 4))
           mime_enc = ENC_7BIT;
-        else if (!strncmp(readp + 27, "quoted-printable", 16))
+        else if (!strncmp(writep + 27, "quoted-printable", 16))
           mime_enc = ENC_QP;
-        else if (!strncmp(readp + 27, "base64", 6))
+        else if (!strncmp(writep + 27, "base64", 6))
           mime_enc = ENC_B64;
         else {
-          printf("** Unsupp encoding %s\n", readp + 27);
+          printf("** Unsupp encoding %s\n", writep + 27);
           mime = 1;
         }
-      } else if (strstr(readp, "filename=")) {
+      } else if (strstr(writep, "filename=")) {
         sprintf(filename, "%s/ATTACHMENTS/%s",
-                cfg_emaildir, strstr(readp, "filename=") + 9);
+                cfg_emaildir, strstr(writep, "filename=") + 9);
         sanitize_filename(filename);
         if (prompt_okay_attachment(filename)) {
           printf("** Attachment -> %s  ", filename);
@@ -886,115 +954,125 @@ restart:
             printf("\n** Can't open %s  ", filename);
         } else
           attachfp = NULL;
-      } else if ((mime == 3) && (!strncmp(readp, "\r", 1))) {
+      } else if ((mime == 3) && (!strncmp(writep, "\r", 1))) {
         mime = 4;
         if (!attachfp && mime_binary) {
           mime_enc = ENC_SKIP; // Skip over binary MIME parts with no filename
           fputs("Skipping  ", stdout);
         }
       }
-      readp = NULL; // Read next line from disk
+      readp = writep = NULL;
     } else if (mime == 4) {
       switch (mime_enc) {
       case ENC_QP:
-        chars = decode_quoted_printable(readp);
+        chars = decode_quoted_printable(writep);
         break;
        case ENC_B64:
-        chars = decode_base64(readp);
+        chars = decode_base64(writep);
         break;
        case ENC_SKIP:
-        readp = NULL; // Read next line from disk
+        readp = writep = NULL;
         break;
       }
       if (mime_binary && !(linecount % 10))
         spinner();
     }
-    do {
-      if (readp) {
-        if (mime == 0)
-          word_wrap_line(stdout, &readp, 0);
-        if (mime == 1)
-          readp = NULL;
-        if (mime == 4) {
-          if (mime_binary) {
-            if (attachfp)
-              fwrite(readp, 1, chars, attachfp);
-            readp = 0;
-          } else {
-            word_wrap_line(stdout, &readp, 0 /* 1 */);
-          }
+    if (readp) {
+      if (mime == 0) {
+        while (readp)
+          word_wrap_line_plaintext(stdout, &readp);
+        writep = NULL;
+      }
+      if (mime == 1) {
+        readp = writep = NULL;
+      }
+      if (mime == 4) {
+        if (mime_binary) {
+          if (attachfp)
+            fwrite(readp, 1, chars, attachfp);
+          readp = writep = NULL;
+        } else {
+          //while (word_wrap_line_mime(stdout, &readp));
+          do {
+            c = word_wrap_line_mime(stdout, &readp);
+            cgetc(); //DEBUG
+          } while (c == 1);
+          if (readp)
+            writep += chars;
+          else
+            writep = NULL;
         }
       }
-      if ((*cursorrow == 22) || eof) {
-        printf("\n%c[%05lu] %s | B)ack | T)op | H)drs | M)IME | Q)uit%c",
-               INVERSE,
-               pos,
-               (eof ? "       ** END **      " : "SPACE continue reading"),
-               NORMAL);
-        if (sbackfp) {
-          save_screen_to_scrollback(sbackfp);
-          ++screennum;
-          ++maxscreennum;
-        }
+    }
+    if ((*cursorrow == 22) || eof) {
+      printf("\n%c[%05lu] %s | B)ack | T)op | H)drs | M)IME | Q)uit%c",
+             INVERSE,
+             pos,
+             (eof ? "       ** END **      " : "SPACE continue reading"),
+             NORMAL);
+      if (sbackfp) {
+        save_screen_to_scrollback(sbackfp);
+        ++screennum;
+        ++maxscreennum;
+      }
 retry:
-        c = cgetc();
-        switch (c) {
-        case ' ':
-          if (sbackfp && (screennum < maxscreennum)) {
-            load_screen_from_scrollback(sbackfp, ++screennum);
-            goto retry;
-          } else {
-            if (eof) {
-              putchar(BELL);
-              goto retry;
-            }
-          }
-          break;
-        case 'B':
-        case 'b':
-          if (sbackfp && (screennum > 1)) {
-            load_screen_from_scrollback(sbackfp, --screennum);
-            goto retry;
-          } else {
+      c = cgetc();
+      switch (c) {
+      case ' ':
+        if (sbackfp && (screennum < maxscreennum)) {
+          load_screen_from_scrollback(sbackfp, ++screennum);
+          goto retry;
+        } else {
+          if (eof) {
             putchar(BELL);
             goto retry;
           }
-          break;
-        case 'T':
-        case 't':
-          mime = 0;
-          pos = h->skipbytes;
-          fseek(fp, pos, SEEK_SET);
-          goto restart;
-          break;
-        case 'H':
-        case 'h':
-          mime = 0;
-          pos = 0;
-          fseek(fp, pos, SEEK_SET);
-          goto restart;
+        }
         break;
-        case 'M':
-        case 'm':
-          mime = 1;
-          pos = h->skipbytes;
-          fseek(fp, pos, SEEK_SET);
-          goto restart;
-        case 'Q':
-        case 'q':
-          if (attachfp)
-            fclose(attachfp);
-          if (sbackfp)
-            fclose(sbackfp);
-          fclose(fp);
-          return;
-        default:
+      case 'B':
+      case 'b':
+        if (sbackfp && (screennum > 1)) {
+          load_screen_from_scrollback(sbackfp, --screennum);
+          goto retry;
+        } else {
           putchar(BELL);
           goto retry;
         }
-        clrscr2();
+        break;
+      case 'T':
+      case 't':
+        mime = 0;
+        pos = h->skipbytes;
+        fseek(fp, pos, SEEK_SET);
+        goto restart;
+        break;
+      case 'H':
+      case 'h':
+        mime = 0;
+        pos = 0;
+        fseek(fp, pos, SEEK_SET);
+        goto restart;
+      break;
+      case 'M':
+      case 'm':
+        mime = 1;
+        pos = h->skipbytes;
+        fseek(fp, pos, SEEK_SET);
+        goto restart;
+      case 'Q':
+      case 'q':
+        if (attachfp)
+          fclose(attachfp);
+        if (sbackfp)
+          fclose(sbackfp);
+        fclose(fp);
+        return;
+      default:
+        putchar(BELL);
+        goto retry;
       }
-    } while (readp);
+      clrscr2();
+    }
   }
 }
 
