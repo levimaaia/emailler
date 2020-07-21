@@ -618,50 +618,8 @@ void putline(FILE *fp, char *s) {
 }
 
 /*
- * Perform word wrapping for a line of plain text. For each call, this function
- * will output one line of text (or a partial line if there is not enough input).
- * fp - File handle to use for output.
- * s - Pointer to pointer to input buffer. If all text is consumed, this is
- *     set to NULL.  If there is text left in the buffer to be consumed then
- *     the pointer will be advanced to point to the next text to process.
- */
-void word_wrap_line_plaintext(FILE *fp, char **s) {
-  static uint8_t col = 0;        // Keeps track of screen column
-  char *ss = *s;
-  uint16_t l = strlen(ss);
-  char *nextline = NULL;
-  uint16_t i;
-  if (col + l <= 80) {           // Fits on this line
-    col += l;
-    putline(fp, ss);
-    col = 0;
-    if (col + l != 80)
-      fputc('\r', fp);
-    *s = NULL;
-    return;
-  }
-  i = 80 - col;                  // Doesn't fit, need to break
-  while ((ss[--i] != ' ') && (i > 0));
-  if (i == 0) {                  // No space character found
-    if (col == 0)                // Doesn't fit on full line
-      for (i = 0; i < 80; ++i) { // Truncate @80 chars
-        fputc(ss[i], fp);
-        *s = ss + l + 1;
-    } else                       // There is stuff on this line already
-      fputc('\r', fp);           // Try a blank line
-    col = 0;
-    return;
-  }
-  ss[i] = '\0';                  // Space was found, split line
-  putline(fp, ss);
-  fputc('\r', fp);
-  col = 0;
-  *s = ss + i + 1;
-}
-
-/*
- * Perform word wrapping, for a line of MIME decoded text, which may contain
- * multiple embedded '\r' carriage returns, or no carriage return at all.
+ * Perform word wrapping, for a line of text, which may contain multiple
+ * embedded '\r' carriage returns, or no carriage return at all.
  * fp - File handle to use for output.
  * s - Pointer to pointer to input buffer. If all text is consumed, this is
  *     set to NULL.  If there is text left in the buffer to be consumed then
@@ -670,7 +628,7 @@ void word_wrap_line_plaintext(FILE *fp, char **s) {
  * more input, or 0 if there is nothing more to do or caller needs to get more
  * input before next call.
  */
-uint8_t word_wrap_line_mime(FILE *fp, char **s) {
+uint8_t word_wrap_line(FILE *fp, char **s) {
   static uint8_t col = 0;           // Keeps track of screen column
   char *ss = *s;
   char *ret = strchr(ss, '\r');
@@ -965,8 +923,7 @@ restart:
     }
     if (readp) {
       if (mime == 0) {
-        while (readp)
-          word_wrap_line_plaintext(stdout, &readp);
+        while (word_wrap_line(stdout, &readp) == 1);
         writep = NULL;
       }
       if (mime == 1) {
@@ -978,7 +935,7 @@ restart:
             fwrite(readp, 1, chars, attachfp);
           readp = writep = NULL;
         } else {
-          while (word_wrap_line_mime(stdout, &readp) == 1);
+          while (word_wrap_line(stdout, &readp) == 1);
           if (readp) {
             chars = strlen(readp);
             memmove(linebuf, readp, strlen(readp));
