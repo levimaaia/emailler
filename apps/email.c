@@ -722,9 +722,9 @@ uint8_t word_wrap_line_mime(FILE *fp, char **s) {
   } else {
 //printf("NORET");
     // No EOL
-    i = 80 - col;                  // Doesn't fit, need to break
+    i = 80 - col;                  // Space left on line
     if (i > l)
-      i = l;
+      return 0;                    // Need more input to proceed
     while ((ss[--i] != ' ') && (i > 0));
     if (i == 0) {                  // No space character found
 //printf("NOSPC\n");
@@ -995,7 +995,7 @@ restart:
           //while (word_wrap_line_mime(stdout, &readp));
           do {
             c = word_wrap_line_mime(stdout, &readp);
-            cgetc(); //DEBUG
+//            cgetc(); //DEBUG
           } while (c == 1);
           if (readp)
             writep += chars;
