@@ -5,7 +5,6 @@
 /////////////////////////////////////////////////////////////////
 
 // - TODO: Feature to attach files to outgoing messages
-// - TODO: email_pager() mis-pages if one line of input->many lines of output
 // - TODO: Get rid of all uses of malloc(). Don't need it.
 // - TODO: See TODOs further down for error handling
 
@@ -965,7 +964,12 @@ restart:
     }
     if (readp) {
       if ((mime == 0) || ((mime == 4) && !mime_binary)) {
-        while (word_wrap_line(stdout, &readp) == 1);
+        //while (word_wrap_line(stdout, &readp) == 1);
+        do {
+          c = word_wrap_line(stdout, &readp);
+          if (*cursorrow == 22)
+            break; 
+        } while (c == 1);
         if (readp) {
           chars = strlen(readp);
           memmove(linebuf, readp, strlen(readp));
@@ -983,7 +987,7 @@ restart:
         readp = writep = NULL;
       }
     }
-    if ((*cursorrow >= 21) || eof) {
+    if ((*cursorrow == 22) || eof) {
       printf("\n%c[%05lu] %s | B)ack | T)op | H)drs | M)IME | Q)uit%c",
              INVERSE,
              pos,
