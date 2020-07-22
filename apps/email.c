@@ -630,8 +630,6 @@ uint16_t encode_base64(char *p, char *q, uint16_t len) {
   ii += 3;
   i = len - ii; // Bytes remaining to encode
   switch (i) {
-  case 0:
-    goto done;
   case 1:
     q[j++] = b64enc[(p[ii] & 0xfc) >> 2];
     q[j++] = b64enc[(p[ii] & 0x03) << 4];
@@ -966,28 +964,23 @@ restart:
         spinner();
     }
     if (readp) {
-      if (mime == 0) {
+      if ((mime == 0) || ((mime == 4) && !mime_binary)) {
         while (word_wrap_line(stdout, &readp) == 1);
-        writep = NULL;
+        if (readp) {
+          chars = strlen(readp);
+          memmove(linebuf, readp, strlen(readp));
+          readp = linebuf;
+          writep = linebuf + chars;
+        } else
+          writep = NULL;
+      }
+      if ((mime == 4) && mime_binary) {
+        if (attachfp)
+          fwrite(readp, 1, chars, attachfp);
+        readp = writep = NULL;
       }
       if (mime == 1) {
         readp = writep = NULL;
-      }
-      if (mime == 4) {
-        if (mime_binary) {
-          if (attachfp)
-            fwrite(readp, 1, chars, attachfp);
-          readp = writep = NULL;
-        } else {
-          while (word_wrap_line(stdout, &readp) == 1);
-          if (readp) {
-            chars = strlen(readp);
-            memmove(linebuf, readp, strlen(readp));
-            readp = linebuf;
-            writep = linebuf + chars;
-          } else
-            writep = NULL;
-        }
       }
     }
     if ((*cursorrow >= 21) || eof) {
@@ -1367,7 +1360,8 @@ uint8_t write_email_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h,
   prompt_for_name("cc", 0);
   if (strlen(userentry) > 0)
     fprintf(fp2, "cc: %s\r", userentry);
-  fprintf(fp2, "X-Mailer: %s - Apple II Forever!\r\r", PROGNAME);
+  fprintf(fp2, "X-Mailer: %s - Apple II Forever!\r", PROGNAME);
+  fprintf(fp2, "MIME-Version: 1.0\r\r");
   if (mode == 'R') {
     truncate_header(h->date, buf, 40);
     fprintf(fp2, "On %s, ", buf);
@@ -1632,7 +1626,8 @@ void create_blank_outgoing() {
   prompt_for_name("cc", 0);
   if (strlen(userentry) > 0)
     fprintf(fp, "cc: %s\r", userentry);
-  fprintf(fp, "X-Mailer: %s - Apple II Forever!\r\r", PROGNAME);
+  fprintf(fp, "X-Mailer: %s - Apple II Forever!\r", PROGNAME);
+  fprintf(fp, "MIME-Version: 1.0\r\r");
   fclose(fp);
 
   // Update dest/NEXT.EMAIL, incrementing count by 1
