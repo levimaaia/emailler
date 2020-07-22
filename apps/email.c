@@ -4,7 +4,6 @@
 // Bobbi June, July 2020
 /////////////////////////////////////////////////////////////////
 
-// - TODO: Should decode MIME body even if not multipart
 // - TODO: Add Base64 encoding
 // - TODO: Feature to attach files to outgoing messages
 // - TODO: Get rid of all uses of malloc(). Don't need it.
@@ -848,7 +847,6 @@ restart:
       readp = linebuf;
     if (!writep)
       writep = linebuf;
-//printf("READ W=%p R=%p\n", writep, readp);
     if (get_line(fp, 0, writep, &pos) == -1)
       eof = 1;
     ++linecount;
@@ -998,6 +996,26 @@ retry:
       case 'M':
       case 'm':
         mime = 1;
+        pos = 0;
+        fseek(fp, pos, SEEK_SET);
+        get_line(fp, 1, linebuf, &pos); // Reset buffer
+        do {
+          get_line(fp, 0, linebuf, &pos);
+          if (!strncasecmp(linebuf, "Content-Transfer-Encoding: ", 27)) {
+            mime = 4;
+            if (!strncmp(linebuf + 27, "7bit", 4))
+              mime_enc = ENC_7BIT;
+            else if (!strncmp(linebuf + 27, "quoted-printable", 16))
+              mime_enc = ENC_QP;
+            else if (!strncmp(linebuf + 27, "base64", 6))
+              mime_enc = ENC_B64;
+            else {
+              printf("** Unsupp encoding %s\n", linebuf + 27);
+              mime = 1;
+            }
+            break;
+          }
+        } while (linebuf[0] != '\r');
         pos = h->skipbytes;
         fseek(fp, pos, SEEK_SET);
         goto restart;
