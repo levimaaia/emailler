@@ -4,8 +4,8 @@
 // Bobbi June, July 2020
 /////////////////////////////////////////////////////////////////
 
-// - TODO: Add Base64 encoding
 // - TODO: Feature to attach files to outgoing messages
+// - TODO: email_pager() mis-pages if one line of input->many lines of output
 // - TODO: Get rid of all uses of malloc(). Don't need it.
 // - TODO: See TODOs further down for error handling
 
@@ -586,7 +586,7 @@ static const int8_t b64dec[] =
    42,43,44,45,46,47,48,49,50,51};
 
 /*
- * Decode linebuf[] from Base64 format in place
+ * Decode Base64 format in place
  * Each line of base64 has up to 76 chars, which decodes to up to 57 bytes
  * p - Pointer to buffer to decode. Results written in place.
  * Returns number of bytes decoded
@@ -601,6 +601,52 @@ uint16_t decode_base64(char *p) {
       p[j++] = b64dec[p[i + 2] - 43] << 6 | b64dec[p[i + 3] - 43];
     i += 4;
   }
+  return j;
+}
+
+/*
+ * Base64 encode table
+ */
+static const char b64enc[] =
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz01234567890+/";
+
+/*
+ * Encode Base64 format
+ * p - Pointer to source buffer
+ * q - Pointer to destination buffer
+ * len - Length of buffer to encode
+ * Returns length of encoded data
+ */
+uint16_t encode_base64(char *p, char *q, uint16_t len) {
+  uint16_t j = 0;
+  uint16_t i, ii;
+  for (i = 0; i < len / 3; ++i) {
+    ii = 3 * i;
+    q[j++] = b64enc[(p[ii] & 0xfc) >> 2];
+    q[j++] = b64enc[((p[ii] & 0x03) << 4) | ((p[ii + 1] & 0xf0) >> 4)];
+    q[j++] = b64enc[((p[ii + 1] & 0x0f) << 2) | ((p[ii + 2] & 0xc0) >> 6)];
+    q[j++] = b64enc[(p[ii + 2] & 0x3f)];
+  }
+  ii += 3;
+  i = len - ii; // Bytes remaining to encode
+  switch (i) {
+  case 0:
+    goto done;
+  case 1:
+    q[j++] = b64enc[(p[ii] & 0xfc) >> 2];
+    q[j++] = b64enc[(p[ii] & 0x03) << 4];
+    q[j++] = '=';
+    q[j++] = '=';
+    break;
+  case 2:
+    q[j++] = b64enc[(p[ii] & 0xfc) >> 2];
+    q[j++] = b64enc[((p[ii] & 0x03) << 4) | ((p[ii + 1] & 0xf0) >> 4)];
+    q[j++] = b64enc[(p[ii + 1] & 0x0f) << 2];
+    q[j++] = '=';
+    break;
+  }
+done:
+  q[j++] = '\0';
   return j;
 }
 
