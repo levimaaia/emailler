@@ -5,6 +5,7 @@
 
 // Note use my fork of cc65 to get a flashing cursor!!
 
+// TODO: BUG: Sometimes quit to email hangs ...
 // TODO: Improve status line, refresh it properly
 // TODO: Minor bug - can delete more chars from status line than should be able to
 // TODO: Should be smarter about redrawing when updating selection!!!
@@ -483,6 +484,7 @@ void draw_screen(void) {
     "     File:NONE                                                         ");
   }
 
+  putchar(HOME);
   gotoxy(curscol, cursrow);
   cursor(1);
 }
