@@ -5,7 +5,6 @@
 
 // Note use my fork of cc65 to get a flashing cursor!!
 
-// TODO: BUG: Sometimes quit to email hangs ...
 // TODO: Improve status line, refresh it properly
 // TODO: Minor bug - can delete more chars from status line than should be able to
 // TODO: Should be smarter about redrawing when updating selection!!!
@@ -865,7 +864,7 @@ void help(void) {
 void load_email(void) {
   revers(0);
   clrscr();
-  exec("/IP65/EMAIL.SYSTEM", NULL);
+  exec("EMAIL.SYSTEM", NULL); // Assume it is in current directory
 }
 #pragma code-name (pop)
 
