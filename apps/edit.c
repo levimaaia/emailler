@@ -297,20 +297,23 @@ uint8_t next_tabstop(uint8_t col) {
 /*
  * Load a file from disk into the gapbuf
  * filename - name of file to load
+ * replace - if 1, replace old file.
  * Returns 0 on success
  *         1 if file can't be opened
  */
 #pragma code-name (push, "LC")
-uint8_t load_file(char *filename) {
+uint8_t load_file(char *filename, uint8_t replace) {
   char c;
   uint8_t i;
   FILE *fp = fopen(filename, "r");
   if (!fp)
     return 1;
   goto_prompt_row();
-  gapbegin = 0;
-  gapend = BUFSZ - 1;
-  col = 0;
+  if (replace) {
+    gapbegin = 0;
+    gapend = BUFSZ - 1;
+    col = 0;
+  }
   while (!feof(fp)) {
     c = fgetc(fp);
     switch (c) {
@@ -339,6 +342,13 @@ uint8_t load_file(char *filename) {
   }
   --gapbegin; // Eat EOF character
   fclose(fp);
+  if (replace) {
+    jump_pos(0);
+    pos = 0;
+    modified = 0;
+    startsel = endsel = 65535U;
+    mode = SEL_NONE;
+  }
   return 0;
 }
 #pragma code-name (pop)
@@ -871,7 +881,6 @@ void load_email(void) {
 /*
  * Save file to disk, handle user interface
  */
-#pragma code-name (push, "LC")
 void save(void) {
   if (strlen(filename) == 0) {
     if (prompt_for_name("Save file", 1) == 255)
@@ -891,7 +900,6 @@ void save(void) {
     }
   }
 }
-#pragma code-name (pop)
 
 /*
  * Main editor routine
@@ -904,7 +912,7 @@ int edit(char *fname) {
   if (fname) {
     strcpy(filename, fname);
     cprintf("Loading file %s ", filename);
-    if (load_file(filename)) {
+    if (load_file(filename, 1)) {
       sprintf(userentry, "Can't load %s", filename);
       show_error(userentry);
       strcpy(filename, "");
@@ -1075,23 +1083,21 @@ int edit(char *fname) {
       }
       draw_screen();
       break;
+    case 0x80 + 'I': // OA-I "Insert file"
+    case 0x80 + 'i':
+      tmp = 65535U;
     case 0x80 + 'L': // OA-L "Load"
     case 0x80 + 'l':
-      if (prompt_for_name("Load File", 1) == 255)
+      ++tmp;
+      if (prompt_for_name((tmp == 0 ? "Insert file" : "Load file"), 1) == 255)
         break; // ESC pressed
       if (strlen(userentry) == 0)
         break;
       strcpy(filename, userentry);
-      if (load_file(filename)) {
+      if (load_file(filename, (tmp == 0 ? 0 : 1))) {
         sprintf(userentry, "Can't load %s", filename);
         show_error(userentry);
         strcpy(filename, "");
-      } else {
-        jump_pos(0);
-        pos = 0;
-        modified = 0;
-        startsel = endsel = 65535U;
-        mode = SEL_NONE;
       }
       draw_screen();
       break;
