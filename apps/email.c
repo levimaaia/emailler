@@ -6,7 +6,6 @@
 
 // - TODO: Feature to attach files to outgoing messages
 // - TODO: Get rid of all uses of malloc(). Don't need it.
-// - TODO: See TODOs further down for error handling
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,6 +16,8 @@
 #include <string.h>
 #include <ctype.h>
 #include <apple2_filetype.h>
+
+#include <errno.h> // DEBUG
 
 #define EMAIL_C
 #include "email_common.h"
@@ -607,7 +608,7 @@ uint16_t decode_base64(char *p) {
  * Base64 encode table
  */
 static const char b64enc[] =
-  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz01234567890+/";
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 /*
  * Encode Base64 format
@@ -625,6 +626,8 @@ uint16_t encode_base64(char *p, char *q, uint16_t len) {
     q[j++] = b64enc[((p[ii] & 0x03) << 4) | ((p[ii + 1] & 0xf0) >> 4)];
     q[j++] = b64enc[((p[ii + 1] & 0x0f) << 2) | ((p[ii + 2] & 0xc0) >> 6)];
     q[j++] = b64enc[(p[ii + 2] & 0x3f)];
+    if (((i + 1) % 18) == 0)
+      q[j++] = '\r';
   }
   ii += 3;
   i = len - ii; // Bytes remaining to encode
@@ -642,8 +645,7 @@ uint16_t encode_base64(char *p, char *q, uint16_t len) {
     q[j++] = '=';
     break;
   }
-done:
-  q[j++] = '\0';
+  q[j] = '\0';
   return j;
 }
 
@@ -778,51 +780,71 @@ void copyaux(char *src, char *dst, uint16_t len, uint8_t dir) {
     *a2 = src + len - 1; // AUXMOVE moves length+1 bytes!!
     *a4 = dst;
     if (dir == TOAUX) {
+        __asm__("sta $c000"); // Turn off 80STORE
         __asm__("sec");       // Copy main->aux
         __asm__("jsr $c311"); // AUXMOVE
+        __asm__("sta $c001"); // Turn on 80STORE
     } else {
+        __asm__("sta $c000"); // Turn off 80STORE
         __asm__("clc");       // Copy aux->main
         __asm__("jsr $c311"); // AUXMOVE
+        __asm__("sta $c001"); // Turn on 80STORE
     }
 }
 
 /*
  * Save the current screen to the scrollback file
- * TODO: No error handling!!
  */
 void save_screen_to_scrollback(FILE *fp) {
-  fwrite((void*)0x0400, 0x0400, 1, fp); // Even cols
+  if (fwrite((void*)0x0400, 0x0400, 1, fp) != 1) { // Even cols
+    error(ERR_NONFATAL, "Can't write scrollback");
+    return;
+  }
   copyaux((void*)0x400, halfscreen, 0x400, FROMAUX);
-  fwrite(halfscreen, 0x0400, 1, fp); // Odd cols
+  if (fwrite(halfscreen, 0x0400, 1, fp) != 1) { // Odd cols
+    error(ERR_NONFATAL, "Can't write scrollback");
+    return;
+  }
 }
 
 /*
  * Load a screen from the scrollback file
  * Screens are numbered 1, 2, 3 ...
  * Does not trash the screen holes, which must be preserved!
- * TODO: No error handling!!
  */
 void load_screen_from_scrollback(FILE *fp, uint8_t screen) {
-  fseek(fp, (screen - 1) * 0x0800, SEEK_SET);
-  fread(halfscreen, 0x0400, 1, fp); // Even cols
-  memcpy((void*)0x400, halfscreen + 0x000, 0x077);
-  memcpy((void*)0x480, halfscreen + 0x080, 0x077);
-  memcpy((void*)0x500, halfscreen + 0x100, 0x077);
-  memcpy((void*)0x580, halfscreen + 0x180, 0x077);
-  memcpy((void*)0x600, halfscreen + 0x200, 0x077);
-  memcpy((void*)0x680, halfscreen + 0x280, 0x077);
-  memcpy((void*)0x700, halfscreen + 0x300, 0x077);
-  memcpy((void*)0x780, halfscreen + 0x380, 0x077);
-  fread(halfscreen, 0x0400, 1, fp); // Odd cols
-  copyaux(halfscreen + 0x000, (void*)0x400, 0x077, TOAUX);
-  copyaux(halfscreen + 0x080, (void*)0x480, 0x077, TOAUX);
-  copyaux(halfscreen + 0x100, (void*)0x500, 0x077, TOAUX);
-  copyaux(halfscreen + 0x180, (void*)0x580, 0x077, TOAUX);
-  copyaux(halfscreen + 0x200, (void*)0x600, 0x077, TOAUX);
-  copyaux(halfscreen + 0x280, (void*)0x680, 0x077, TOAUX);
-  copyaux(halfscreen + 0x300, (void*)0x700, 0x077, TOAUX);
-  copyaux(halfscreen + 0x380, (void*)0x780, 0x077, TOAUX);
-  fseek(fp, 0, SEEK_END);
+  if (fseek(fp, (screen - 1) * 0x0800, SEEK_SET)) {
+    error(ERR_NONFATAL, "Can't seek scrollback");
+    return;
+  }
+  if (fread(halfscreen, 0x0400, 1, fp) != 1) { // Even cols
+    error(ERR_NONFATAL, "Can't read scrollback");
+    return;
+  }
+  memcpy((void*)0x400, halfscreen + 0x000, 0x078);
+  memcpy((void*)0x480, halfscreen + 0x080, 0x078);
+  memcpy((void*)0x500, halfscreen + 0x100, 0x078);
+  memcpy((void*)0x580, halfscreen + 0x180, 0x078);
+  memcpy((void*)0x600, halfscreen + 0x200, 0x078);
+  memcpy((void*)0x680, halfscreen + 0x280, 0x078);
+  memcpy((void*)0x700, halfscreen + 0x300, 0x078);
+  memcpy((void*)0x780, halfscreen + 0x380, 0x078);
+  if (fread(halfscreen, 0x0400, 1, fp) != 1) { // Odd cols
+    error(ERR_NONFATAL, "Can't read scrollback");
+    return;
+  }
+  copyaux(halfscreen + 0x000, (void*)0x400, 0x078, TOAUX);
+  copyaux(halfscreen + 0x080, (void*)0x480, 0x078, TOAUX);
+  copyaux(halfscreen + 0x100, (void*)0x500, 0x078, TOAUX);
+  copyaux(halfscreen + 0x180, (void*)0x580, 0x078, TOAUX);
+  copyaux(halfscreen + 0x200, (void*)0x600, 0x078, TOAUX);
+  copyaux(halfscreen + 0x280, (void*)0x680, 0x078, TOAUX);
+  copyaux(halfscreen + 0x300, (void*)0x700, 0x078, TOAUX);
+  copyaux(halfscreen + 0x380, (void*)0x780, 0x078, TOAUX);
+  if (fseek(fp, 0, SEEK_END)) {
+    error(ERR_NONFATAL, "Can't seek scrollback");
+    return;
+  }
 }
 
 #define ENC_7BIT 0   // 7bit
@@ -964,7 +986,6 @@ restart:
     }
     if (readp) {
       if ((mime == 0) || ((mime == 4) && !mime_binary)) {
-        //while (word_wrap_line(stdout, &readp) == 1);
         do {
           c = word_wrap_line(stdout, &readp);
           if (*cursorrow == 22)
@@ -1305,7 +1326,8 @@ uint8_t prompt_for_name(char *prompt, uint8_t is_file) {
   i = 0;
   while (1) {
     c = cgetc();
-    if (is_file && !isalnum(c) && (c != RETURN) && (c != BACKSPACE) && (c != DELETE) && (c != '.')) {
+    if (is_file && !isalnum(c) &&
+        (c != RETURN) && (c != BACKSPACE) && (c != DELETE) && (c != '.')) {
       putchar(BELL);
       continue;
     }
@@ -1596,6 +1618,47 @@ err:
 }
 
 /*
+ * Optionally attach files to outgoing email.
+ * Expects the name of the email file in filename[]
+ */
+void attach_files(void) {
+  FILE *fp2;
+  uint16_t i;
+  if (prompt_okay("Attach file(s) - ")) {
+    fp = fopen(filename, "ab");
+    if (!fp) {
+      error(ERR_NONFATAL, "Can't open %s", filename);
+      return;
+    }
+    while (prompt_for_name("File to attach", 1)) {
+      fp2 = fopen(userentry, "rb");
+      if (!fp2) {
+        error(ERR_NONFATAL, "Can't open %s", userentry);
+        continue;
+      }
+      fprintf(fp, "--a2forever\r");
+      fprintf(fp, "Content-Type: application/octet-stream\r");
+      fprintf(fp, "Content-Transfer-Encoding: base64\r");
+// TODO: filename should be just the basename in the following line
+      fprintf(fp, "Content-Disposition: attachment; filename=%s;\r\r", userentry);
+      do {
+        i = fread(buf, 1, 72 * 3 / 4 * 5, fp2); // Multiple of 72*3/4 bytes
+        if (i == 0)
+          break;
+//printf("Read %d bytes\n", i);
+        i = encode_base64(buf, buf + READSZ / 2, i);
+//printf("Encoded to %d bytes\n", i);
+        i = fwrite(buf + READSZ / 2, 1, i, fp);
+//printf("Wrote %d bytes\n", i);
+      } while (!feof(fp2));
+      fclose(fp2);
+    }
+  }
+  fprintf(fp, "\r--a2forever--\r");
+  fclose(fp);
+}
+
+/*
  * Create a blank outgoing message and put it in OUTBOX.
  * OUTBOX is not a 'proper' mailbox (no EMAIL.DB)
  */
@@ -1631,18 +1694,25 @@ void create_blank_outgoing() {
   if (strlen(userentry) > 0)
     fprintf(fp, "cc: %s\r", userentry);
   fprintf(fp, "X-Mailer: %s - Apple II Forever!\r", PROGNAME);
-  fprintf(fp, "MIME-Version: 1.0\r\r");
+  fprintf(fp, "MIME-Version: 1.0\r");
+  fprintf(fp, "Content-Type: multipart/mixed; boundary=a2forever\r\r");
+  fprintf(fp, "This is a multi-part message in MIME format.\r");
+  fprintf(fp, "--a2forever\r");
+  fprintf(fp, "Content-Type: text/plain\r\r");
+  fprintf(fp, "< insert email body here >\r");
   fclose(fp);
 
   // Update dest/NEXT.EMAIL, incrementing count by 1
   if (update_next_email("OUTBOX", num + 1))
     return;
 
-  // Not really an error but useful to have an alert
-  sprintf(filename, "Created file %s/OUTBOX/EMAIL.%u", cfg_emaildir, num);
-  error(ERR_NONFATAL, filename);
+#if 0
+  sprintf(filename, "%s/OUTBOX/EMAIL.%u", cfg_emaildir, num);
+  attach_files();
+#endif
 
-  if (prompt_okay("Open in editor - ")) {
+  sprintf(filename, "Open %s/OUTBOX/EMAIL.%u in editor - ", cfg_emaildir, num);
+  if (prompt_okay(filename)) {
     sprintf(filename, "%s/OUTBOX/EMAIL.%u", cfg_emaildir, num);
     load_editor();
   }
