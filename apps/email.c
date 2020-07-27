@@ -1706,10 +1706,8 @@ void create_blank_outgoing() {
   if (update_next_email("OUTBOX", num + 1))
     return;
 
-#if 0
   sprintf(filename, "%s/OUTBOX/EMAIL.%u", cfg_emaildir, num);
   attach_files();
-#endif
 
   sprintf(filename, "Open %s/OUTBOX/EMAIL.%u in editor - ", cfg_emaildir, num);
   if (prompt_okay(filename)) {

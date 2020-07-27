@@ -103,6 +103,45 @@ void spinner(uint32_t sz, uint8_t final) {
   }
 }
 
+/*
+ * Read a text file a line at a time leaving the line in linebuf[]
+ * Returns number of chars in the line, or -1 if EOF.
+ * Expects Apple ][ style line endings (CR) and does no conversion
+ * fp - file to read from
+ * reset - if 1 then just reset the buffer and return
+ */
+int16_t get_line(FILE *fp, uint8_t reset) {
+  static uint16_t rd = 0; // Read
+  static uint16_t wt = 0; // Write
+  uint8_t found = 0;
+  uint16_t j = 0;
+  uint16_t i;
+  if (reset) {
+    rd = wt = 0;
+    return 0;
+  }
+  while (1) {
+    while (rd < wt) {
+      linebuf[j++] = buf[rd++];
+      if (linebuf[j - 1] == '\r') {
+        found = 1;
+        break;
+      }
+    }
+    linebuf[j] = '\0';
+    if (rd == wt) // Empty buf
+      rd = wt = 0;
+    if (found) {
+      return j;
+    }
+    if (feof(fp)) {
+      return -1;
+    }
+    i = fread(&buf[wt], 1, READSZ - wt, fp);
+    wt += i;
+  }
+}
+
 #define DO_SEND   1  // For do_send param
 #define DONT_SEND 0  // For do_send param
 #define CMD_MODE  0  // For mode param
@@ -124,23 +163,27 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
       //
       // Handle sending of email body
       //
-      uint16_t snd;
       uint16_t pos = 0;
-      uint16_t len;
       uint8_t  cont = 1;
+      uint16_t snd;
+      int16_t len;
 
       filesize = 0;
+      len = get_line(fp, 1); // Reset buffer
 
       while (cont) { 
 
-        len = fread(buf, 1, READSZ, fp);
-        filesize += len;
+        len = get_line(fp, 0);
+        pos = 0;
 
-        if (len == 0) {
-          strcpy(buf, "\r\n.\r\n");
-          pos = 0;
+        if (len == -1) {
+          strcpy(linebuf, "\r\n.\r\n");
           len = 5;
           cont = 0;
+        } else {
+          linebuf[len++] = '\n'; // CR -> CRLF
+          linebuf[len] = '\0';
+          filesize += len;
         }
 
         while (len) {
@@ -165,7 +208,7 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
 
           {
             // One less to allow for faster pre-increment below
-            const char *dataptr = buf + pos - 1;
+            const char *dataptr = linebuf + pos - 1;
             uint16_t i;
             for (i = 0; i < snd; ++i) {
               // The variable is necessary to have cc65 generate code
@@ -309,45 +352,6 @@ void readconfigfile(void) {
     fscanf(fp, "%s", cfg_emaildir);
     fscanf(fp, "%s", cfg_emailaddr);
     fclose(fp);
-}
-
-/*
- * Read a text file a line at a time leaving the line in linebuf[]
- * Returns number of chars in the line, or -1 if EOF.
- * Expects Apple ][ style line endings (CR) and does no conversion
- * fp - file to read from
- * reset - if 1 then just reset the buffer and return
- */
-int16_t get_line(FILE *fp, uint8_t reset) {
-  static uint16_t rd = 0; // Read
-  static uint16_t wt = 0; // Write
-  uint8_t found = 0;
-  uint16_t j = 0;
-  uint16_t i;
-  if (reset) {
-    rd = wt = 0;
-    return 0;
-  }
-  while (1) {
-    while (rd < wt) {
-      linebuf[j++] = buf[rd++];
-      if (linebuf[j - 1] == '\r') {
-        found = 1;
-        break;
-      }
-    }
-    linebuf[j] = '\0';
-    if (rd == wt) // Empty buf
-      rd = wt = 0;
-    if (found) {
-      return j;
-    }
-    if (feof(fp)) {
-      return -1;
-    }
-    i = fread(&buf[wt], 1, READSZ - wt, fp);
-    wt += i;
-  }
 }
 
 /*
