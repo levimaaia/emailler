@@ -456,8 +456,7 @@ void update_inbox(uint16_t nummsgs) {
           copyheader(hdrs.subject, linebuf + 9, 79);
           hdrs.subject[79] = '\0';
         }
-        //if (linebuf[0] == '\r') {
-        if (strlen(linebuf) < 10) {
+        if (linebuf[0] == '\r') {
           headers = 0;
           hdrs.skipbytes = headerchars;
         }

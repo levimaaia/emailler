@@ -45,7 +45,7 @@ TCP =\
 	tweet65 \
 	pop65-slow
 
-bin: wget65.bin pop65.bin smtp65.bin email.bin rebuild.bin edit.bin
+bin: wget65.bin pop65.bin smtp65.bin email.bin rebuild.bin edit.bin attacher.bin
 
 wget65.bin: w5100.c w5100_http.c linenoise.c
 wget65.bin: IP65LIB = ../ip65/ip65.lib
@@ -135,27 +135,29 @@ ip65.d64: prg
 
 ip65.dsk: bin
 	cp ../build/800k.po $@
-	java -jar $(AC) -as $@ date65             < date65.bin
-	java -jar $(AC) -p  $@ date65.system  sys < $(CC65)/apple2enh/util/loader.system
-	java -jar $(AC) -as $@ edit               < edit.bin
-	java -jar $(AC) -p  $@ edit.system    sys < $(CC65)/apple2enh/util/loader.system
-	java -jar $(AC) -as $@ email              < email.bin
-	java -jar $(AC) -p  $@ email.cfg      txt < email.cfg
-	java -jar $(AC) -p  $@ email.system   sys < $(CC65)/apple2enh/util/loader.system
-	java -jar $(AC) -as $@ hfs65              < hfs65.bin
-	java -jar $(AC) -p  $@ hfs65.system   sys < $(CC65)/apple2enh/util/loader.system
-	java -jar $(AC) -as $@ pop65              < pop65.bin
-	java -jar $(AC) -p  $@ pop65.system   sys < $(CC65)/apple2enh/util/loader.system
-	java -jar $(AC) -as $@ rebuild            < rebuild.bin
-	java -jar $(AC) -p  $@ rebuild.system sys < $(CC65)/apple2enh/util/loader.system
-	java -jar $(AC) -as $@ smtp65             < smtp65.bin
-	java -jar $(AC) -p  $@ smtp65.system  sys < $(CC65)/apple2enh/util/loader.system
-	java -jar $(AC) -as $@ telnet65           < telnet65.bin
-	java -jar $(AC) -as $@ tweet65            < tweet65.bin
-	java -jar $(AC) -p  $@ tweet65.system sys < $(CC65)/apple2enh/util/loader.system
-	java -jar $(AC) -p  $@ tzone.txt      txt < tzone.txt
-	java -jar $(AC) -as $@ wget65             < wget65.bin
-	java -jar $(AC) -p  $@ wget65.system  sys < $(CC65)/apple2enh/util/loader.system
+	java -jar $(AC) -as $@ attacher            < attacher.bin
+	java -jar $(AC) -p  $@ attacher.system sys < $(CC65)/apple2enh/util/loader.system
+	java -jar $(AC) -as $@ date65              < date65.bin
+	java -jar $(AC) -p  $@ date65.system   sys < $(CC65)/apple2enh/util/loader.system
+	java -jar $(AC) -as $@ edit                < edit.bin
+	java -jar $(AC) -p  $@ edit.system     sys < $(CC65)/apple2enh/util/loader.system
+	java -jar $(AC) -as $@ email               < email.bin
+	java -jar $(AC) -p  $@ email.cfg       txt < email.cfg
+	java -jar $(AC) -p  $@ email.system    sys < $(CC65)/apple2enh/util/loader.system
+	java -jar $(AC) -as $@ hfs65               < hfs65.bin
+	java -jar $(AC) -p  $@ hfs65.system    sys < $(CC65)/apple2enh/util/loader.system
+	java -jar $(AC) -as $@ pop65               < pop65.bin
+	java -jar $(AC) -p  $@ pop65.system    sys < $(CC65)/apple2enh/util/loader.system
+	java -jar $(AC) -as $@ rebuild             < rebuild.bin
+	java -jar $(AC) -p  $@ rebuild.system  sys < $(CC65)/apple2enh/util/loader.system
+	java -jar $(AC) -as $@ smtp65              < smtp65.bin
+	java -jar $(AC) -p  $@ smtp65.system   sys < $(CC65)/apple2enh/util/loader.system
+	java -jar $(AC) -as $@ telnet65            < telnet65.bin
+	java -jar $(AC) -as $@ tweet65             < tweet65.bin
+	java -jar $(AC) -p  $@ tweet65.system  sys < $(CC65)/apple2enh/util/loader.system
+	java -jar $(AC) -p  $@ tzone.txt       txt < tzone.txt
+	java -jar $(AC) -as $@ wget65              < wget65.bin
+	java -jar $(AC) -p  $@ wget65.system   sys < $(CC65)/apple2enh/util/loader.system
 
 ip65.atr: com
 	mkdir atr

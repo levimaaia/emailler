@@ -10,15 +10,11 @@
 #include <conio.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <unistd.h>
 #include <string.h>
 #include <dirent.h>
 #include <apple2_filetype.h>
-
-typedef unsigned long uint32_t;
-typedef unsigned int  uint16_t;
-typedef unsigned char uint8_t;
-typedef int           int16_t;
 #include "email_common.h"
 
 #define NETBUFSZ  1500+4       // 4 extra bytes for overlap between packets

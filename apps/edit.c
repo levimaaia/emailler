@@ -13,6 +13,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <unistd.h>
 #include <conio.h>
@@ -39,9 +40,6 @@
 #define MOUSETXT   0x1b
 #define CLREOL     0x1d
 #define DELETE     0x7f
-
-typedef unsigned char  uint8_t;
-typedef unsigned short uint16_t;
 
 #define BUFSZ (20 * 1024)
 char     gapbuf[BUFSZ];
@@ -879,6 +877,18 @@ void load_email(void) {
 #pragma code-name (pop)
 
 /*
+ * Load ATTACHER.SYSTEM to $2000 and jump to it
+ * (This code is in language card space so it can't possibly be trashed)
+ */
+#pragma code-name (push, "LC")
+void load_attacher(void) {
+  revers(0);
+  clrscr();
+  exec("ATTACHER.SYSTEM", filename); // Assume it is in current directory
+}
+#pragma code-name (pop)
+
+/*
  * Save file to disk, handle user interface
  */
 void save(void) {
@@ -1123,6 +1133,8 @@ int edit(char *fname) {
       if (modified)
         save();
       if (quit_to_email) {
+        if (prompt_okay("Add attachments - "))
+          load_attacher();
         if (prompt_okay("Quit to EMAIL - "))
           load_email();
       } else {

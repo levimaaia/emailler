@@ -4,7 +4,6 @@
 // Bobbi June, July 2020
 /////////////////////////////////////////////////////////////////
 
-// - TODO: Feature to attach files to outgoing messages
 // - TODO: Get rid of all uses of malloc(). Don't need it.
 
 #include <stdio.h>
@@ -601,51 +600,6 @@ uint16_t decode_base64(char *p) {
       p[j++] = b64dec[p[i + 2] - 43] << 6 | b64dec[p[i + 3] - 43];
     i += 4;
   }
-  return j;
-}
-
-/*
- * Base64 encode table
- */
-static const char b64enc[] =
-  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-/*
- * Encode Base64 format
- * p - Pointer to source buffer
- * q - Pointer to destination buffer
- * len - Length of buffer to encode
- * Returns length of encoded data
- */
-uint16_t encode_base64(char *p, char *q, uint16_t len) {
-  uint16_t j = 0;
-  uint16_t i, ii;
-  for (i = 0; i < len / 3; ++i) {
-    ii = 3 * i;
-    q[j++] = b64enc[(p[ii] & 0xfc) >> 2];
-    q[j++] = b64enc[((p[ii] & 0x03) << 4) | ((p[ii + 1] & 0xf0) >> 4)];
-    q[j++] = b64enc[((p[ii + 1] & 0x0f) << 2) | ((p[ii + 2] & 0xc0) >> 6)];
-    q[j++] = b64enc[(p[ii + 2] & 0x3f)];
-    if (((i + 1) % 18) == 0)
-      q[j++] = '\r';
-  }
-  ii += 3;
-  i = len - ii; // Bytes remaining to encode
-  switch (i) {
-  case 1:
-    q[j++] = b64enc[(p[ii] & 0xfc) >> 2];
-    q[j++] = b64enc[(p[ii] & 0x03) << 4];
-    q[j++] = '=';
-    q[j++] = '=';
-    break;
-  case 2:
-    q[j++] = b64enc[(p[ii] & 0xfc) >> 2];
-    q[j++] = b64enc[((p[ii] & 0x03) << 4) | ((p[ii + 1] & 0xf0) >> 4)];
-    q[j++] = b64enc[(p[ii + 1] & 0x0f) << 2];
-    q[j++] = '=';
-    break;
-  }
-  q[j] = '\0';
   return j;
 }
 
@@ -1386,8 +1340,7 @@ uint8_t write_email_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h,
   prompt_for_name("cc", 0);
   if (strlen(userentry) > 0)
     fprintf(fp2, "cc: %s\r", userentry);
-  fprintf(fp2, "X-Mailer: %s - Apple II Forever!\r", PROGNAME);
-  fprintf(fp2, "MIME-Version: 1.0\r\r");
+  fprintf(fp2, "X-Mailer: %s - Apple II Forever!\r\r", PROGNAME);
   if (mode == 'R') {
     truncate_header(h->date, buf, 40);
     fprintf(fp2, "On %s, ", buf);
@@ -1618,47 +1571,6 @@ err:
 }
 
 /*
- * Optionally attach files to outgoing email.
- * Expects the name of the email file in filename[]
- */
-void attach_files(void) {
-  FILE *fp2;
-  uint16_t i;
-  if (prompt_okay("Attach file(s) - ")) {
-    fp = fopen(filename, "ab");
-    if (!fp) {
-      error(ERR_NONFATAL, "Can't open %s", filename);
-      return;
-    }
-    while (prompt_for_name("File to attach", 1)) {
-      fp2 = fopen(userentry, "rb");
-      if (!fp2) {
-        error(ERR_NONFATAL, "Can't open %s", userentry);
-        continue;
-      }
-      fprintf(fp, "--a2forever\r");
-      fprintf(fp, "Content-Type: application/octet-stream\r");
-      fprintf(fp, "Content-Transfer-Encoding: base64\r");
-// TODO: filename should be just the basename in the following line
-      fprintf(fp, "Content-Disposition: attachment; filename=%s;\r\r", userentry);
-      do {
-        i = fread(buf, 1, 72 * 3 / 4 * 5, fp2); // Multiple of 72*3/4 bytes
-        if (i == 0)
-          break;
-//printf("Read %d bytes\n", i);
-        i = encode_base64(buf, buf + READSZ / 2, i);
-//printf("Encoded to %d bytes\n", i);
-        i = fwrite(buf + READSZ / 2, 1, i, fp);
-//printf("Wrote %d bytes\n", i);
-      } while (!feof(fp2));
-      fclose(fp2);
-    }
-  }
-  fprintf(fp, "\r--a2forever--\r");
-  fclose(fp);
-}
-
-/*
  * Create a blank outgoing message and put it in OUTBOX.
  * OUTBOX is not a 'proper' mailbox (no EMAIL.DB)
  */
@@ -1693,21 +1605,12 @@ void create_blank_outgoing() {
   prompt_for_name("cc", 0);
   if (strlen(userentry) > 0)
     fprintf(fp, "cc: %s\r", userentry);
-  fprintf(fp, "X-Mailer: %s - Apple II Forever!\r", PROGNAME);
-  fprintf(fp, "MIME-Version: 1.0\r");
-  fprintf(fp, "Content-Type: multipart/mixed; boundary=a2forever\r\r");
-  fprintf(fp, "This is a multi-part message in MIME format.\r");
-  fprintf(fp, "--a2forever\r");
-  fprintf(fp, "Content-Type: text/plain\r\r");
-  fprintf(fp, "< insert email body here >\r");
+  fprintf(fp, "X-Mailer: %s - Apple II Forever!\r\r", PROGNAME);
   fclose(fp);
 
   // Update dest/NEXT.EMAIL, incrementing count by 1
   if (update_next_email("OUTBOX", num + 1))
     return;
-
-  sprintf(filename, "%s/OUTBOX/EMAIL.%u", cfg_emaildir, num);
-  attach_files();
 
   sprintf(filename, "Open %s/OUTBOX/EMAIL.%u in editor - ", cfg_emaildir, num);
   if (prompt_okay(filename)) {
