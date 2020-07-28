@@ -48,11 +48,13 @@ void error(uint8_t fatal, const char *fmt, ...) {
     cgetc();
     exit(1);
   } else {
+    putchar('\r');
     va_start(v, fmt);
     vprintf(fmt, v);
     va_end(v);
     printf(" - [Press Any Key]");
     cgetc();
+    putchar('\r');
   }
 }
 
@@ -232,6 +234,7 @@ done:
 void attach(char *fname) {
   FILE *fp, *fp2, *destfp;
   uint16_t chars, i, size;
+  char *s;
   videomode(VIDEOMODE_80COL);
   printf("%c%s ATTACHER%c\n\n", 0x0f, PROGNAME, 0x0e);
   fp = fopen(fname, "rb+");
@@ -268,6 +271,15 @@ void attach(char *fname) {
   printf("\rEnter the filename or filenames to attach to the email.\n");
   printf("An empty entry means you are done attaching files.\n\n");
   while (prompt_for_name("File to attach", 1)) {
+    s = strrchr(userentry, '/');
+    if (!s)
+      s = userentry;
+    else
+      s = s + 1; // Character after the slash
+    if (strlen(s) == 0) {
+      error(ERR_NONFATAL, "Illegal trailing /");
+      continue;
+    }
     fp2 = fopen(userentry, "rb");
     if (!fp2) {
       error(ERR_NONFATAL, "Can't open %s", userentry);
@@ -276,8 +288,7 @@ void attach(char *fname) {
     fprintf(destfp, "\r--a2forever\r");
     fprintf(destfp, "Content-Type: application/octet-stream\r");
     fprintf(destfp, "Content-Transfer-Encoding: base64\r");
-// TODO: filename should be just the basename in the following line
-    fprintf(destfp, "Content-Disposition: attachment; filename=%s;\r\r", userentry);
+    fprintf(destfp, "Content-Disposition: attachment; filename=%s;\r\r", s);
     printf("\r "); // Space is for spinner to eat
     size = 0;
     do {
