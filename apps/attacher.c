@@ -233,7 +233,8 @@ done:
  */
 void attach(char *fname) {
   FILE *fp, *fp2, *destfp;
-  uint16_t chars, i, size;
+  uint16_t chars, i;
+  uint32_t size;
   char *s;
   videomode(VIDEOMODE_80COL);
   printf("%c%s ATTACHER%c\n\n", 0x0f, PROGNAME, 0x0e);
