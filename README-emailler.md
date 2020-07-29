@@ -212,7 +212,7 @@ Long lines are word-wrapped at 80 columns in all three views.
 
 EMAIL is able to decode messages encoded with the Multipurpose Internet Mail Extensions (MIME).  This allows email bodies which are encoded as anything other than plain text email to be extracted and formatted for the screen, and also provides support for extracting and saving to disk email attachments.
 
-Support for *composing* message with attachments is planned for a later release.
+EMAIL can also compose MIME messages with attached files, using `ATTACHER.SYSTEM` as a helper application.
 
 #### Encodings
 
@@ -284,10 +284,10 @@ Sending of an email message is a three step process:
 
  - Use the `W)rite`, `R)eply` or `F)wd` functions in EMAIL to create an email template file and store it in `OUTBOX`.
  - The system will display the full pathname of the template file created. And prompt `Open in editor - sure? (y/n)`
-   - If you respond in the affirmative:
-   - `EMAIL.SYSTEM` will load `EDIT.SYSTEM`, the integrated editor, passing the filename of the template file as a parameter, so the file is automatically opened for editing.
-   - You may edit the file in `EDIT.SYSTEM` using the editing keys listed below.  Press `Open Apple`-`S` to save the file to disk and `Open Apple`-`Q` to return to `EMAIL.SYSTEM`.
-   - If you are ready to send the email, press `Open Apple`-`S` at the `EMAIL.SYSTEM` main menu to send the messages in `OUTBOX` to your mail server and copy them to the `SENT` mailbox.
+ - If you enter 'y', `EMAIL.SYSTEM` will load `EDIT.SYSTEM`, the integrated editor, passing the filename of the template file as a parameter, so the file is automatically opened for editing.
+ - You may edit the file in `EDIT.SYSTEM` using the editing keys shown below.  The editor's keys are based upon Apple's Appleworks word processor, so if you are familiar with that package you should feel at home.  Press `Open Apple`-`S` to save the file to disk and `Open Apple`-`Q` to return to `EMAIL.SYSTEM`.
+ - Upon exit, `EDIT.SYSTEM` will prompt `Add attachments - Sure? (y/n)`.  If you enter 'n' then `EDIT.SYSTEM` will simply reload `EMAIL.SYSTEM`.  If you enter 'y', then `EDIT.SYSTEM` will instead load `ATTACHER.SYSTEM`, which allows you to add one or more file attachments to the email message.  Once the attachments have been added, `ATTACHER.SYSTEM` will reload `EMAIL.SYSTEM`.  `ATTACHER.SYSTEM` is discussed in more detail below.
+ - Once you are back in the `EMAIL.SYSTEM` UI, you can choose to send the messages in `OUTBOX` to your mail server at any time.  To do this, press `Open Apple`-`S` at the `EMAIL.SYSTEM` main menu.  This will start `SMTP65.SYSTEM`, which sends each message to the SMTP server and moves it to the `SENT` mailbox.
  - If you answer `n` to the `Open in editor - sure? (y/n)` prompt:
    - The template file will simply be placed in the `OUTBOX` where you can use your favourite text editor to add the email body.  You may also modify the `To:`, `cc:`, `Subject:` or `Date:` headers.
    - Once you are satisfied with your edits and have saved the file, run `SMTP65.SYSTEM` to send the file to your mail server and copy it to the `SENT` mailbox.
@@ -300,9 +300,25 @@ There are three ways to write an email:
 
 However you create your template email, take note of the filename which is displayed in the status line.  The file will be created in the `OUTBOX` directory (`/H1/DOCUMENTS/EMAIL/OUTBOX` with our example settings.)
 
+## `EDIT.SYSTEM`
+
+EDIT is simple full-screen editor.
+
+<p align="center"><img src="img/edit-help.png" alt="Editor help page" height="400px"></p>
+
 ## `ATTACHER.SYSTEM`
 
-TODO: Document this
+`ATTACHER.SYSTEM` is used for attaching files to outgoing email messages.  This program is started automatically by `EDIT.SYSTEM` and is not normally invoked directly.
+
+When `EDIT.SYSTEM` invokes `ATTACHER.SYSTEM`, the following operations occur:
+
+ - The outgoing email message is loaded from `OUTBOX` and copied to a temporary file.  While copying, additional email headers are appended to indicate that this is a MIME multi-part message.
+ - A `plain/text` MIME section header is added to the email body (which becomes the first section in the multi-part MIME document.)
+ - `ATTACHER.SYSTEM` prompts the user to enter the filename of a file to be attached.  This may be an unqualified filename (which will look in the directory the emai//er software is installed in), or a fully-qualified ProDOS pathname, such as `/H1/PATH/TO/MY/FILE.BIN`.
+ - For each filename, the file is loaded from disk and encoded using Base64.  A MIME section is created in the outgoing email and the Base64-encoded file data is appended.
+ - After all the desired files have been added, enter an empty line to finish adding files.
+ - `ATTACHER.SYSTEM` will terminate the MIME document, erase the original email file from `OUTBOX` and rename the temporary file to replace the original.
+ - `ATTACHER.SYSTEM` will reload `EMAIL.SYSTEM` once it is done.
 
 ## `SMTP65.SYSTEM`
 
@@ -336,10 +352,4 @@ REBUILD is a utility for converting a folder of email messages (text files named
 REBUILD simply prompts for the path of the directory to process.
 
 If you use this tool for bulk import, be sure that all the `EMAIL.nnn` files are in Apple II text format with carriage return line endings (not MS-DOS or UNIX style.)
-
-## `EDIT.SYSTEM`
-
-EDIT is simple full-screen editor.
-
-<p align="center"><img src="img/edit-help.png" alt="Editor help page" height="400px"></p>
 
