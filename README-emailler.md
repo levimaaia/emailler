@@ -2,11 +2,12 @@
 
 <p align="center"><img src="img/emailler-logo.png" alt="emai//er-logo" height="200px"></p>
 
-The AppleII Email Suite consists of the following five ProDOS programs:
+The AppleII Email Suite consists of the following six ProDOS programs:
 
  - `POP65.SYSTEM` is a Post Office Protocol version 3 (POP3) client for the Apple II with Uthernet-II card.
  - `EMAIL.SYSTEM` is a simple user interface for reading and managing email.  It works together with `POP65` and `SMTP65`.
- - `EDIT.SYSTEM` is a simple screen editor, integrated with `EMAIL.SYSTEM`.  This is currently under development (and hence may be a little rough - you have been warned ;) )
+ - `EDIT.SYSTEM` is a simple screen editor, integrated with `EMAIL.SYSTEM`.
+ - `ATTACHER.SYSTEM` is used for creating multi-part MIME messages with attached files.
  - `SMTP65.SYSTEM` is a Simple Mail Transport Protocol (SMTP) client for the Apple II with Uthernet-II card.
  - `REBUILD.SYSTEM` is a utility for rebuilding mailbox databases, should they become corrupted.  This can also be used for bulk import of messages.
 
@@ -298,6 +299,10 @@ There are three ways to write an email:
  - `F)wd` forwards the selected email.  You will be prompted for the recipient and cc (you can leave the cc blank, if desired.)
 
 However you create your template email, take note of the filename which is displayed in the status line.  The file will be created in the `OUTBOX` directory (`/H1/DOCUMENTS/EMAIL/OUTBOX` with our example settings.)
+
+## `ATTACHER.SYSTEM`
+
+TODO: Document this
 
 ## `SMTP65.SYSTEM`
 
