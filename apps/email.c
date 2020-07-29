@@ -864,8 +864,10 @@ restart:
       readp = linebuf;
     if (!writep)
       writep = linebuf;
-    if (get_line(fp, 0, writep, &pos) == -1)
+    if (get_line(fp, 0, writep, &pos) == -1) {
       eof = 1;
+      goto endscreen;
+    }
     ++linecount;
     if ((mime >= 1) && (!strncmp(writep, "--", 2))) {
       if (attachfp)
@@ -972,8 +974,9 @@ restart:
         readp = writep = NULL;
       }
     }
+endscreen:
     if ((*cursorrow == 22) || eof) {
-      printf("\n%c[%05lu] %s | B)ack | T)op | H)drs | M)IME | Q)uit%c",
+      printf("\n%c[%07lu] %s         | B)ack | T)op | H)drs | M)IME | Q)uit%c",
              INVERSE,
              pos,
              (eof ? "       ** END **      " : "SPACE continue reading"),
