@@ -503,33 +503,26 @@ void update_highlighted(void) {
  */
 int16_t get_line(FILE *fp, uint8_t reset, char *writep, uint32_t *pos) {
   static uint16_t rd = 0; // Read
-  static uint16_t wt = 0; // Write
-  uint8_t found = 0;
-  uint16_t j = 0;
-  uint16_t i;
+  static uint16_t end = 0; // End of valid data in buf
+  uint16_t i = 0;
   if (reset) {
-    rd = wt = 0;
+    rd = end = 0;
     *pos = 0;
     return 0;
   }
   while (1) {
-    while (rd < wt) {
-      writep[j++] = buf[rd++];
-      ++(*pos);
-      if (writep[j - 1] == '\r') {
-        found = 1;
-        break;
-      }
+    if (rd == end) {
+      end = fread(buf, 1, READSZ, fp);
+      rd = 0;
     }
-    writep[j] = '\0';
-    if (rd == wt) // Empty buf[]
-      rd = wt = 0;
-    if (found)
-      return j;
-    if (feof(fp))
-      return -1;
-    i = fread(&buf[wt], 1, READSZ - wt, fp);
-    wt += i;
+    if (end == 0)
+      return -1; // EOF
+    writep[i++] = buf[rd++];
+    ++(*pos);
+    if (writep[i - 1] == '\r') {
+      writep[i] = '\0';
+      return i;
+    }
   }
 }
 
@@ -936,7 +929,7 @@ restart:
        case ENC_B64:
         //chars = decode_base64(writep);
         {
-        uint16_t i = 0, j = 0;
+        uint8_t i = 0, j = 0;
         while (writep[i] != '\r') {
           writep[j++] = b[writep[i]] << 2 | b[writep[i + 1]] >> 4;
           if (writep[i + 2] != '=')

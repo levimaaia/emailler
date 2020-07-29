@@ -99,41 +99,28 @@ void readconfigfile(void) {
 }
 
 /*
- * Read a text file a line at a time leaving the line in linebuf[]
+ * Read a text file a line at a time
  * Returns number of chars in the line, or -1 if EOF.
  * Expects Apple ][ style line endings (CR) and does no conversion
  * fp - file to read from
- * reset - if 1 then just reset the buffer and return
+ * writep - Pointer to buffer into which line will be written
  */
-int16_t get_line(FILE *fp, uint8_t reset) {
+int16_t get_line(FILE *fp, char *writep) {
   static uint16_t rd = 0; // Read
-  static uint16_t wt = 0; // Write
-  uint8_t found = 0;
-  uint16_t j = 0;
-  uint16_t i;
-  if (reset) {
-    rd = wt = 0;
-    return 0;
-  }
+  static uint16_t end = 0; // End of valid data in buf
+  uint16_t i = 0;
   while (1) {
-    while (rd < wt) {
-      linebuf[j++] = buf[rd++];
-      if (linebuf[j - 1] == '\r') {
-        found = 1;
-        break;
-      }
+    if (rd == end) {
+      end = fread(buf, 1, READSZ, fp);
+      rd = 0;
     }
-    linebuf[j] = '\0';
-    if (rd == wt) // Empty buf
-      rd = wt = 0;
-    if (found) {
-      return j;
+    if (end == 0)
+      return -1; // EOF
+    writep[i++] = buf[rd++];
+    if (writep[i - 1] == '\r') {
+      writep[i] = '\0';
+      return i;
     }
-    if (feof(fp)) {
-      return -1;
-    }
-    i = fread(&buf[wt], 1, READSZ - wt, fp);
-    wt += i;
   }
 }
 
@@ -246,10 +233,9 @@ void attach(char *fname) {
   if (!destfp)
     error(ERR_FATAL, "Can't open TMPFILE");
 
-  get_line(fp, 1); // Reset buffer
   printf("Copying email content ...  "); // Space is for spinner to eat
   size = 0;
-  while ((chars = get_line(fp, 0)) != -1) {
+  while ((chars = get_line(fp, linebuf)) != -1) {
     size += chars;
     if (linebuf[0] == '\r')
       break;
@@ -262,7 +248,7 @@ void attach(char *fname) {
   fprintf(destfp, "--a2forever\r");
   fprintf(destfp, "Content-Type: text/plain; charset=US-ASCII\r");
   fprintf(destfp, "Content-Transfer-Encoding: 7bit\r\r");
-  while ((chars = get_line(fp, 0)) != -1) {
+  while ((chars = get_line(fp, linebuf)) != -1) {
     size += chars;
     fputs(linebuf, destfp);
     spinner(size, 0);

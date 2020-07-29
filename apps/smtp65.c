@@ -104,41 +104,33 @@ void spinner(uint32_t sz, uint8_t final) {
 }
 
 /*
- * Read a text file a line at a time leaving the line in linebuf[]
+ * Read a text file a line at a time
  * Returns number of chars in the line, or -1 if EOF.
  * Expects Apple ][ style line endings (CR) and does no conversion
  * fp - file to read from
  * reset - if 1 then just reset the buffer and return
+ * writep - Pointer to buffer into which line will be written
  */
-int16_t get_line(FILE *fp, uint8_t reset) {
+int16_t get_line(FILE *fp, uint8_t reset, char *writep) {
   static uint16_t rd = 0; // Read
-  static uint16_t wt = 0; // Write
-  uint8_t found = 0;
-  uint16_t j = 0;
-  uint16_t i;
+  static uint16_t end = 0; // End of valid data in buf
+  uint16_t i = 0;
   if (reset) {
-    rd = wt = 0;
+    rd = end = 0;
     return 0;
   }
   while (1) {
-    while (rd < wt) {
-      linebuf[j++] = buf[rd++];
-      if (linebuf[j - 1] == '\r') {
-        found = 1;
-        break;
-      }
+    if (rd == end) {
+      end = fread(buf, 1, READSZ, fp);
+      rd = 0;
     }
-    linebuf[j] = '\0';
-    if (rd == wt) // Empty buf
-      rd = wt = 0;
-    if (found) {
-      return j;
+    if (end == 0)
+      return -1; // EOF
+    writep[i++] = buf[rd++];
+    if (writep[i - 1] == '\r') {
+      writep[i] = '\0';
+      return i;
     }
-    if (feof(fp)) {
-      return -1;
-    }
-    i = fread(&buf[wt], 1, READSZ - wt, fp);
-    wt += i;
   }
 }
 
@@ -169,11 +161,11 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
       int16_t len;
 
       filesize = 0;
-      len = get_line(fp, 1); // Reset buffer
+      len = get_line(fp, 1, linebuf); // Reset buffer
 
       while (cont) { 
 
-        len = get_line(fp, 0);
+        len = get_line(fp, 0, linebuf);
         pos = 0;
 
         if (len == -1) {
@@ -444,8 +436,8 @@ void update_sent_mbox(char *name) {
   hdrs.skipbytes = 0; // Just in case it doesn't get set
   hdrs.status = 'N';
   hdrs.tag = ' ';
-  get_line(fp, 1); // Reset buffer
-  while ((chars = get_line(fp, 0)) != -1) {
+  get_line(fp, 1, linebuf); // Reset buffer
+  while ((chars = get_line(fp, 0, linebuf)) != -1) {
     if (headers) {
       headerchars += chars;
       if (!strncmp(linebuf, "Date: ", 6)) {
@@ -577,7 +569,7 @@ void main(int argc, char *argv[]) {
     strcpy(recipients, "");
 
     while (1) {
-      if ((get_line(fp, 0) == -1) || (linecount == 20)) {
+      if ((get_line(fp, 0, linebuf) == -1) || (linecount == 20)) {
         if (strlen(recipients) == 0) {
           printf("No recipients (To or Cc) in %s. Skipping msg.\n", d->d_name);
           goto skiptonext;

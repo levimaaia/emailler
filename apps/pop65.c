@@ -310,36 +310,29 @@ void readconfigfile(void) {
 }
 
 /*
- * Read a text file a line at a time leaving the line in linebuf[]
+ * Read a text file a line at a time
  * Returns number of chars in the line, or -1 if EOF.
- * Converts line endings from CRLF -> CR (Apple ][ style)
+ * Expects CRLF line endings (CRLF) and converts to Apple II (CR) convention
+ * fp - file to read from
+ * writep - Pointer to buffer into which line will be written
  */
-int16_t get_line(FILE *fp) {
+int16_t get_line(FILE *fp, char *writep) {
   static uint16_t rd = 0; // Read
-  static uint16_t wt = 0; // Write
-  uint8_t found = 0;
-  uint16_t j = 0;
-  uint16_t i;
+  static uint16_t end = 0; // End of valid data in buf
+  uint16_t i = 0;
   while (1) {
-    while (rd < wt) {
-      linebuf[j++] = buf[rd++];
-      // The following line is safe because of linebuf_pad[]
-      if ((linebuf[j - 1] == '\n') && (linebuf[j - 2] == '\r')) {
-        found = 1;
-        break;
-      }
+    if (rd == end) {
+      end = fread(buf, 1, READSZ, fp);
+      rd = 0;
     }
-    linebuf[j] = '\0';
-    if (rd == wt) // Empty buf[]
-      rd = wt = 0;
-    if (found) {
-      linebuf[j - 1] = '\0'; // Remove LF from end
-      return j - 1;
+    if (end == 0)
+      return -1; // EOF
+    writep[i++] = buf[rd++];
+    // The following line is safe because of linebuf_pad[]
+    if ((writep[i - 1] == '\n') && (writep[i - 2] == '\r')) {
+      writep[i - 1] = '\0'; // Remove LF
+      return i - 1;
     }
-    if (feof(fp))
-      return -1;
-    i = fread(&buf[wt], 1, READSZ - wt, fp);
-    wt += i;
   }
 }
 
@@ -433,7 +426,7 @@ void update_inbox(uint16_t nummsgs) {
     hdrs.skipbytes = 0; // Just in case it doesn't get set
     hdrs.status = 'N';
     hdrs.tag = ' ';
-    while ((chars = get_line(fp)) != -1) {
+    while ((chars = get_line(fp, linebuf)) != -1) {
       if (headers) {
         headerchars += chars;
         if (!strncmp(linebuf, "Date: ", 6)) {
