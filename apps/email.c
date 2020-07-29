@@ -592,12 +592,13 @@ static const int8_t b64dec[] =
  */
 uint16_t decode_base64(char *p) {
   uint16_t i = 0, j = 0;
+  const int8_t *b = b64dec - 43;
   while (p[i] != '\r') {
-    p[j++] = b64dec[p[i] - 43] << 2 | b64dec[p[i + 1] - 43] >> 4;
+    p[j++] = b[p[i]] << 2 | b[p[i + 1]] >> 4;
     if (p[i + 2] != '=')
-      p[j++] = b64dec[p[i + 1] - 43] << 4 | b64dec[p[i + 2] - 43] >> 2;
+      p[j++] = b[p[i + 1]] << 4 | b[p[i + 2]] >> 2;
     if (linebuf[i + 3] != '=')
-      p[j++] = b64dec[p[i + 2] - 43] << 6 | b64dec[p[i + 3] - 43];
+      p[j++] = b[p[i + 2]] << 6 | b[p[i + 3]];
     i += 4;
   }
   return j;
