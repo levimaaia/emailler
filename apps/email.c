@@ -584,12 +584,14 @@ static const int8_t b64dec[] =
    32,33,34,35,36,37,38,39,40,41,
    42,43,44,45,46,47,48,49,50,51};
 
+
 /*
  * Decode Base64 format in place
  * Each line of base64 has up to 76 chars, which decodes to up to 57 bytes
  * p - Pointer to buffer to decode. Results written in place.
  * Returns number of bytes decoded
  */
+#if 0
 uint16_t decode_base64(char *p) {
   uint16_t i = 0, j = 0;
   const int8_t *b = b64dec - 43;
@@ -603,6 +605,7 @@ uint16_t decode_base64(char *p) {
   }
   return j;
 }
+#endif
 
 /*
  * Print line up to first '\r' or '\0'
@@ -815,6 +818,7 @@ void email_pager(struct emailhdrs *h) {
   uint32_t pos = 0;
   uint8_t *cursorrow = (uint8_t*)CURSORROW, mime = 0;
   FILE *sbackfp = NULL;
+  const int8_t *b = b64dec - 43;
   FILE *attachfp;
   uint16_t linecount, chars;
   uint8_t  mime_enc, mime_binary, eof, screennum, maxscreennum;
@@ -930,7 +934,19 @@ restart:
         chars = decode_quoted_printable(writep);
         break;
        case ENC_B64:
-        chars = decode_base64(writep);
+        //chars = decode_base64(writep);
+        {
+        uint16_t i = 0, j = 0;
+        while (writep[i] != '\r') {
+          writep[j++] = b[writep[i]] << 2 | b[writep[i + 1]] >> 4;
+          if (writep[i + 2] != '=')
+            writep[j++] = b[writep[i + 1]] << 4 | b[writep[i + 2]] >> 2;
+          if (linebuf[i + 3] != '=')
+            writep[j++] = b[writep[i + 2]] << 6 | b[writep[i + 3]];
+          i += 4;
+        }
+        chars = j;
+        }
         break;
        case ENC_SKIP:
         readp = writep = NULL;
