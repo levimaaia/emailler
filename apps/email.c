@@ -301,7 +301,6 @@ uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox)
       return 1;
   }
   if (reverse) {
-    // TODO Streamline this once it works
     if (fseek(fp, 0, SEEK_END)) {
       fclose(fp);
       error(switchmbox ? ERR_NONFATAL : ERR_FATAL, "Can't seek in %s", filename);
@@ -361,7 +360,6 @@ uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox)
         free(curr);
     }
     if (reverse) {
-      // TODO Streamline this once it works
       pos = ftell(fp) - 2 * EMAILHDRS_SZ_ON_DISK;
       if (pos == -1 * EMAILHDRS_SZ_ON_DISK) {
         fclose(fp);
