@@ -567,7 +567,7 @@ uint16_t decode_quoted_printable(char *p) {
 /*
  * Base64 decode table
  */
-static const int8_t b64dec[] =
+const int8_t b64dec[] =
   {62,-1,-1,-1,63,52,53,54,55,56,
    57,58,59,60,61,-1,-1,-1,-2,-1,
    -1,-1, 0, 1, 2, 3, 4, 5, 6, 7,
@@ -619,11 +619,13 @@ void putline(FILE *fp, char *s) {
  * s - Pointer to pointer to input buffer. If all text is consumed, this is
  *     set to NULL.  If there is text left in the buffer to be consumed then
  *     the pointer will be advanced to point to the next text to process.
+ * cols - Number of columns to break at
+ * mode - 'R' for reply, 'F' for forward, otherwise ' '
  * Returns 1 if the caller should invoke the routine again before obtaining
  * more input, or 0 if there is nothing more to do or caller needs to get more
  * input before next call.
  */
-uint8_t word_wrap_line(FILE *fp, char **s) {
+uint8_t word_wrap_line(FILE *fp, char **s, uint8_t cols, char mode) {
   static uint8_t col = 0;           // Keeps track of screen column
   char *ss = *s;
   char *ret = strchr(ss, '\r');
@@ -638,33 +640,43 @@ uint8_t word_wrap_line(FILE *fp, char **s) {
     l = ret - ss;
   }
   if (ret) {
-    if ((col + l) <= 80) {         // Fits on this line
+    if ((col + l) <= cols) {         // Fits on this line
       col += l;
       putline(fp, ss);
       if (ret) {
         col = 0;
-        if (col + l != 80)
+        if (col + l != cols) {
           fputc('\r', fp);
+          if (mode == 'R') {
+            fputc('>', fp);
+            ++col;
+          }
+        }
       }
       *s = nextline;
       return (*s ? 1 : 0);         // Caller should invoke again
     }
-    i = 80 - col;                  // Doesn't fit, need to break
+    i = cols - col;                  // Doesn't fit, need to break
     if (i > l)
       i = l;
     while ((ss[--i] != ' ') && (i > 0));
     if (i == 0) {                  // No space character found
       if (col == 0)                // Doesn't fit on full line
-        for (i = 0; i < 80; ++i) { // Truncate @80 chars
+        for (i = 0; i < cols; ++i) { // Truncate @cols chars
           fputc(ss[i], fp);
           *s = ss + l + 1;
-      } else                       // There is stuff on this line already
+      } else {                     // There is stuff on this line already
+        col = 0;
         fputc('\r', fp);           // Try a blank line
-      col = 0;
+        if (mode == 'R') {
+          fputc('>', fp);
+          ++col;
+        }
+      }
       return (ret ? (*s ? 0 : 1) : 0); // If EOL, caller should invoke again
     }
   } else {                         // No ret
-    i = 80 - col;                  // Space left on line
+    i = cols - col;                  // Space left on line
     if (i > l)
       return 0;                    // Need more input to proceed
     while ((ss[--i] != ' ') && (i > 0));
@@ -675,6 +687,10 @@ uint8_t word_wrap_line(FILE *fp, char **s) {
   putline(fp, ss);
   fputc('\r', fp);
   col = 0;
+  if (mode == 'R') {
+    fputc('>', fp);
+    ++col;
+  }
   *s = ss + i + 1;
   return (*s ? 1 : 0);             // Caller should invoke again
 }
@@ -953,7 +969,7 @@ restart:
     if (readp) {
       if ((mime == 0) || ((mime == 4) && !mime_binary)) {
         do {
-          c = word_wrap_line(stdout, &readp);
+          c = word_wrap_line(stdout, &readp, 80, 0);
           if (*cursorrow == 22)
             break; 
         } while (c == 1);
@@ -1396,6 +1412,141 @@ char prompt_okay(char *msg) {
 }
 
 /*
+ * Obtain the body of an email to include in a reply or forwarded message
+ * For a plain text email, the body is everything after the headers
+ * For a MIME multipart email, we take the first Text/Plain section
+ * Email file to read is expected to be already open using fp
+ * f - File handle for destination file (also already open)
+ * mode - 'R' if reply, 'F' if forward
+ */
+void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
+  uint32_t pos = 0;
+  uint8_t mime = 0;
+  const int8_t *b = b64dec - 43;
+  uint16_t chars;
+  uint8_t  mime_enc, mime_binary;
+  char c, *readp, *writep;
+  mime = 0;
+  pos = 0;
+  fseek(fp, pos, SEEK_SET);
+  get_line(fp, 1, linebuf, &pos); // Reset buffer
+  do {
+    spinner();
+    get_line(fp, 0, linebuf, &pos);
+    if (!strncasecmp(linebuf, "MIME-Version: 1.0", 17))
+      mime = 1;
+    if (!strncasecmp(linebuf, "Content-Transfer-Encoding: ", 27)) {
+      mime = 4;
+      if (!strncmp(linebuf + 27, "7bit", 4))
+        mime_enc = ENC_7BIT;
+      else if (!strncmp(linebuf + 27, "quoted-printable", 16))
+        mime_enc = ENC_QP;
+      else if (!strncmp(linebuf + 27, "base64", 6))
+        mime_enc = ENC_B64;
+      else {
+        error(ERR_NONFATAL, "Unsupp encoding %s\n", linebuf + 27);
+        return;
+      }
+      break;
+    }
+  } while (linebuf[0] != '\r');
+  pos = h->skipbytes;
+  fseek(fp, pos, SEEK_SET);
+  readp = linebuf;
+  writep = linebuf;
+  get_line(fp, 1, linebuf, &pos); // Reset buffer
+  while (1) {
+    if (!readp)
+      readp = linebuf;
+    if (!writep)
+      writep = linebuf;
+    if (get_line(fp, 0, writep, &pos) == -1)
+      break;
+    if ((mime >= 1) && (!strncmp(writep, "--", 2))) {
+      if ((mime == 4) && !mime_binary) // End of Text/Plain MIME section
+        break;
+      mime = 2;
+      mime_enc = ENC_7BIT;
+      mime_binary = 0;
+      readp = writep = NULL;
+    } else if ((mime < 4) && (mime >= 2)) {
+      if (!strncasecmp(writep, "Content-Type: ", 14)) {
+        if (!strncmp(writep + 14, "text/plain", 10)) {
+          mime = 3;
+        } else if (!strncmp(writep + 14, "text/html", 9)) {
+          printf("\n<Not showing HTML>\n");
+          mime = 1;
+        } else {
+          mime_binary = 1;
+          mime = 3;
+        }
+      } else if (!strncasecmp(writep, "Content-Transfer-Encoding: ", 27)) {
+        mime = 3;
+        if (!strncmp(writep + 27, "7bit", 4))
+          mime_enc = ENC_7BIT;
+        else if (!strncmp(writep + 27, "quoted-printable", 16))
+          mime_enc = ENC_QP;
+        else if (!strncmp(writep + 27, "base64", 6))
+          mime_enc = ENC_B64;
+        else {
+          printf("** Unsupp encoding %s\n", writep + 27);
+          mime = 1;
+        }
+      } else if ((mime == 3) && (!strncmp(writep, "\r", 1))) {
+        mime = 4;
+        if (mime_binary)
+          mime_enc = ENC_SKIP; // Skip over binary MIME parts
+      }
+      readp = writep = NULL;
+    } else if (mime == 4) {
+      switch (mime_enc) {
+      case ENC_QP:
+        chars = decode_quoted_printable(writep);
+        break;
+       case ENC_B64:
+        //chars = decode_base64(writep);
+        {
+        uint8_t i = 0, j = 0;
+        while (writep[i] != '\r') {
+          writep[j++] = b[writep[i]] << 2 | b[writep[i + 1]] >> 4;
+          if (writep[i + 2] != '=')
+            writep[j++] = b[writep[i + 1]] << 4 | b[writep[i + 2]] >> 2;
+          if (linebuf[i + 3] != '=')
+            writep[j++] = b[writep[i + 2]] << 6 | b[writep[i + 3]];
+          i += 4;
+        }
+        chars = j;
+        }
+        break;
+       case ENC_SKIP:
+        readp = writep = NULL;
+        break;
+      }
+    }
+    if (readp) {
+      if ((mime == 0) || ((mime == 4) && !mime_binary)) {
+        do {
+          c = word_wrap_line(f, &readp, 78, mode);
+        } while (c == 1);
+        if (readp) {
+          chars = strlen(readp);
+          memmove(linebuf, readp, strlen(readp));
+          readp = linebuf;
+          writep = linebuf + chars;
+        } else
+          writep = NULL;
+      }
+      if ((mime == 4) && mime_binary) {
+        readp = writep = NULL;
+      }
+      if (mime == 1) {
+        readp = writep = NULL;
+      }
+    }
+  }
+}
+
+/*
  * Copies the current message to mailbox mbox.
  * h is a pointer to the emailheaders for the message to copy
  * idx is the index of the message in EMAIL.DB in the source mailbox (1-based)
@@ -1450,21 +1601,12 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
   if ((mode == 'R') || (mode == 'F'))
     goto_prompt_row();
 
-  // Copy email
+  // Copy email body
   putchar(' '); // For spinner
-  while (1) {
-    buflen = fread(buf, 1, READSZ, fp);
-    spinner();
-    if (buflen == 0)
-      break;
-    written = fwrite(buf, 1, buflen, fp2);
-    if (written != buflen) {
-      error(ERR_NONFATAL, "Write error during copy");
-      fclose(fp);
-      fclose(fp2);
-      return;
-    }
-  }
+  if (mode == 'R')
+    fputc('>', fp2);
+  get_email_body(h, fp2, mode);
+
   putchar(BACKSPACE);
   putchar(' ');
   putchar(BACKSPACE);
