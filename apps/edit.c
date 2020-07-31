@@ -6,7 +6,7 @@
 // Note use my fork of cc65 to get a flashing cursor!!
 
 // TODO: Improve status line, refresh it properly
-// TODO: Minor bug - can delete more chars from status line than should be able to
+// TODO: Minor bug - can delete too many chars from status line
 // TODO: Should be smarter about redrawing when updating selection!!!
 // TODO: Doesn't check for error cases when calling gap buffer functions
 // TODO: Make use of aux mem
@@ -41,7 +41,7 @@
 #define CLREOL     0x1d
 #define DELETE     0x7f
 
-#define BUFSZ (20 * 1024)
+#define BUFSZ (39 * 512)
 char     gapbuf[BUFSZ];
 char     padding = 0;  // To null terminate for strstr()
 uint16_t gapbegin = 0;
@@ -511,6 +511,19 @@ void scroll_down() {
 }
 
 /*
+ * Returns 1 if current position in gap buffer is on the last line of
+ * the file (ie: no following CR), 0 otherwise
+ */
+uint8_t is_last_line(void) {
+  uint16_t p = gapend + 1;
+  while (p < BUFSZ) {
+    if (gapbuf[p++] == '\r')
+      return 0;
+  }
+  return 1;
+}
+
+/*
  * Update screen after delete_char_right()
  */
 void update_after_delete_char_right(void) {
@@ -526,6 +539,8 @@ void update_after_delete_char_right(void) {
     i = col;
     eol = read_char_update_pos();
   }
+  if (is_last_line())
+    putchar(CLREOL);
 
   // If necessary, print rest of screen
   if ((gapbuf[gapend] == EOL) || (i == NCOLS - 1)) {
@@ -592,6 +607,8 @@ void update_after_delete_char(void) {
     i = col;
     eol = read_char_update_pos();
   }
+  if (is_last_line())
+    putchar(CLREOL);
 
   // If necessary, print rest of screen
   if ((gapbuf[gapbegin] == EOL) || (i == NCOLS - 1)) {
