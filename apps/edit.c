@@ -911,8 +911,6 @@ void help(void) {
   FILE *fp = fopen("EDITHELP.TXT", "rb");
   uint8_t *p;
   char c;
-  p = (uint8_t*)0xc00e;
-  *p = 0; // Turn on ALT CHARSET
   revers(0);
   cursor(0);
   clrscr();
@@ -922,19 +920,15 @@ void help(void) {
   }
   c = fgetc(fp);
   while (!feof(fp)) {
-    if (c == '@') {
-      revers(1);
-      cputc('A');
-      revers(0);
-    } else if ((c != '\r') && (c != '\n'))
-      cputc(c);
+    if (c == '@')
+      printf("%s", openapple);
+    else if ((c != '\r') && (c != '\n'))
+      putchar(c);
     c = fgetc(fp);
   }
   fclose(fp);
 done:
   printf("[Press Any Key]");
-  p = (uint8_t*)0xc00f;
-  *p = 0; // Turn off ALT CHARSET
   cgetc();
   clrscr();
 }
