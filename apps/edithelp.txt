@@ -1,0 +1,22 @@
++------------------------------------------------------------------------------+
+| emai//er EDIT.SYSTEM HELP                                         Bobbi 2020 |
++-------------------------------------+----------------------------------------+
+|Navigation:                          | Editing:                               |
+|  Cursor keys  Move the cursor       | [Return]    Split line                 |
+|  @-Up         Page up               | [Delete]    Delete char left           |
+|  @-Down       Page down             | @-[Delete]  Delete char right          |
+|  @-Left       Word left             | [Tab]       Go to next tabstop         |
+|  @-Right      Word right            +----------------------------------------+
+|  @-<          Beginning of line     | Search and Replace:                    |
+|  @->          End of line           | @-F         Find string                |
+|  @-1 ...      Beginning of file ... | @-R         Find and replace string    |
+|  @-9          through end of file   +----------------------------------------+
++-------------------------------------+ Block Commands:                        |
+|File Management Commands             | @-C         Copy block of text         |
+|  @-I          Insert file at cursor | @-D         Delete block of text       |
+|  @-L          Load file             | @-M         Move block of text         |
+|  @-N          Set file name to save +----------------------------------------+
+|  @-Q          Quit                  | Miscellaneous:                         |
+|  @-S          Save file             | @-?         This help                  |
+|                                     | Ctrl-L      Refresh screen             |
++-------------------------------------+----------------------------------------+

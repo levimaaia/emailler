@@ -7,7 +7,6 @@
 
 // TODO: There is a bug whereby the rowlen[] values seem to get corrupted
 // TODO: Add word wrap feature (OA-W ?)
-// TODO: Improve insert file feature to not change filename
 // TODO: Improve status line, refresh it properly
 // TODO: Minor bug - can delete too many chars from status line
 // TODO: Should be smarter about redrawing when updating selection!!!
@@ -544,7 +543,7 @@ void draw_screen(void) {
       cputc(' ');
   } else {
     cprintf(
-    "   File:NONE                                                         ");
+    "   File:NONE                                                        ");
   }
   revers(0);
 
@@ -1165,10 +1164,16 @@ int edit(char *fname) {
       break;
     case 0x80 + 'I': // OA-I "Insert file"
     case 0x80 + 'i':
-      tmp = 65535U;
+      if (prompt_for_name("File to insert", 1) == 255)
+        break; // ESC pressed
+      if (strlen(userentry) == 0)
+        break;
+      if (load_file(userentry, (tmp == 0 ? 0 : 1)))
+        show_error("Can't open");
+      draw_screen();
+      break;
     case 0x80 + 'L': // OA-L "Load"
     case 0x80 + 'l':
-      ++tmp;
       if (prompt_for_name((tmp == 0 ? "File to insert" : "File to load"), 1) == 255)
         break; // ESC pressed
       if (strlen(userentry) == 0)
