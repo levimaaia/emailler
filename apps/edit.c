@@ -893,8 +893,10 @@ void page_up(void) {
 
 /*
  * Perform word-wrapping on current paragraph
+ * addbreaks - if 1, add breaks to do word wrap, otherwise it 'unwraps'
+ *             (ie: removes all carriage returns in paragraph)
  */
-void word_wrap_para() {
+void word_wrap_para(uint8_t addbreaks) {
   uint16_t i = gapbegin;
   uint8_t rets = 0, col = 0;
   uint16_t startpara = 0;
@@ -916,7 +918,7 @@ void word_wrap_para() {
     if (gapbuf[i] == '\r')
       gapbuf[i] = ' ';
     ++col;
-    if (col == 76) {
+    if (addbreaks && (col == 76)) {
       // Backtrack to find a space
       while ((gapbuf[i] != ' ') && (i > startpara))
         --i;
@@ -1256,9 +1258,14 @@ int edit(char *fname) {
         }
       }
       break;
+    case 0x80 + 'U': // OA-U "Unwrap"
+    case 0x80 + 'u': // OA-w
+      word_wrap_para(0);
+      draw_screen();
+      break;
     case 0x80 + 'W': // OA-W "Wrap"
     case 0x80 + 'w': // OA-w
-      word_wrap_para();
+      word_wrap_para(1);
       draw_screen();
       break;
     case 0x80 + 'S': // OA-S "Save"

@@ -18,6 +18,6 @@
 |  @-N          Set file name to save +----------------------------------------+
 |  @-Q          Quit                  | Miscellaneous:                         |
 |  @-S          Save file             | @-W         Word-wrap paragraph        |
-|                                     | @-?         This help                  |
-|                                     | Ctrl-L      Refresh screen             |
+|                                     | @-U         Unwrap paragraph           |
+|  @-?          This help             | Ctrl-L      Refresh screen             |
 +-------------------------------------+----------------------------------------+
