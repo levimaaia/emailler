@@ -1555,7 +1555,7 @@ void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
  */
 void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
                      char *mbox, uint8_t delete, char mode) {
-  uint16_t num, buflen, written, l;
+  uint16_t num, buflen, l;
   FILE *fp2;
 
   if (mode == 'F') {

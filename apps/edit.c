@@ -6,21 +6,19 @@
 // Note: Use my fork of cc65 to get a flashing cursor!!
 
 // TODO: There is a bug whereby the rowlen[] values seem to get corrupted
-// TODO: Add word wrap feature (OA-W ?)
 // TODO: Improve status line, refresh it properly
 // TODO: Minor bug - can delete too many chars from status line
 // TODO: Should be smarter about redrawing when updating selection!!!
 // TODO: Doesn't check for error cases when calling gap buffer functions
 // TODO: Make use of aux mem
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <string.h>
-#include <unistd.h>
 #include <conio.h>
 #include <ctype.h>
-#include <peekpoke.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 #define NCOLS      80        // Width of editing screen
 #define NROWS      22        // Height of editing screen
@@ -898,16 +896,39 @@ void page_up(void) {
  * Perform word-wrapping on current paragraph
  */
 void word_wrap_para() {
-  uint8_t col = 0;
-  while ((gapbuf[gapbegin] != EOL) && (gapbegin > 0)) {
-    gapbuf[gapend--] = gapbuf[--gapbegin];
+  uint16_t i = gapbegin;
+  uint8_t rets = 0, col = 0;
+  uint16_t startpara = 0;
+  // Find start of paragraph ("\r\r" delimiter)
+  while (i > 0) {
+    --i;
+    if (gapbuf[i] == '\r')
+      ++rets;
+    else
+      rets = 0;
+    if (rets == 2) {
+      startpara = i + 2;
+      break;
+    }
   }
-  if (gapbuf[gapbegin] == EOL)
-    gapbuf[gapbegin++] = gapbuf[++gapend];
-  while ((gapbuf[gapbegin] != EOL) && (gapend < BUFSZ - 1)) {
+  // Iterate through para, up to the cursor
+  i = startpara;
+  while (i < gapbegin) {
+    if (gapbuf[i] == '\r')
+      gapbuf[i] = ' ';
     ++col;
-/// TODO FINISH THIS
-    gapbuf[gapbegin++] = gapbuf[++gapend];
+    if (col == 76) {
+      // Backtrack to find a space
+      while ((gapbuf[i] != ' ') && (i > startpara))
+        --i;
+      if (i == startpara) {
+        beep();
+        return;
+      }
+      gapbuf[i] = '\r'; // Break line
+      col = 0;
+    }
+    ++i;
   }
 }
 
