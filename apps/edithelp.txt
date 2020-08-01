@@ -17,6 +17,7 @@
 |  @-L          Load file             | @-M         Move block of text         |
 |  @-N          Set file name to save +----------------------------------------+
 |  @-Q          Quit                  | Miscellaneous:                         |
-|  @-S          Save file             | @-?         This help                  |
+|  @-S          Save file             | @-W         Word-wrap paragraph        |
+|                                     | @-?         This help                  |
 |                                     | Ctrl-L      Refresh screen             |
 +-------------------------------------+----------------------------------------+

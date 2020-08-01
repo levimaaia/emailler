@@ -31,14 +31,8 @@
 
 #define BELL       0x07
 #define BACKSPACE  0x08
-#define CURDOWN    0x0a
 #define RETURN     0x0d
-#define NOMOUSETXT 0x1b
-#define HOME       0x19
-#define CLRLINE    0x1a
 #define ESC        0x1b
-#define MOUSETXT   0x1b
-#define CLREOL     0x1d
 #define DELETE     0x7f
 
 #define BUFSZ (41 * 512)     // 20.5KB
@@ -459,10 +453,9 @@ uint8_t read_char_update_pos(void) {
     col = 0;
     return 1;
   }
-  if (do_print) {
+  if (do_print)
     cputc(c);
-    revers(0);
-  }
+  revers(0);
   ++col;
   if (do_print)
     rowlen[row] = col;
@@ -902,6 +895,23 @@ void page_up(void) {
 }
 
 /*
+ * Perform word-wrapping on current paragraph
+ */
+void word_wrap_para() {
+  uint8_t col = 0;
+  while ((gapbuf[gapbegin] != EOL) && (gapbegin > 0)) {
+    gapbuf[gapend--] = gapbuf[--gapbegin];
+  }
+  if (gapbuf[gapbegin] == EOL)
+    gapbuf[gapbegin++] = gapbuf[++gapend];
+  while ((gapbuf[gapbegin] != EOL) && (gapend < BUFSZ - 1)) {
+    ++col;
+/// TODO FINISH THIS
+    gapbuf[gapbegin++] = gapbuf[++gapend];
+  }
+}
+
+/*
  * Help screen
  * EDITHELP.TXT is expected to contain lines of exactly 80 chars
  */
@@ -1219,6 +1229,11 @@ int edit(char *fname) {
           exit(0);
         }
       }
+      break;
+    case 0x80 + 'W': // OA-W "Wrap"
+    case 0x80 + 'w': // OA-w
+      word_wrap_para();
+      draw_screen();
       break;
     case 0x80 + 'S': // OA-S "Save"
     case 0x80 + 's': // OA-s
