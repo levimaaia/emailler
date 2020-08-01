@@ -3,8 +3,11 @@
 // Bobbi July 2020
 /////////////////////////////////////////////////////////////////////////////
 
-// Note use my fork of cc65 to get a flashing cursor!!
+// Note: Use my fork of cc65 to get a flashing cursor!!
 
+// TODO: There is a bug whereby the rowlen[] values seem to get corrupted
+// TODO: Add word wrap feature (OA-W ?)
+// TODO: Improve insert file feature to not change filename
 // TODO: Improve status line, refresh it properly
 // TODO: Minor bug - can delete too many chars from status line
 // TODO: Should be smarter about redrawing when updating selection!!!
@@ -31,8 +34,6 @@
 #define BACKSPACE  0x08
 #define CURDOWN    0x0a
 #define RETURN     0x0d
-#define NORMAL     0x0e
-#define INVERSE    0x0f
 #define NOMOUSETXT 0x1b
 #define HOME       0x19
 #define CLRLINE    0x1a
@@ -41,13 +42,13 @@
 #define CLREOL     0x1d
 #define DELETE     0x7f
 
-#define BUFSZ (39 * 512)
+#define BUFSZ (41 * 512)     // 20.5KB
 char     gapbuf[BUFSZ];
-char     padding = 0;  // To null terminate for strstr()
+char     padding = 0;        // To null terminate for strstr()
 uint16_t gapbegin = 0;
 uint16_t gapend = BUFSZ - 1;
 
-uint8_t rowlen[NROWS]; // Number of chars on each row of screen
+uint8_t rowlen[NROWS];       // Number of chars on each row of screen
 
 char    filename[80]  = "";
 char    userentry[80] = "";
@@ -88,15 +89,54 @@ char openapple[] = "\x0f\x1b""A\x18\x0e";
 #define GETPOS()    (gapbegin)
 
 /*
+ * Annoying beep
+ */
+#pragma code-name (push, "LC")
+void beep(void) {
+  putchar(BELL);
+}
+#pragma code-name (pop)
+
+/*
+ * Clear to EOL
+ */
+#pragma code-name (push, "LC")
+void clreol(void) {
+  uint8_t x = wherex(), y = wherey();
+  cclear(80 - x);
+  gotoxy(x, y);
+}
+
+#pragma code-name (pop)
+/*
+ * Clear to EOL, wrap to next line
+ */
+#pragma code-name (push, "LC")
+void clreol_wrap(void) {
+  uint8_t x = wherex();
+  cclear(80 - x);
+  gotox(x);
+}
+#pragma code-name (pop)
+
+/*
+ * Clear line
+ */
+#pragma code-name (push, "LC")
+void clrline(void) {
+  uint8_t x = wherex();
+  gotox(0);
+  cclear(80);
+  gotox(x);
+}
+#pragma code-name (pop)
+
+/*
  * Put cursor at beginning of PROMPT_ROW
  */
 #pragma code-name (push, "LC")
 void goto_prompt_row(void) {
-  uint8_t i;
-  putchar(HOME);
-  for (i = 0; i < PROMPT_ROW; ++i)
-    putchar(CURDOWN);
-  gotoxy(1, PROMPT_ROW);
+  gotoxy(0, PROMPT_ROW);
 }
 #pragma code-name (pop)
 
@@ -113,15 +153,17 @@ uint8_t prompt_for_name(char *prompt, uint8_t is_file) {
   char c;
   cursor(0);
   goto_prompt_row();
-  putchar(CLREOL);
-  printf("%c%s>%c", INVERSE, prompt, NORMAL);
+  clreol();
+  revers(1);
+  cprintf("%s>", prompt);
+  revers(0);
   gotox(2 + strlen(prompt));
   i = 0;
   while (1) {
     c = cgetc();
     if (is_file && !isalnum(c) && (c != RETURN) && (c != BACKSPACE) &&
         (c != DELETE) && (c != ESC) && (c != '.') && (c != '/')) {
-      putchar(BELL);
+      beep();
       continue;
     }
     switch (c) {
@@ -135,7 +177,7 @@ uint8_t prompt_for_name(char *prompt, uint8_t is_file) {
         gotox(wherex() - 1);
         --i;
       } else
-        putchar(BELL);
+        beep();
       break;
     case ESC:
       userentry[0] = '\0';
@@ -151,7 +193,7 @@ uint8_t prompt_for_name(char *prompt, uint8_t is_file) {
 done:
   userentry[i] = '\0';
 esc_pressed:
-  putchar(CLRLINE);
+  clrline();
   gotoxy(curscol, cursrow);
   cursor(1);
   return i;
@@ -166,19 +208,21 @@ char prompt_okay(char *msg) {
   char c;
   cursor(0);
   goto_prompt_row();
-  putchar(CLREOL);
-  printf("%c%sSure? (y/n)%c", INVERSE, msg, NORMAL);
+  clreol();
+  revers(1);
+  cprintf("%sSure? (y/n)", msg);
+  revers(0);
   while (1) {
     c = cgetc();
     if ((c == 'y') || (c == 'Y') || (c == 'n') || (c == 'N'))
       break;
-    putchar(BELL);
+    beep();
   }
   if ((c == 'y') || (c == 'Y'))
     c = 1;
   else
     c = 0;
-  putchar(CLRLINE);
+  clrline();
   gotoxy(curscol, cursrow);
   cursor(1);
   return c;
@@ -192,10 +236,12 @@ char prompt_okay(char *msg) {
 void show_error(char *msg) {
   cursor(0);
   goto_prompt_row();
-  putchar(BELL);
-  printf("%c%s [Press Any Key]%c", INVERSE, msg, NORMAL);
+  beep();
+  revers(1);
+  cprintf("%s [Press Any Key]", msg);
+  revers(0);
   cgetc();
-  putchar(CLRLINE);
+  clrline();
   gotoxy(curscol, cursrow);
   cursor(1);
 }
@@ -208,7 +254,9 @@ void show_error(char *msg) {
 void show_info(char *msg) {
   cursor(0);
   goto_prompt_row();
-  printf("%c%s%c", INVERSE, msg, NORMAL);
+  revers(1);
+  cprintf("%s", msg);
+  revers(0);
   gotoxy(curscol, cursrow);
   cursor(1);
 }
@@ -219,6 +267,7 @@ void show_info(char *msg) {
  * c - character to insert
  * Returns 0 on success, 1 on failure (insufficient space)
  */
+#pragma code-name (push, "LC")
 uint8_t insert_char(char c) {
   if (FREESPACE()) {
     gapbuf[gapbegin++] = c;
@@ -226,26 +275,31 @@ uint8_t insert_char(char c) {
   }
   return 1;
 }
+#pragma code-name (pop)
 
 /*
  * Delete the character to the left of the current position
  * Returns 0 on success, 1 on failure (nothing to delete)
  */
+#pragma code-name (push, "LC")
 uint8_t delete_char(void) {
   if (gapbegin == 0)
     return 1;
   --gapbegin;
 }
+#pragma code-name (pop)
 
 /*
  * Delete the character to the right of the current position
  * Returns 0 on success, 1 on failure (nothing to delete)
  */
+#pragma code-name (push, "LC")
 uint8_t delete_char_right(void) {
   if (gapend == BUFSZ - 1)
     return 1;
   ++gapend;
 }
+#pragma code-name (pop)
 
 /*
  * Obtain the next character (to the right of the current position)
@@ -253,12 +307,14 @@ uint8_t delete_char_right(void) {
  * c - character is returned throught this pointer
  * Returns 0 on success, 1 if at end of the buffer.
  */
+#pragma code-name (push, "LC")
 uint8_t get_char(char *c) {
   if (gapend == BUFSZ - 1)
     return 1;
   *c = gapbuf[gapbegin++] = gapbuf[++gapend];
   return 0;
 }
+#pragma code-name (pop)
 
 /*
  * Move the current position
@@ -394,18 +450,20 @@ uint8_t read_char_update_pos(void) {
   else
     revers(0);
   if ((c = gapbuf[pos++]) == EOL) {
-    revers(0);
     if (do_print) {
+      revers(0);
       rowlen[row] = col + 1;
-      putchar(CLREOL);
-      putchar('\r');
+      clreol_wrap();
+      gotox(0);
     }
     ++row;
     col = 0;
     return 1;
   }
-  if (do_print)
+  if (do_print) {
     cputc(c);
+    revers(0);
+  }
   ++col;
   if (do_print)
     rowlen[row] = col;
@@ -413,7 +471,6 @@ uint8_t read_char_update_pos(void) {
     ++row;
     col = 0;
   }
-  revers(0);
   return 0;
 }
 
@@ -428,8 +485,6 @@ void draw_screen(void) {
   // no text and would otherwise be unitialized.
   for (rowsabove = 0; rowsabove < NROWS; ++rowsabove)
     rowlen[rowsabove] = 0;
-
-  revers(0);
 
   // First we have to scan back to work out where in the buffer to
   // start drawing on the screen at the top left. This is at most
@@ -465,6 +520,7 @@ void draw_screen(void) {
   // Finally actually write the text to the screen!
   videomode(VIDEOMODE_80COL);
   clrscr();
+  revers(0);
   row = col = 0;
   do_print = 1;
   while (pos < gapbegin)
@@ -479,19 +535,19 @@ void draw_screen(void) {
     read_char_update_pos();
 
   goto_prompt_row();
-  printf("%s-? Help ", openapple);
-  gotox(10);
+
   revers(1);
+  cprintf("OA-? Help | ");
   if (strlen(filename)) {
     cprintf(" %c File:%s", modified ? '*' : ' ', filename);
-    for (startpos = 0; startpos < 62 - strlen(filename); ++startpos)
+    for (startpos = 0; startpos < 60 - strlen(filename); ++startpos)
       cputc(' ');
   } else {
     cprintf(
-    "     File:NONE                                                         ");
+    "   File:NONE                                                         ");
   }
+  revers(0);
 
-  putchar(HOME);
   gotoxy(curscol, cursrow);
   cursor(1);
 }
@@ -540,19 +596,19 @@ void update_after_delete_char_right(void) {
     eol = read_char_update_pos();
   }
   if (is_last_line())
-    putchar(CLREOL);
+    clreol_wrap();
 
   // If necessary, print rest of screen
   if ((gapbuf[gapend] == EOL) || (i == NCOLS - 1)) {
     while ((pos < BUFSZ) && (row < NROWS))
       read_char_update_pos();
 
-    putchar(CLREOL);
+    clreol_wrap();
 
     // Erase the rest of the screen (if any)
     for (i = row + 1; i < NROWS; ++i) {
       gotoxy(0, i);
-      putchar(CLRLINE);
+      clrline();
     }
   }
 
@@ -608,19 +664,19 @@ void update_after_delete_char(void) {
     eol = read_char_update_pos();
   }
   if (is_last_line())
-    putchar(CLREOL);
+    clreol_wrap();
 
   // If necessary, print rest of screen
   if ((gapbuf[gapbegin] == EOL) || (i == NCOLS - 1)) {
     while ((pos < BUFSZ) && (row < NROWS))
       read_char_update_pos();
 
-    putchar(CLREOL);
+    clreol_wrap();
 
     // Erase the rest of the screen (if any)
     for (i = row + 1; i < NROWS; ++i) {
       gotoxy(0, i);
-      putchar(CLRLINE);
+      clrline();
     }
   }
 
@@ -675,7 +731,7 @@ void cursor_left(void) {
   if (gapbegin > 0)
     gapbuf[gapend--] = gapbuf[--gapbegin];
   else {
-    putchar(BELL);
+    beep();
     gotoxy(curscol, cursrow);
     return;
   }
@@ -683,7 +739,7 @@ void cursor_left(void) {
     if (cursrow == 0) {
       scroll_up();
       if (cursrow == 0) {
-        putchar(BELL);
+        beep();
         return;
       }
     }
@@ -703,7 +759,7 @@ void cursor_right(void) {
   if (gapend < BUFSZ - 1)
     gapbuf[gapbegin++] = gapbuf[++gapend];
   else {
-    putchar(BELL);
+    beep();
     gotoxy(curscol, cursrow);
     return;
   }
@@ -730,7 +786,7 @@ uint8_t cursor_up(void) {
   if (cursrow == 0) {
     scroll_up();
     if (cursrow == 0) {
-      putchar(BELL);
+      beep();
       gotoxy(curscol, cursrow);
       return 1;
     }
@@ -766,7 +822,7 @@ uint8_t cursor_down(void) {
     if (gapend < BUFSZ - 1)
       gapbuf[gapbegin++] = gapbuf[++gapend];
     else { 
-      putchar(BELL);
+      beep();
       return 1;
     }
   }
@@ -848,36 +904,39 @@ void page_up(void) {
 
 /*
  * Help screen
+ * EDITHELP.TXT is expected to contain lines of exactly 80 chars
  */
 #pragma code-name (push, "LC")
 void help(void) {
+  FILE *fp = fopen("EDITHELP.TXT", "rb");
+  uint8_t *p;
+  char c;
+  p = (uint8_t*)0xc00e;
+  *p = 0; // Turn on ALT CHARSET
   revers(0);
   cursor(0);
   clrscr();
-  printf("EDITOR HELP\n\n");
-  printf("  %s-C           Copy text (includes cut & paste)\n", openapple);
-  printf("  %s-D           Delete text\n", openapple);
-  printf("  %s-F           Find string\n", openapple);
-  printf("  %s-L           Load file\n", openapple);
-  printf("  %s-M           Move text (includes cut & paste)\n", openapple);
-  printf("  %s-N           Name file\n", openapple);
-  printf("  %s-Q           Quit\n", openapple);
-  printf("  %s-R           Replace string\n", openapple);
-  printf("  %s-S           Save file\n", openapple);
-  printf("  [Return]      End paragraph\n");
-  printf("  [Delete]      Delete char left\n");
-  printf("  %s-[Delete]    Delete char right\n", openapple);
-  printf("  Arrows        Move the cursor\n");
-  printf("  %s-Up arrow    Page up\n", openapple);
-  printf("  %s-Down arrow  Page down\n", openapple);
-  printf("  %s-Left arrow  Word left\n", openapple);
-  printf("  %s-Right arrow Word right\n", openapple);
-  printf("  %s-<           Beginning of line\n", openapple);
-  printf("  %s->           End of line\n", openapple);
-  printf("  [Tab]         Go to next tabstop\n");
-  printf("  %s-1 to %s-9    Beginning of file through end of file\n", openapple, openapple);
-  printf("                                                             [Press Any Key]");
+  if (!fp) {
+    printf("Can't open EDITHELP.TXT\n\n");
+    goto done;
+  }
+  c = fgetc(fp);
+  while (!feof(fp)) {
+    if (c == '@') {
+      revers(1);
+      cputc('A');
+      revers(0);
+    } else if ((c != '\r') && (c != '\n'))
+      cputc(c);
+    c = fgetc(fp);
+  }
+  fclose(fp);
+done:
+  printf("[Press Any Key]");
+  p = (uint8_t*)0xc00f;
+  *p = 0; // Turn off ALT CHARSET
   cgetc();
+  clrscr();
 }
 #pragma code-name (pop)
 
@@ -910,7 +969,7 @@ void load_attacher(void) {
  */
 void save(void) {
   if (strlen(filename) == 0) {
-    if (prompt_for_name("Save file", 1) == 255)
+    if (prompt_for_name("File to save", 1) == 255)
       return; // If ESC pressed
     if (strlen(userentry) == 0)
       return;
@@ -1116,7 +1175,7 @@ int edit(char *fname) {
     case 0x80 + 'L': // OA-L "Load"
     case 0x80 + 'l':
       ++tmp;
-      if (prompt_for_name((tmp == 0 ? "Insert file" : "Load file"), 1) == 255)
+      if (prompt_for_name((tmp == 0 ? "File to insert" : "File to load"), 1) == 255)
         break; // ESC pressed
       if (strlen(userentry) == 0)
         break;
