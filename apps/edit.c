@@ -5,7 +5,6 @@
 
 // Note: Use my fork of cc65 to get a flashing cursor!!
 
-// TODO: There is a bug whereby the rowlen[] values seem to get corrupted
 // TODO: Improve status line, refresh it properly
 // TODO: Minor bug - can delete too many chars from status line
 // TODO: Should be smarter about redrawing when updating selection!!!
@@ -33,7 +32,7 @@
 #define ESC        0x1b
 #define DELETE     0x7f
 
-#define BUFSZ (41 * 512)     // 20.5KB
+#define BUFSZ (40 * 512)     // 20KB
 char     gapbuf[BUFSZ];
 char     padding = 0;        // To null terminate for strstr()
 uint16_t gapbegin = 0;
@@ -734,7 +733,7 @@ void cursor_left(void) {
       }
     }
     --cursrow;
-    curscol = rowlen[cursrow];
+    curscol = rowlen[cursrow] - 1;
   } else
     --curscol;
   gotoxy(curscol, cursrow);
@@ -939,7 +938,6 @@ void word_wrap_para() {
 #pragma code-name (push, "LC")
 void help(void) {
   FILE *fp = fopen("EDITHELP.TXT", "rb");
-  uint8_t *p;
   char c;
   revers(0);
   cursor(0);
@@ -1205,10 +1203,17 @@ int edit(char *fname) {
       break;
     case 0x80 + 'L': // OA-L "Load"
     case 0x80 + 'l':
-      if (prompt_for_name((tmp == 0 ? "File to insert" : "File to load"), 1) == 255)
+      if (prompt_for_name("File to load", 1) == 255)
         break; // ESC pressed
       if (strlen(userentry) == 0)
         break;
+      jump_pos(0);
+      pos = 0;
+      modified = 0;
+      startsel = endsel = 65535U;
+      mode = SEL_NONE;
+      gapbegin = 0;
+      gapend = BUFSZ - 1;
       strcpy(filename, userentry);
       if (load_file(filename, (tmp == 0 ? 0 : 1))) {
         sprintf(userentry, "Can't load %s", filename);
