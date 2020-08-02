@@ -5,7 +5,9 @@
 
 // Note: Use my fork of cc65 to get a flashing cursor!!
 
-// TODO: Improve status line, refresh it properly
+// TODO: Bug - when doing selection, if cursor in on CR then whole screen gets highlighted
+// TODO: Bug handling file with lines of 80 chars + CR.  Cursor right doesn't
+//       work properly at the end of such lines
 // TODO: Minor bug - can delete too many chars from status line
 // TODO: Should be smarter about redrawing when updating selection!!!
 // TODO: Doesn't check for error cases when calling gap buffer functions
@@ -55,8 +57,9 @@ uint8_t cursrow, curscol; // Cursor position is kept here by draw_screen()
 uint8_t  quit_to_email;   // If 1, launch EMAIL.SYSTEM on quit
 uint8_t  modified;        // If 1, file contents have been modified
 
-// The order of the cases matters!
-enum selmode {SEL_NONE, SEL_COPY2, SEL_MOVE2, SEL_DEL, SEL_MOVE, SEL_COPY}; 
+// The order of the cases matters! SRCH1/2/3 are not really a selection modes.
+enum selmode {SEL_NONE, SEL_COPY2, SEL_MOVE2, SEL_DEL, SEL_MOVE, SEL_COPY,
+              SRCH1, SRCH2, SRCH3};
 enum selmode mode;
 
 // Mousetext Open-Apple
@@ -129,6 +132,84 @@ void goto_prompt_row(void) {
   gotoxy(0, PROMPT_ROW);
 }
 #pragma code-name (pop)
+
+/*
+ * Refresh the status line at the bottom of the screen
+ */
+void update_status_line(void) {
+  uint8_t nofile = 0;
+  uint8_t i, l;
+
+  static char selmsg1[] = ": Go to end of selection, then [Return]";
+  static char selmsg2[] = ": Go to target, then [Return] to ";
+
+  goto_prompt_row();
+
+  if (strlen(filename) == 0) {
+    strcpy(filename, "<scratch>");
+    nofile = 1;
+  }
+  revers(1);
+  switch (mode) {
+  case SEL_NONE:
+    cprintf("OA-? Help | %c File:%s  %2uKB free",
+            modified ? '*' : ' ', filename, (FREESPACE() + 512) / 1024);
+    l = 50 - strlen(filename);
+    break;
+  case SEL_DEL:
+    cprintf("Del%s", selmsg1);
+    l = 80 - 42;
+    break;
+  case SEL_COPY:
+    cprintf("Copy%s", selmsg1);
+    l = 80 - 43;
+    break;
+  case SEL_MOVE:
+    cprintf("Move%s", selmsg1);
+    l = 80 - 43;
+    break;
+  case SEL_COPY2:
+    cprintf("Copy%scopy", selmsg2);
+    l = 80 - 41;
+    break;
+  case SEL_MOVE2:
+    cprintf("Move%smove", selmsg2);
+    l = 80 - 41;
+    break;
+  case SRCH1:
+    cprintf("Searching ...");
+    l = 80 - 13;
+    break;
+  case SRCH2:
+    cprintf("Searching - wrapped ...");
+    l = 80 - 23;
+    break;
+  case SRCH3:
+    cprintf("OA-? Help | %c File:%s  %2uKB free | Not Found",
+            modified ? '*' : ' ', filename, (FREESPACE() + 512) / 1024);
+    l = 50 - 12 - strlen(filename);
+    break;
+  }
+  for (i = 0; i < l; ++i)
+    cputc(' ');
+  revers(0);
+
+  if (nofile)
+    strcpy(filename, "");
+
+  gotoxy(curscol, cursrow);
+  cursor(1);
+}
+
+/*
+ * Set modified status
+ */
+void set_modified(uint8_t mod) {
+  if (modified == mod)
+    return;
+  modified = mod;
+  update_status_line();
+}
 
 /*
  * Prompt for a name in the bottom line of the screen
@@ -212,9 +293,7 @@ char prompt_okay(char *msg) {
     c = 1;
   else
     c = 0;
-  clrline();
-  gotoxy(curscol, cursrow);
-  cursor(1);
+  update_status_line();
   return c;
 }
 #pragma code-name (pop)
@@ -226,29 +305,13 @@ char prompt_okay(char *msg) {
 void show_error(char *msg) {
   cursor(0);
   goto_prompt_row();
+  clrline();
   beep();
   revers(1);
-  cprintf("%s [Press Any Key]", msg);
+  cprintf("%s  [Press Any Key]", msg);
   revers(0);
   cgetc();
-  clrline();
-  gotoxy(curscol, cursrow);
-  cursor(1);
-}
-#pragma code-name (pop)
-
-/*
- * Info message
- */
-#pragma code-name (push, "LC")
-void show_info(char *msg) {
-  cursor(0);
-  goto_prompt_row();
-  revers(1);
-  cprintf("%s", msg);
-  revers(0);
-  gotoxy(curscol, cursrow);
-  cursor(1);
+  update_status_line();
 }
 #pragma code-name (pop)
 
@@ -389,7 +452,7 @@ uint8_t load_file(char *filename, uint8_t replace) {
   if (replace) {
     jump_pos(0);
     pos = 0;
-    modified = 0;
+    set_modified(0);
     startsel = endsel = 65535U;
     mode = SEL_NONE;
   }
@@ -523,22 +586,7 @@ void draw_screen(void) {
   while ((pos < BUFSZ) && (row < NROWS))
     read_char_update_pos();
 
-  goto_prompt_row();
-
-  revers(1);
-  cprintf("OA-? Help | ");
-  if (strlen(filename)) {
-    cprintf(" %c File:%s", modified ? '*' : ' ', filename);
-    for (startpos = 0; startpos < 60 - strlen(filename); ++startpos)
-      cputc(' ');
-  } else {
-    cprintf(
-    "   File:NONE                                                        ");
-  }
-  revers(0);
-
-  gotoxy(curscol, cursrow);
-  cursor(1);
+  update_status_line();
 }
 
 /*
@@ -1006,7 +1054,7 @@ void save(void) {
       show_error(userentry);
       draw_screen();
     } else {
-      modified = 0;
+      set_modified(0);
     }
   }
 }
@@ -1030,13 +1078,15 @@ int edit(char *fname) {
   }
   jump_pos(0);
   pos = 0;
-  modified = 0;
+  set_modified(0);
   startsel = endsel = 65535U;
   mode = SEL_NONE;
   draw_screen();
   while (1) {
     cursor(1);
     c = cgetc();
+    if (mode == SRCH3)  // Reset 'Not found'
+      mode = SEL_NONE;
     switch (c) {
     case 0x80 + '1': // Top
       jump_pos(0);
@@ -1123,14 +1173,12 @@ int edit(char *fname) {
       mode = SEL_COPY;
       endsel = startsel = gapbegin;
       draw_screen();
-      show_info("Copy: Go to end of selection, then [Return]");
       break;
     case 0x80 + 'D': // OA-D "Delete"
     case 0x80 + 'd': // OA-d
       mode = SEL_DEL;
       endsel = startsel = gapbegin;
       draw_screen();
-      show_info("Del: Go to end of selection, then [Return]");
       break;
     case 0x80 + 'R': // OA-R "Replace"
     case 0x80 + 'r': // OA-r
@@ -1165,13 +1213,18 @@ int edit(char *fname) {
             break;
         }
       }
+      mode = SRCH1;
+      update_status_line();
       p = strstr(gapbuf + gapend + 1, search);
       if (!p) {
-        show_error("Not found, wrapping to top");
+        mode = SRCH2;
+        update_status_line();
         gapbuf[gapbegin] = '\0';
         p = strstr(gapbuf, search);
+        mode = SEL_NONE;
         if (!p) {
-          show_error("Not found");
+          mode = SRCH3;
+          update_status_line();
           break;
         }
         jump_pos(p - gapbuf);
@@ -1184,6 +1237,7 @@ int edit(char *fname) {
         draw_screen();
         break;
       }
+      mode = SEL_NONE;
       jump_pos(gapbegin + p - (gapbuf + gapend + 1));
       if (tmp == 0) { // Replace mode
         for (i = 0; i < strlen(search); ++i)
@@ -1199,7 +1253,7 @@ int edit(char *fname) {
         break; // ESC pressed
       if (strlen(userentry) == 0)
         break;
-      if (load_file(userentry, (tmp == 0 ? 0 : 1)))
+      if (load_file(userentry, 0))
         show_error("Can't open");
       draw_screen();
       break;
@@ -1211,13 +1265,13 @@ int edit(char *fname) {
         break;
       jump_pos(0);
       pos = 0;
-      modified = 0;
+      set_modified(0);
       startsel = endsel = 65535U;
       mode = SEL_NONE;
       gapbegin = 0;
       gapend = BUFSZ - 1;
       strcpy(filename, userentry);
-      if (load_file(filename, (tmp == 0 ? 0 : 1))) {
+      if (load_file(filename, 1)) {
         sprintf(userentry, "Can't load %s", filename);
         show_error(userentry);
         strcpy(filename, "");
@@ -1229,7 +1283,6 @@ int edit(char *fname) {
       mode = SEL_MOVE;
       endsel = startsel = gapbegin;
       draw_screen();
-      show_info("Move: Go to end of selection, then [Return]");
       break;
     case 0x80 + 'N': // OA-N "Name"
     case 0x80 + 'n': // OA-n
@@ -1238,8 +1291,7 @@ int edit(char *fname) {
       if (strlen(userentry) == 0)
         break;
       strcpy(filename, userentry);
-      sprintf(userentry, "Name set to %s", filename);
-      show_info(userentry);
+      update_status_line();
       break;
     case 0x80 + 'Q': // OA-Q "Quit"
     case 0x80 + 'q': // OA-q
@@ -1278,7 +1330,7 @@ int edit(char *fname) {
       if (mode == SEL_NONE) {
         delete_char_right();
         update_after_delete_char_right();
-        modified = 1;
+        set_modified(1);
       }
       break;
     case 0x80 + '?': // OA-? "Help"
@@ -1292,7 +1344,7 @@ int edit(char *fname) {
       if (mode == SEL_NONE) {
         delete_char();
         update_after_delete_char();
-        modified = 1;
+        set_modified(1);
       }
       break;
     case 0x09:  // Tab
@@ -1302,7 +1354,7 @@ int edit(char *fname) {
           insert_char(' ');
           update_after_insert_char();
         }
-        modified = 1;
+        set_modified(1);
       }
       break;
     case 0x08:  // Left
@@ -1337,7 +1389,7 @@ int edit(char *fname) {
       if (mode == SEL_NONE) {
         insert_char(c);
         update_after_insert_char();
-        modified = 1;
+        set_modified(1);
       } else {
         if (startsel > endsel) {
           tmp = endsel;
@@ -1352,16 +1404,16 @@ int edit(char *fname) {
           }
           startsel = endsel = 65535U;
           mode = SEL_NONE;
-          modified = 1;
+          set_modified(1);
           draw_screen();
           break;
         case SEL_COPY:
           mode = SEL_COPY2;
-          show_info("Go to target, then [Return] to copy");
+          update_status_line();
           break;
         case SEL_MOVE:
           mode = SEL_MOVE2;
-          show_info("Go to target, then [Return] to move");
+          update_status_line();
           break;
         case SEL_COPY2:
         case SEL_MOVE2:
@@ -1389,7 +1441,7 @@ int edit(char *fname) {
 copymove2_cleanup:
           startsel = endsel = 65535U;
           mode = SEL_NONE;
-          modified = 1;
+          set_modified(1);
           draw_screen();
           break;
         }
@@ -1397,10 +1449,10 @@ copymove2_cleanup:
       break;
     default:
       //printf("**%02x**", c);
-      if ((c >= 0x20) && (c < 0x80)) {
+      if ((c >= 0x20) && (c < 0x80) && (mode == SEL_NONE)) {
         insert_char(c);
         update_after_insert_char();
-        modified = 1;
+        set_modified(1);
       }
     }
   }
