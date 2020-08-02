@@ -5,11 +5,9 @@
 
 // Note: Use my fork of cc65 to get a flashing cursor!!
 
-// TODO: Bug handling file with lines of 80 chars + CR.  Cursor right doesn't
-//       work properly at the end of such lines
 // TODO: Minor bug - can delete too many chars from status line
-// TODO: Should be smarter about redrawing when updating selection!!!
 // TODO: Doesn't check for error cases when calling gap buffer functions
+// TODO: Should be smarter about redrawing when updating selection!!!
 // TODO: Make use of aux mem
 
 #include <conio.h>
@@ -304,7 +302,7 @@ char prompt_okay(char *msg) {
 void show_error(char *msg) {
   cursor(0);
   goto_prompt_row();
-  clrline();
+  clreol();
   beep();
   revers(1);
   cprintf("%s  [Press Any Key]", msg);
@@ -800,12 +798,12 @@ void cursor_right(void) {
   }
   ++curscol;
   if (curscol == rowlen[cursrow]) {
-    if (gapbuf[gapbegin - 1] == EOL) {
+//    if (gapbuf[gapbegin - 1] == EOL) {
       if (cursrow == NROWS - 1)
         scroll_down();
       ++cursrow;
       curscol = 0;
-    }
+//    }
   }
   gotoxy(curscol, cursrow);
 }
