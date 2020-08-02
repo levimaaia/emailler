@@ -5,6 +5,7 @@
 
 // Note: Use my fork of cc65 to get a flashing cursor!!
 
+// TODO: Delete left EOL erases wrong line on screen
 // TODO: Minor bug - can delete too many chars from status line
 // TODO: Doesn't check for error cases when calling gap buffer functions
 // TODO: Should be smarter about redrawing when updating selection!!!
@@ -674,7 +675,7 @@ void update_after_delete_char(void) {
     if (col > 0)
       --col;
     else {
-      col = 0;
+      col = 79;
       if (row > 0)
         --row;
       else {
