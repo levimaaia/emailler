@@ -798,12 +798,10 @@ void cursor_right(void) {
   }
   ++curscol;
   if (curscol == rowlen[cursrow]) {
-//    if (gapbuf[gapbegin - 1] == EOL) {
-      if (cursrow == NROWS - 1)
-        scroll_down();
-      ++cursrow;
-      curscol = 0;
-//    }
+    if (cursrow == NROWS - 1)
+      scroll_down();
+    ++cursrow;
+    curscol = 0;
   }
   gotoxy(curscol, cursrow);
 }
