@@ -1555,7 +1555,7 @@ void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
  */
 void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
                      char *mbox, uint8_t delete, char mode) {
-  uint16_t num, buflen, l;
+  uint16_t num, buflen, l, written;
   FILE *fp2;
 
   if (mode == 'F') {
@@ -1603,7 +1603,23 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
   putchar(' '); // For spinner
   if (mode == 'R')
     fputc('>', fp2);
-  get_email_body(h, fp2, mode);
+  if ((mode == 'R') || (mode == 'F')) {
+    get_email_body(h, fp2, mode);
+  } else {
+    while (1) {
+      buflen = fread(buf, 1, READSZ, fp);
+      spinner();
+      if (buflen == 0)
+        break;
+      written = fwrite(buf, 1, buflen, fp2);
+      if (written != buflen) {
+        error(ERR_NONFATAL, "Write error during copy");
+        fclose(fp);
+        fclose(fp2);
+        return;
+      }
+    }
+  }
 
   putchar(BACKSPACE);
   putchar(' ');
