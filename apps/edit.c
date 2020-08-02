@@ -675,7 +675,7 @@ void update_after_delete_char(void) {
     if (col > 0)
       --col;
     else {
-      col = 79;
+      col = NCOLS - 1;
       if (row > 0)
         --row;
       else {
