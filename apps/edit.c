@@ -5,7 +5,6 @@
 
 // Note: Use my fork of cc65 to get a flashing cursor!!
 
-// TODO: Bug - when doing selection, if cursor in on CR then whole screen gets highlighted
 // TODO: Bug handling file with lines of 80 chars + CR.  Cursor right doesn't
 //       work properly at the end of such lines
 // TODO: Minor bug - can delete too many chars from status line
@@ -498,13 +497,8 @@ uint8_t save_file(char *filename) {
  */
 uint8_t read_char_update_pos(void) {
   char c;
-  if ((pos >= startsel) && (pos <= endsel))
-    revers(1);
-  else
-    revers(0);
   if ((c = gapbuf[pos++]) == EOL) {
     if (do_print) {
-      revers(0);
       rowlen[row] = col + 1;
       clreol_wrap();
       gotox(0);
@@ -513,6 +507,10 @@ uint8_t read_char_update_pos(void) {
     col = 0;
     return 1;
   }
+  if ((pos >= startsel) && (pos <= endsel))
+    revers(1);
+  else
+    revers(0);
   if (do_print)
     cputc(c);
   revers(0);
