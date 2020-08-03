@@ -5,9 +5,8 @@
 
 // Note: Use my fork of cc65 to get a flashing cursor!!
 
-// TODO: Delete left EOL erases wrong line on screen
+// TODO: Some weirdness when last line doesn't have trailing CR
 // TODO: Minor bug - can delete too many chars from status line
-// TODO: Doesn't check for error cases when calling gap buffer functions
 // TODO: Should be smarter about redrawing when updating selection!!!
 // TODO: Make use of aux mem
 
@@ -316,38 +315,39 @@ void show_error(char *msg) {
 /*
  * Insert a character into gapbuf at current position
  * c - character to insert
- * Returns 0 on success, 1 on failure (insufficient space)
  */
 #pragma code-name (push, "LC")
-uint8_t insert_char(char c) {
+void insert_char(char c) {
   if (FREESPACE()) {
     gapbuf[gapbegin++] = c;
-    return 0;
+    return;
   }
-  return 1;
+  beep();
 }
 #pragma code-name (pop)
 
 /*
  * Delete the character to the left of the current position
- * Returns 0 on success, 1 on failure (nothing to delete)
  */
 #pragma code-name (push, "LC")
-uint8_t delete_char(void) {
-  if (gapbegin == 0)
-    return 1;
+void delete_char(void) {
+  if (gapbegin == 0) {
+    beep();
+    return;
+  }
   --gapbegin;
 }
 #pragma code-name (pop)
 
 /*
  * Delete the character to the right of the current position
- * Returns 0 on success, 1 on failure (nothing to delete)
  */
 #pragma code-name (push, "LC")
-uint8_t delete_char_right(void) {
-  if (gapend == BUFSZ - 1)
-    return 1;
+void delete_char_right(void) {
+  if (gapend == BUFSZ - 1) {
+    beep();
+    return;
+  }
   ++gapend;
 }
 #pragma code-name (pop)
@@ -370,14 +370,15 @@ uint8_t get_char(char *c) {
 /*
  * Move the current position
  * pos - position to which to move
- * Returns 0 on success, 1 if pos is invalid
  */
 #pragma code-name (push, "LC")
-uint8_t jump_pos(uint16_t pos) {
-  if (pos > BUFSZ - 1)
-    return 1;
+void jump_pos(uint16_t pos) {
+  if (pos > BUFSZ - 1) {
+    beep();
+    return;
+  }
   if (pos == GETPOS())
-    return 0;
+    return;
   if (pos > GETPOS())
     do {
       gapbuf[gapbegin++] = gapbuf[++gapend];
@@ -386,7 +387,7 @@ uint8_t jump_pos(uint16_t pos) {
     do {
       gapbuf[gapend--] = gapbuf[--gapbegin];
     } while (pos < GETPOS());
-  return 0;
+  return;
 }
 #pragma code-name (pop)
 
@@ -466,9 +467,12 @@ uint8_t load_file(char *filename, uint8_t replace) {
  */
 #pragma code-name (push, "LC")
 uint8_t save_file(char *filename) {
-  char c;
   uint16_t p = gapbegin;
-  FILE *fp = fopen(filename, "w");
+  char c;
+  FILE *fp;
+  _filetype = PRODOS_T_TXT;
+  _auxtype = 0;
+  fp = fopen(filename, "w");
   if (!fp)
     return 1;
   jump_pos(0);
