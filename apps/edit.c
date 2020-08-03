@@ -5,7 +5,7 @@
 
 // Note: Use my fork of cc65 to get a flashing cursor!!
 
-// TODO: Minor bug - can delete too many chars from status line
+// TODO: Check beep() sounds okay on real hardware
 // TODO: Should be smarter about redrawing when updating selection!!!
 // TODO: Make use of aux mem
 
@@ -82,7 +82,11 @@ char openapple[] = "\x0f\x1b""A\x18\x0e";
  */
 #pragma code-name (push, "LC")
 void beep(void) {
-  putchar(BELL);
+  uint8_t *p = 0xc030; // Speaker
+  uint8_t junk;
+  uint16_t i;
+  for (i = 0; i < 1000; ++i)
+    junk = *p;
 }
 #pragma code-name (pop)
 
