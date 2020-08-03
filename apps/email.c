@@ -83,12 +83,16 @@ void load_editor(void) {
   sprintf(userentry, "%s/EDIT.SYSTEM", cfg_instdir);
   exec(userentry, filename);
 }
+#pragma code-name (pop)
 
+#pragma code-name (push, "LC")
 void load_pop65(void) {
   sprintf(filename, "%s/POP65.SYSTEM", cfg_instdir);
   exec(filename, "EMAIL");
 }
+#pragma code-name (pop)
 
+#pragma code-name (push, "LC")
 void load_smtp65(void) {
   sprintf(filename, "%s/SMTP65.SYSTEM", cfg_instdir);
   exec(filename, "EMAIL");
@@ -98,22 +102,27 @@ void load_smtp65(void) {
 /*
  * Put cursor at beginning of PROMPT_ROW
  */
+#pragma code-name (push, "LC")
 void goto_prompt_row(void) {
   uint8_t i;
   putchar(HOME);
   for (i = 0; i < PROMPT_ROW - 1; ++i) 
     putchar(CURDOWN);
 }
+#pragma code-name (pop)
 
+#pragma code-name (push, "LC")
 void clrscr2(void) {
   videomode(VIDEOMODE_80COL);
   clrscr();
 }
+#pragma code-name (pop)
 
 /*
  * Show non fatal error in PROMPT_ROW
  * Fatal errors are shown on a blank screen
  */
+#pragma code-name (push, "LC")
 void error(uint8_t fatal, const char *fmt, ...) {
   va_list v;
   if (fatal) {
@@ -136,17 +145,22 @@ void error(uint8_t fatal, const char *fmt, ...) {
     putchar(CLRLINE);
   }
 }
+#pragma code-name (pop)
 
 /*
  * Print spaces
  */
+#pragma code-name (push, "LC")
 void pr_spc(uint8_t n) {
   while (n--)
     putchar(' ');
 }
+#pragma code-name (pop)
+
 /*
  * Print ASCII-art envelope
  */
+#pragma code-name (push, "LC")
 void envelope(void) {
   uint8_t i;
   putchar(NORMAL);
@@ -162,20 +176,24 @@ void envelope(void) {
   pr_spc(30); puts("+------------------+");
   pr_spc(30); puts("                 ... No messages in this mailbox");
 }
+#pragma code-name (pop)
 
 /*
  * Busy spinner
  */
+#pragma code-name (push, "LC")
 void spinner(void) {
   static char chars[] = "|/-\\";
   static uint8_t i = 0;
   putchar(BACKSPACE);
   putchar(chars[(i++) % 4]);
 }
+#pragma code-name (pop)
 
 /*
  * Read parms from EMAIL.CFG
  */
+#pragma code-name (push, "LC")
 void readconfigfile(void) {
   fp = fopen("EMAIL.CFG", "r");
   if (!fp)
@@ -191,10 +209,12 @@ void readconfigfile(void) {
   fscanf(fp, "%s", cfg_emailaddr);
   fclose(fp);
 }
+#pragma code-name (pop)
 
 /*
  * Convert date/time bytes into struct datetime format.
  */
+#pragma code-name (push, "LC")
 void readdatetime(unsigned char time[4], struct datetime *dt) {
     unsigned int d = time[0] + 256U * time[1];
     unsigned int t = time[2] + 256U * time[3];
@@ -225,10 +245,12 @@ void readdatetime(unsigned char time[4], struct datetime *dt) {
         dt->ispd25format = 1;
     }
 }
+#pragma code-name (pop)
 
 /*
  * Print a date/time value in short format for the status bar
  */
+#pragma code-name (push, "LC")
 void printdatetime(struct datetime *dt) {
   if (dt->nodatetime)
     fputs("????-??-?? ??:??", stdout);
@@ -237,12 +259,14 @@ void printdatetime(struct datetime *dt) {
            dt->year, dt->month, dt->day, dt->hour, dt->minute);
   }
 }
+#pragma code-name (pop)
 
 /*
  * Format a date/time in format suitable for an email
  * dt - structure representing date/time
  * s  - result is returned through this pointer
  */
+#pragma code-name (push, "LC")
 void datetimelong(struct datetime *dt, char *s) {
   static char *months[] = {"", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
                                "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
@@ -254,15 +278,18 @@ void datetimelong(struct datetime *dt, char *s) {
             dt->day, months[dt->month], dt->year, dt->hour, dt->minute);
   }
 }
+#pragma code-name (pop)
 
 /*
  * Obtain the system date and time for the status bar
  */
+#pragma code-name (push, "LC")
 void printsystemdate(void) {
   struct datetime dt;
   readdatetime((unsigned char*)(SYSTEMTIME), &dt);
   printdatetime(&dt);
 }
+#pragma code-name (pop)
 
 /*
  * Free linked list rooted at headers
