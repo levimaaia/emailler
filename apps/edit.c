@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////////////////////
 // Prototype of text editor
-// Bobbi July-Aug 2020
+// Bobbi July 2020
 /////////////////////////////////////////////////////////////////////////////
 
 // Note: Use my fork of cc65 to get a flashing cursor!!
@@ -802,7 +802,7 @@ void cursor_right(void) {
     return;
   }
   ++curscol;
-  if ((curscol == rowlen[cursrow]) && (gapbuf[gapbegin - 1] == '\r')) {
+  if (curscol == rowlen[cursrow]) {
     if (cursrow == NROWS - 1)
       scroll_down();
     ++cursrow;
