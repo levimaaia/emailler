@@ -5,7 +5,6 @@
 
 // Note: Use my fork of cc65 to get a flashing cursor!!
 
-// TODO: Some weirdness when last line doesn't have trailing CR
 // TODO: Minor bug - can delete too many chars from status line
 // TODO: Should be smarter about redrawing when updating selection!!!
 // TODO: Make use of aux mem
@@ -802,6 +801,10 @@ void cursor_right(void) {
     return;
   }
   ++curscol;
+  if (gapend == BUFSZ - 1) {
+    gotoxy(curscol, cursrow);
+    return;
+  }
   if (curscol == rowlen[cursrow]) {
     if (cursrow == NROWS - 1)
       scroll_down();
