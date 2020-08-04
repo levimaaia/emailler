@@ -7,7 +7,7 @@
 
 // TODO: Maybe rework load_file() again to avoid memmove()
 // TODO: Adjust beep() sound
-// TODO: Should be smarter about redrawing when updating selection!!!
+// TODO: Redrawing selection on cursor_up()/cursor_down()
 // TODO: Make use of aux mem
 
 #include <conio.h>
@@ -518,6 +518,7 @@ done:
  *  rowlen[]  - length of each screen row in chars
  */
 uint8_t read_char_update_pos(void) {
+  uint16_t delta = gapend - gapbegin;
   char c;
   if ((c = gapbuf[pos++]) == EOL) {
     if (do_print) {
@@ -529,7 +530,8 @@ uint8_t read_char_update_pos(void) {
     col = 0;
     return 1;
   }
-  if ((pos > startsel) && (pos <= endsel))
+  if (((pos > startsel) && (pos <= endsel)) || // Left of cursor 
+      ((pos - delta > endsel) && (pos - delta <= startsel + 1)))   // Right of cursor
     revers(1);
   else
     revers(0);
@@ -805,6 +807,13 @@ void cursor_left(void) {
   } else
     --curscol;
   gotoxy(curscol, cursrow);
+  if (mode > SEL_MOVE2) {
+    endsel = gapbegin;
+    revers(gapbegin < startsel ? 1 : 0);
+    cputc(gapbuf[gapbegin]);
+    revers(0);
+  }
+  gotoxy(curscol, cursrow);
 }
 #pragma code-name (pop)
 
@@ -831,7 +840,7 @@ void cursor_right(void) {
 done:
   if (mode > SEL_MOVE2) {
     endsel = gapbegin;
-    revers(1);
+    revers(gapbegin > startsel ? 1 : 0);
     cputc(gapbuf[gapbegin - 1]);
     revers(0);
   }
@@ -1152,33 +1161,17 @@ int edit(char *fname) {
       break;
     case 0x80 + 0x08:  // OA-Left "Word left"
       word_left();
-      if (mode > SEL_MOVE2) {
-        endsel = gapbegin;
-        draw_screen();
-      }
       break;
     case 0x80 + 0x15:  // OA-Right "Word right"
       word_right();
-      if (mode > SEL_MOVE2) {
-        endsel = gapbegin;
-        draw_screen();
-      }
       break;
     case 0x80 + ',':  // OA-< "Home"
     case 0x80 + '<':
       goto_bol();
-      if (mode > SEL_MOVE2) {
-        endsel = gapbegin;
-        draw_screen();
-      }
       break;
     case 0x80 + '.':  // OA-> "End"
     case 0x80 + '>':
       goto_eol();
-      if (mode > SEL_MOVE2) {
-        endsel = gapbegin;
-        draw_screen();
-      }
       break;
     case 0x8b:  // OA-Up "Page Up"
       page_up();
@@ -1385,10 +1378,6 @@ int edit(char *fname) {
       break;
     case 0x08:  // Left
       cursor_left();
-      if (mode > SEL_MOVE2) {
-        endsel = gapbegin;
-        draw_screen();
-      }
       break;
     case 0x15:  // Right
       cursor_right();
