@@ -7,7 +7,7 @@
 
 // TODO: Maybe rework load_file() again to avoid memmove()
 // TODO: Adjust beep() sound
-// TODO: Redrawing selection on cursor_up()/cursor_down()
+// TODO: Redrawing selection on cursor_up()
 // TODO: Make use of aux mem
 
 #include <conio.h>
@@ -33,7 +33,7 @@
 #define ESC        0x1b
 #define DELETE     0x7f
 
-#define BUFSZ (20480 - 512)     // 19.5KB
+#define BUFSZ (20480 - 1024)     // 19KB
 
 char     gapbuf[BUFSZ];
 char     padding = 0;        // To null terminate for strstr()
@@ -97,45 +97,37 @@ void beep(void) {
 /*
  * Clear to EOL
  */
-#pragma code-name (push, "LC")
 void clreol(void) {
   uint8_t x = wherex(), y = wherey();
   cclear(80 - x);
   gotoxy(x, y);
 }
 
-#pragma code-name (pop)
 /*
  * Clear to EOL, wrap to next line
  */
-#pragma code-name (push, "LC")
 void clreol_wrap(void) {
   uint8_t x = wherex();
   cclear(80 - x);
   gotox(x);
 }
-#pragma code-name (pop)
 
 /*
  * Clear line
  */
-#pragma code-name (push, "LC")
 void clrline(void) {
   uint8_t x = wherex();
   gotox(0);
   cclear(80);
   gotox(x);
 }
-#pragma code-name (pop)
 
 /*
  * Put cursor at beginning of PROMPT_ROW
  */
-#pragma code-name (push, "LC")
 void goto_prompt_row(void) {
   gotoxy(0, PROMPT_ROW);
 }
-#pragma code-name (pop)
 
 /*
  * Refresh the status line at the bottom of the screen
@@ -323,7 +315,6 @@ void show_error(char *msg) {
  * Insert a character into gapbuf at current position
  * c - character to insert
  */
-#pragma code-name (push, "LC")
 void insert_char(char c) {
   if (FREESPACE()) {
     gapbuf[gapbegin++] = c;
@@ -331,7 +322,6 @@ void insert_char(char c) {
   }
   beep();
 }
-#pragma code-name (pop)
 
 /*
  * Delete the character to the left of the current position
@@ -872,6 +862,9 @@ uint8_t cursor_up(void) {
   for (i = 0; i < rowlen[cursrow] - curscol; ++i)
     if (gapbegin > 0)
       gapbuf[gapend--] = gapbuf[--gapbegin];
+  if (mode > SEL_MOVE2) {
+    endsel = gapbegin;
+  }
   gotoxy(curscol, cursrow);
   return 0;
 }
@@ -891,8 +884,12 @@ uint8_t cursor_down(void) {
     return 1; // Last line
 
   for (i = 0; i < rowlen[cursrow] - curscol; ++i) {
-    if (gapend < BUFSZ - 1)
+    if (gapend < BUFSZ - 1) {
       gapbuf[gapbegin++] = gapbuf[++gapend];
+      revers(gapbegin > startsel ? 1 : 0);
+      cputc(gapbuf[gapbegin - 1]);
+      revers(0);
+    }
     else { 
       beep();
       return 1;
@@ -902,9 +899,18 @@ uint8_t cursor_down(void) {
   // Short line ...
   if (curscol > rowlen[cursrow] - 1)
     curscol = rowlen[cursrow] - 1;
-  for (i = 0; i < curscol; ++i)
-    if (gapend < BUFSZ - 1)
+  gotoxy(0, cursrow);
+  for (i = 0; i < curscol; ++i) {
+    if (gapend < BUFSZ - 1) {
       gapbuf[gapbegin++] = gapbuf[++gapend];
+      revers(gapbegin > startsel ? 1 : 0);
+      cputc(gapbuf[gapbegin - 1]);
+      revers(0);
+    }
+  }
+  if (mode > SEL_MOVE2) {
+    endsel = gapbegin;
+  }
   gotoxy(curscol, cursrow);
   return 0;
 }
@@ -1123,6 +1129,11 @@ int edit(char *fname) {
     if (mode == SRCH3)  // Reset 'Not found'
       mode = SEL_NONE;
     switch (c) {
+    case ESC: // Escape from block mode operations
+      startsel = endsel = 65535U;
+      mode = SEL_NONE;
+      draw_screen();
+      break;
     case 0x80 + '1': // Top
       jump_pos(0);
       draw_screen();
@@ -1175,29 +1186,27 @@ int edit(char *fname) {
       break;
     case 0x8b:  // OA-Up "Page Up"
       page_up();
-      if (mode > SEL_MOVE2) {
-        endsel = gapbegin;
+      if (mode > SEL_MOVE2)
         draw_screen();
-      }
       break;
     case 0x8a:  // OA-Down "Page Down"
       page_down();
-      if (mode > SEL_MOVE2) {
-        endsel = gapbegin;
-        draw_screen();
-      }
       break;
     case 0x80 + 'C': // OA-C "Copy"
     case 0x80 + 'c': // OA-c
       mode = SEL_COPY;
+      tmp = (startsel == 65535U ? 0 : 1); // Prev selection active?
       endsel = startsel = gapbegin;
-      draw_screen();
+      if (tmp)
+        draw_screen();
       break;
     case 0x80 + 'D': // OA-D "Delete"
     case 0x80 + 'd': // OA-d
       mode = SEL_DEL;
+      tmp = (startsel == 65535U ? 0 : 1); // Prev selection active?
       endsel = startsel = gapbegin;
-      draw_screen();
+      if (tmp)
+        draw_screen();
       break;
     case 0x80 + 'R': // OA-R "Replace"
     case 0x80 + 'r': // OA-r
@@ -1300,8 +1309,10 @@ int edit(char *fname) {
     case 0x80 + 'M': // OA-M "Move"
     case 0x80 + 'm': // OA-m
       mode = SEL_MOVE;
+      tmp = (startsel == 65535U ? 0 : 1); // Prev selection active?
       endsel = startsel = gapbegin;
-      draw_screen();
+      if (tmp)
+        draw_screen();
       break;
     case 0x80 + 'N': // OA-N "Name"
     case 0x80 + 'n': // OA-n
@@ -1384,17 +1395,11 @@ int edit(char *fname) {
       break;
     case 0x0b:  // Up
       cursor_up();
-      if (mode > SEL_MOVE2) {
-        endsel = gapbegin;
+      if (mode > SEL_MOVE2)
         draw_screen();
-      }
       break;
     case 0x0a:  // Down
       cursor_down();
-      if (mode > SEL_MOVE2) {
-        endsel = gapbegin;
-        draw_screen();
-      }
       break;
     case EOL:   // Return
       if (mode == SEL_NONE) {
