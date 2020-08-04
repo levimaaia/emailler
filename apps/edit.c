@@ -5,7 +5,7 @@
 
 // Note: Use my fork of cc65 to get a flashing cursor!!
 
-// TODO: Check beep() sounds okay on real hardware
+// TODO: Adjust beep() sound
 // TODO: Should be smarter about redrawing when updating selection!!!
 // TODO: Make use of aux mem
 
@@ -21,6 +21,8 @@
 #define NROWS      22        // Height of editing screen
 #define CURSORROW  10        // Row cursor is initially shown on (if enough text)
 #define PROMPT_ROW NROWS + 1 // Row where input prompt is shown
+#define RDSZ       1024      // Size of chunks to use when loading file
+#define WRTSZ      1024      // Size of chunks to use when saving file
 
 #define EOL       '\r'       // For ProDOS
 
@@ -30,7 +32,8 @@
 #define ESC        0x1b
 #define DELETE     0x7f
 
-#define BUFSZ (40 * 512)     // 20KB
+#define BUFSZ (39 * 512)     // 19.5KB
+
 char     gapbuf[BUFSZ];
 char     padding = 0;        // To null terminate for strstr()
 uint16_t gapbegin = 0;
@@ -80,15 +83,13 @@ char openapple[] = "\x0f\x1b""A\x18\x0e";
 /*
  * Annoying beep
  */
-#pragma code-name (push, "LC")
 void beep(void) {
-  uint8_t *p = 0xc030; // Speaker
+  uint8_t *p = (uint8_t*)0xc030; // Speaker
   uint8_t junk;
   uint16_t i;
   for (i = 0; i < 1000; ++i)
     junk = *p;
 }
-#pragma code-name (pop)
 
 /*
  * Clear to EOL
@@ -356,21 +357,6 @@ void delete_char_right(void) {
 #pragma code-name (pop)
 
 /*
- * Obtain the next character (to the right of the current position)
- * and advance the position.
- * c - character is returned throught this pointer
- * Returns 0 on success, 1 if at end of the buffer.
- */
-#pragma code-name (push, "LC")
-uint8_t get_char(char *c) {
-  if (gapend == BUFSZ - 1)
-    return 1;
-  *c = gapbuf[gapbegin++] = gapbuf[++gapend];
-  return 0;
-}
-#pragma code-name (pop)
-
-/*
  * Move the current position
  * pos - position to which to move
  */
@@ -407,49 +393,65 @@ uint8_t next_tabstop(uint8_t col) {
  * Load a file from disk into the gapbuf
  * filename - name of file to load
  * replace - if 1, replace old file.
+ * initialcol - initial screen column
  * Returns 0 on success
  *         1 if file can't be opened
  */
 #pragma code-name (push, "LC")
 uint8_t load_file(char *filename, uint8_t replace) {
-  char c;
-  uint8_t i;
+  uint8_t col;
+  char *p;
+  uint16_t i, j, s;
+  uint8_t c, cont;
   FILE *fp = fopen(filename, "r");
   if (!fp)
     return 1;
+  if (!replace)
+    col = curscol;
   goto_prompt_row();
   if (replace) {
     gapbegin = 0;
     gapend = BUFSZ - 1;
     col = 0;
   }
-  while (!feof(fp)) {
-    c = fgetc(fp);
-    switch (c) {
-    case '\r': // Native Apple2 files
-    case '\n': // UNIX files
-      col = 0;
-      gapbuf[gapbegin++] = '\r';
-      break;
-    case '\t':
-      c = next_tabstop(col) - col;
-      for (i = 0; i < c; ++i)
-        gapbuf[gapbegin++] = ' ';
-      col += c;
-      break;
-    default:
-      ++col;
-      gapbuf[gapbegin++] = c;      
-    }
-    if (FREESPACE() < 1000) {
-      fclose(fp);
+  p = gapbuf + gapbegin;
+  do {
+    if (FREESPACE() < RDSZ * 2) {
       show_error("File truncated");
-      return 0;
+      goto done;
     }
-    if ((gapbegin % 1000) == 0)
-      cputc('.');
-  }
+    cputc('.');
+    s = fread(p, 1, RDSZ, fp);
+    cont = (s == RDSZ ? 1 : 0);
+
+    i = 0;
+    while (i < s) {
+      switch (*(p + i)) {
+      case '\r': // Native Apple2 files
+      case '\n': // UNIX files
+        col = 0;
+        *(p + i) = '\r';
+        ++i;
+        break;
+      case '\t':
+        c = next_tabstop(col) - col;
+        memmove(p + i + c - 1, p + i, s - i);
+        for (j = 0; j < c; ++j)
+          *(p + i + j) = ' ';
+        col += c;
+        i += c;
+        s += c - 1;
+        break;
+      default:
+        ++col;
+        ++i;
+      }
+    }
+    p += s;
+    gapbegin += s;
+  } while (cont);
   --gapbegin; // Eat EOF character
+done:
   fclose(fp);
   if (replace) {
     jump_pos(0);
@@ -470,23 +472,32 @@ uint8_t load_file(char *filename, uint8_t replace) {
  */
 #pragma code-name (push, "LC")
 uint8_t save_file(char *filename) {
-  uint16_t p = gapbegin;
-  char c;
+  uint16_t pos = gapbegin;
+  uint8_t retval = 1;
+  char *p;
+  uint8_t i;
   FILE *fp;
   _filetype = PRODOS_T_TXT;
   _auxtype = 0;
   fp = fopen(filename, "w");
   if (!fp)
-    return 1;
+    goto done;
   jump_pos(0);
   goto_prompt_row();
-  while (get_char(&c) == 0) {
-    fputc(c, fp);
-    if ((gapbegin % 1000) == 0)
-      cputc('.');
+  p = gapbuf + gapend + 1;
+  for (i = 0; i < DATASIZE() / WRTSZ; ++i) {
+    cputc('.');
+    if (fwrite(p, WRTSZ, 1, fp) != 1)
+      goto done;
+    p += WRTSZ;
   }
+  cputc('.');
+  if (fwrite(p, DATASIZE() - (WRTSZ * i), 1, fp) != 1)
+    goto done;
+  retval = 0;
+done:
   fclose(fp);
-  jump_pos(p);
+  jump_pos(pos);
   return 0;
 }
 #pragma code-name (pop)
