@@ -817,19 +817,23 @@ void cursor_right(void) {
     gapbuf[gapbegin++] = gapbuf[++gapend];
   else {
     beep();
-    gotoxy(curscol, cursrow);
-    return;
+    goto done;
   }
   ++curscol;
-  if (gapend == BUFSZ - 1) {
-    gotoxy(curscol, cursrow);
-    return;
-  }
+  if (gapend == BUFSZ - 1)
+    goto done;
   if (curscol == rowlen[cursrow]) {
     if (cursrow == NROWS - 1)
       scroll_down();
     ++cursrow;
     curscol = 0;
+  }
+done:
+  if (mode > SEL_MOVE2) {
+    endsel = gapbegin;
+    revers(1);
+    cputc(gapbuf[gapbegin - 1]);
+    revers(0);
   }
   gotoxy(curscol, cursrow);
 }
@@ -1388,10 +1392,6 @@ int edit(char *fname) {
       break;
     case 0x15:  // Right
       cursor_right();
-      if (mode > SEL_MOVE2) {
-        endsel = gapbegin;
-        draw_screen();
-      }
       break;
     case 0x0b:  // Up
       cursor_up();
