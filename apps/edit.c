@@ -88,8 +88,10 @@ void beep(void) {
   uint8_t *p = (uint8_t*)0xc030; // Speaker
   uint8_t junk;
   uint16_t i;
-  for (i = 0; i < 1000; ++i)
+  for (i = 0; i < 1000; ++i) {
     junk = *p;
+    for (junk = 0; junk < 10; ++junk); // Reduce pitch
+  }
 }
 
 /*
@@ -527,7 +529,7 @@ uint8_t read_char_update_pos(void) {
     col = 0;
     return 1;
   }
-  if ((pos >= startsel) && (pos <= endsel))
+  if ((pos > startsel) && (pos <= endsel))
     revers(1);
   else
     revers(0);
