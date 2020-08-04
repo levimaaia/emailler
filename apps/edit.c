@@ -5,6 +5,7 @@
 
 // Note: Use my fork of cc65 to get a flashing cursor!!
 
+// TODO: Maybe rework load_file() again to avoid memmove()
 // TODO: Adjust beep() sound
 // TODO: Should be smarter about redrawing when updating selection!!!
 // TODO: Make use of aux mem
@@ -32,7 +33,7 @@
 #define ESC        0x1b
 #define DELETE     0x7f
 
-#define BUFSZ (39 * 512)     // 19.5KB
+#define BUFSZ (20480 - 512)     // 19.5KB
 
 char     gapbuf[BUFSZ];
 char     padding = 0;        // To null terminate for strstr()
@@ -360,25 +361,27 @@ void delete_char_right(void) {
  * Move the current position
  * pos - position to which to move
  */
-#pragma code-name (push, "LC")
 void jump_pos(uint16_t pos) {
+  uint16_t l;
   if (pos > BUFSZ - 1) {
     beep();
     return;
   }
   if (pos == GETPOS())
     return;
-  if (pos > GETPOS())
-    do {
-      gapbuf[gapbegin++] = gapbuf[++gapend];
-    } while (pos > GETPOS());
-  else
-    do {
-      gapbuf[gapend--] = gapbuf[--gapbegin];
-    } while (pos < GETPOS());
+  if (pos > GETPOS()) {
+    l = pos - gapbegin;
+    memmove(gapbuf + gapbegin, gapbuf + gapend + 1, l);
+    gapbegin += l;
+    gapend += l;
+  } else {
+    l = gapbegin - pos;
+    memmove(gapbuf + gapend - l + 1, gapbuf + gapbegin - l, l);
+    gapbegin -= l;
+    gapend -= l;
+  }
   return;
 }
-#pragma code-name (pop)
 
 /*
  * Go to next tabstop
