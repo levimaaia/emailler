@@ -5,6 +5,7 @@
 
 // Note: Use my fork of cc65 to get a flashing cursor!!
 
+// TODO: If I can get OpenApple to print using conio, I can speed up help()
 // TODO: Make use of aux mem
 
 #include <conio.h>
@@ -55,7 +56,7 @@ uint8_t  quit_to_email;   // If 1, launch EMAIL.SYSTEM on quit
 uint8_t  modified;        // If 1, file contents have been modified
 
 // The order of the cases matters! SRCH1/2/3 are not really a selection modes.
-enum selmode {SEL_NONE, SEL_COPY2, SEL_MOVE2, SEL_DEL, SEL_MOVE, SEL_COPY,
+enum selmode {SEL_NONE, SEL_DEL2, SEL_COPY2, SEL_MOVE2, SEL_DEL, SEL_MOVE, SEL_COPY,
               SRCH1, SRCH2, SRCH3};
 enum selmode mode;
 
@@ -1205,6 +1206,8 @@ int edit(char *fname) {
       endsel = startsel = gapbegin;
       if (tmp)
         draw_screen();
+      else
+        update_status_line();
       break;
     case 0x80 + 'D': // OA-D "Delete"
     case 0x80 + 'd': // OA-d
@@ -1213,6 +1216,8 @@ int edit(char *fname) {
       endsel = startsel = gapbegin;
       if (tmp)
         draw_screen();
+      else
+        update_status_line();
       break;
     case 0x80 + 'R': // OA-R "Replace"
     case 0x80 + 'r': // OA-r
@@ -1319,6 +1324,8 @@ int edit(char *fname) {
       endsel = startsel = gapbegin;
       if (tmp)
         draw_screen();
+      else
+        update_status_line();
       break;
     case 0x80 + 'N': // OA-N "Name"
     case 0x80 + 'n': // OA-n
@@ -1418,6 +1425,7 @@ int edit(char *fname) {
         }
         switch (mode) {
         case SEL_DEL:
+          mode = SEL_DEL2;
           if (prompt_okay("Delete selection - ")) {
             jump_pos(startsel);
             gapend += (endsel - startsel);
