@@ -5,8 +5,8 @@
 
 // Note: Use my fork of cc65 to get a flashing cursor!!
 
-// TODO: If I can get OpenApple to print using conio, I can speed up help()
-// TODO: Make use of aux mem
+// TODO: Make use of aux mem. Need to move all functions that access gapbuf[]
+//       to LC segment
 
 #include <conio.h>
 #include <ctype.h>
@@ -41,7 +41,7 @@ uint16_t gapend = BUFSZ - 1;
 uint8_t rowlen[NROWS];       // Number of chars on each row of screen
 
 char    filename[80]  = "";
-char    userentry[80] = "";
+char    userentry[82] = "";  // Couple extra chars so we can store 80 col line
 char    search[80]    = "";
 char    replace[80]   = "";
 
@@ -1038,7 +1038,10 @@ void word_wrap_para(uint8_t addbreaks) {
 #pragma code-name (push, "LC")
 void help(void) {
   FILE *fp = fopen("EDITHELP.TXT", "rb");
+  char *p;
   char c;
+  uint16_t i, j, s;
+  uint8_t cont;
   revers(0);
   cursor(0);
   clrscr();
@@ -1046,16 +1049,24 @@ void help(void) {
     printf("Can't open EDITHELP.TXT\n\n");
     goto done;
   }
-  c = fgetc(fp);
-  while (!feof(fp)) {
-    if (c == '@')
-      printf("%s", openapple);
-    else if ((c != '\r') && (c != '\n'))
-      putchar(c);
-    c = fgetc(fp);
-  }
-  fclose(fp);
+  p = gapbuf + gapend - RDSZ; // Read to just before gapend
+  do {
+    if (FREESPACE() < RDSZ) {
+      beep();
+      goto done;
+    }
+    s = fread(p, 1, RDSZ, fp);
+    cont = (s == RDSZ ? 1 : 0);
+    for (i = 0; i < s; ++i) {
+      c = p[i];
+      if (c == '@')
+        printf("%s", openapple);
+      else if ((c != '\r') && (c != '\n'))
+        putchar(c);
+    }
+  } while (cont);
 done:
+  fclose(fp);
   printf("[Press Any Key]");
   cgetc();
   clrscr();
