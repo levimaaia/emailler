@@ -5,7 +5,6 @@
 
 // Note: Use my fork of cc65 to get a flashing cursor!!
 
-// TODO: Adjust beep() sound
 // TODO: Make use of aux mem
 
 #include <conio.h>
@@ -86,9 +85,9 @@ void beep(void) {
   uint8_t *p = (uint8_t*)0xc030; // Speaker
   uint8_t junk;
   uint16_t i;
-  for (i = 0; i < 1000; ++i) {
+  for (i = 0; i < 200; ++i) {
     junk = *p;
-    for (junk = 0; junk < 10; ++junk); // Reduce pitch
+    for (junk = 0; junk < 50; ++junk); // Reduce pitch
   }
 }
 
