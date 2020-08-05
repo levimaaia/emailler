@@ -281,7 +281,7 @@ char prompt_okay(char *msg) {
   revers(0);
   while (1) {
     c = cgetc();
-    if ((c == 'y') || (c == 'Y') || (c == 'n') || (c == 'N'))
+    if ((c == 'y') || (c == 'Y') || (c == 'n') || (c == 'N') || c == ESC)
       break;
     beep();
   }
