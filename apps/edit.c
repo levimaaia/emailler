@@ -5,7 +5,6 @@
 
 // Note: Use my fork of cc65 to get a flashing cursor!!
 
-// TODO: Maybe rework load_file() again to avoid memmove()
 // TODO: Adjust beep() sound
 // TODO: Make use of aux mem
 
@@ -408,7 +407,7 @@ uint8_t load_file(char *filename, uint8_t replace) {
     gapend = BUFSZ - 1;
     col = 0;
   }
-  p = gapbuf + gapbegin;
+  p = gapbuf + gapend - RDSZ; // Read to just before gapend
   do {
     if (FREESPACE() < RDSZ * 2) {
       show_error("File truncated");
@@ -417,32 +416,28 @@ uint8_t load_file(char *filename, uint8_t replace) {
     cputc('.');
     s = fread(p, 1, RDSZ, fp);
     cont = (s == RDSZ ? 1 : 0);
-
-    i = 0;
-    while (i < s) {
-      switch (*(p + i)) {
+    for (i = 0; i < s; ++i) {
+      switch (p[i]) {
       case '\r': // Native Apple2 files
       case '\n': // UNIX files
+        gapbuf[gapbegin++] = '\r';
         col = 0;
-        *(p + i) = '\r';
-        ++i;
         break;
       case '\t':
         c = next_tabstop(col) - col;
-        memmove(p + i + c - 1, p + i, s - i);
         for (j = 0; j < c; ++j)
-          *(p + i + j) = ' ';
+          gapbuf[gapbegin++] = ' ';
         col += c;
-        i += c;
-        s += c - 1;
         break;
       default:
+        gapbuf[gapbegin++] = p[i];
         ++col;
-        ++i;
+      }
+      if (FREESPACE() < RDSZ * 2) {
+        show_error("File truncated");
+        goto done;
       }
     }
-    p += s;
-    gapbegin += s;
   } while (cont);
   --gapbegin; // Eat EOF character
 done:
