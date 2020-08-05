@@ -7,7 +7,6 @@
 
 // TODO: Maybe rework load_file() again to avoid memmove()
 // TODO: Adjust beep() sound
-// TODO: Redrawing selection on cursor_up()
 // TODO: Make use of aux mem
 
 #include <conio.h>
@@ -214,7 +213,6 @@ void set_modified(uint8_t mod) {
  * is_file - if 1, restrict chars to those allowed in ProDOS filename
  * Returns number of chars read, or 255 if ESC pressed
  */
-#pragma code-name (push, "LC")
 uint8_t prompt_for_name(char *prompt, uint8_t is_file) {
   uint16_t i;
   char c;
@@ -265,7 +263,6 @@ esc_pressed:
   cursor(1);
   return i;
 }
-#pragma code-name (pop)
 
 /*
  * Prompt ok?
@@ -372,6 +369,8 @@ void jump_pos(uint16_t pos) {
     gapbegin -= l;
     gapend -= l;
   }
+  if (mode > SEL_MOVE2)
+    endsel = gapbegin;
   return;
 }
 
@@ -801,8 +800,8 @@ void cursor_left(void) {
     endsel = gapbegin;
     revers(gapbegin < startsel ? 1 : 0);
     cputc(gapbuf[gapbegin]);
-    revers(0);
   }
+  revers(0);
   gotoxy(curscol, cursrow);
 }
 #pragma code-name (pop)
@@ -832,8 +831,8 @@ done:
     endsel = gapbegin;
     revers(gapbegin > startsel ? 1 : 0);
     cputc(gapbuf[gapbegin - 1]);
-    revers(0);
   }
+  revers(0);
   gotoxy(curscol, cursrow);
 }
 #pragma code-name (pop)
@@ -853,18 +852,30 @@ uint8_t cursor_up(void) {
       return 1;
     }
   }
-  for (i = 0; i < curscol; ++i)
+  for (i = curscol; i > 0; --i) {
     gapbuf[gapend--] = gapbuf[--gapbegin];
+    if (mode > SEL_MOVE2) {
+      gotoxy(i - 1, cursrow);
+      revers(gapbegin < startsel ? 1 : 0);
+      cputc(gapbuf[gapbegin]);
+    }
+  }
   --cursrow;
   // Short line ...
   if (curscol > rowlen[cursrow] - 1)
     curscol = rowlen[cursrow] - 1;
-  for (i = 0; i < rowlen[cursrow] - curscol; ++i)
-    if (gapbegin > 0)
-      gapbuf[gapend--] = gapbuf[--gapbegin];
+  for (i = rowlen[cursrow]; i > curscol; --i) {
+    gapbuf[gapend--] = gapbuf[--gapbegin];
+    if (mode > SEL_MOVE2) {
+      gotoxy(i - 1, cursrow);
+      revers(gapbegin < startsel ? 1 : 0);
+      cputc(gapbuf[gapbegin]);
+    }
+  }
   if (mode > SEL_MOVE2) {
     endsel = gapbegin;
   }
+  revers(0);
   gotoxy(curscol, cursrow);
   return 0;
 }
@@ -886,9 +897,10 @@ uint8_t cursor_down(void) {
   for (i = 0; i < rowlen[cursrow] - curscol; ++i) {
     if (gapend < BUFSZ - 1) {
       gapbuf[gapbegin++] = gapbuf[++gapend];
-      revers(gapbegin > startsel ? 1 : 0);
-      cputc(gapbuf[gapbegin - 1]);
-      revers(0);
+      if (mode > SEL_MOVE2) {
+        revers(gapbegin > startsel ? 1 : 0);
+        cputc(gapbuf[gapbegin - 1]);
+      }
     }
     else { 
       beep();
@@ -903,14 +915,16 @@ uint8_t cursor_down(void) {
   for (i = 0; i < curscol; ++i) {
     if (gapend < BUFSZ - 1) {
       gapbuf[gapbegin++] = gapbuf[++gapend];
-      revers(gapbegin > startsel ? 1 : 0);
-      cputc(gapbuf[gapbegin - 1]);
-      revers(0);
+      if (mode > SEL_MOVE2) {
+        revers(gapbegin > startsel ? 1 : 0);
+        cputc(gapbuf[gapbegin - 1]);
+      }
     }
   }
   if (mode > SEL_MOVE2) {
     endsel = gapbegin;
   }
+  revers(0);
   gotoxy(curscol, cursrow);
   return 0;
 }
@@ -1186,8 +1200,6 @@ int edit(char *fname) {
       break;
     case 0x8b:  // OA-Up "Page Up"
       page_up();
-      if (mode > SEL_MOVE2)
-        draw_screen();
       break;
     case 0x8a:  // OA-Down "Page Down"
       page_down();
@@ -1395,8 +1407,6 @@ int edit(char *fname) {
       break;
     case 0x0b:  // Up
       cursor_up();
-      if (mode > SEL_MOVE2)
-        draw_screen();
       break;
     case 0x0a:  // Down
       cursor_down();
