@@ -5,8 +5,9 @@
 
 // Note: Use my fork of cc65 to get a flashing cursor!!
 
-// TODO: Make use of aux mem. Need to move all functions that access gapbuf[]
-//       to LC segment
+// TODO: Finish off auxmem support. See TODOs below
+
+#define AUXMEM               // HIGHLY EXPERIMENTAL
 
 #include <conio.h>
 #include <ctype.h>
@@ -31,10 +32,15 @@
 #define ESC        0x1b
 #define DELETE     0x7f
 
+#ifdef AUXMEM
+#define BUFSZ 0xb7fe             // All of aux from 0x800 to 0xbfff, minus a byte
+char     iobuf[RDSZ];            // Buffer for disk I/O
+#else
 #define BUFSZ (20480 - 1024)     // 19KB
-
 char     gapbuf[BUFSZ];
-char     padding = 0;        // To null terminate for strstr()
+char     padding = 0;            // To null terminate for strstr()
+#endif
+
 uint16_t gapbegin = 0;
 uint16_t gapend = BUFSZ - 1;
 
@@ -78,6 +84,59 @@ char openapple[] = "\x0f\x1b""A\x18\x0e";
  * This is the positon where the next character will be inserted
  */
 #define GETPOS()    (gapbegin)
+
+/*
+ * Obtain one byte from the gapbuf[] in aux memory
+ * Must be in LC
+ */
+#pragma code-name (push, "LC")
+char get_gapbuf(uint16_t i) {
+#ifdef AUXMEM
+  *(uint16_t*)(0xfe) = (uint16_t)0x0800 + i; // Stuff address in Zero Page
+  __asm__("sta $c003"); // Read aux mem
+  __asm__("lda ($fe)");
+  __asm__("sta $ff");
+  __asm__("sta $c002"); // Read main mem
+  return *(uint8_t*)(0xff);
+#else
+  return gapbuf[i];
+#endif
+}
+#pragma code-name (pop)
+
+/*
+ * Set one byte in the gapbuf[] in aux memory
+ * Must be in LC
+ */
+#pragma code-name (push, "LC")
+void set_gapbuf(uint16_t i, char c) {
+#ifdef AUXMEM
+  __asm__("sta $c005"); // Write aux mem
+  (*(char*)((char*)0x800 + i)) = c;
+  __asm__("sta $c004"); // Write main mem
+#else
+  gapbuf[i] = c;
+#endif
+}
+#pragma code-name (pop)
+
+/*
+ * Do a memmove() on aux memory. Uses indices into gapbuf[].
+ * Must be in LC
+ */
+#pragma code-name (push, "LC")
+void move_in_gapbuf(uint16_t dest, uint16_t src, size_t n) {
+#ifdef AUXMEM
+  __asm__("sta $c005"); // Write aux mem
+  __asm__("sta $c003"); // Read aux mem
+  // TODO DO STUFF
+  __asm__("sta $c002"); // Read main mem
+  __asm__("sta $c004"); // Write main mem
+#else
+  memmove(gapbuf + dest, gapbuf + src, n);
+#endif
+}
+#pragma code-name (pop)
 
 /*
  * Annoying beep
@@ -266,7 +325,6 @@ esc_pressed:
 /*
  * Prompt ok?
  */
-#pragma code-name (push, "LC")
 char prompt_okay(char *msg) {
   char c;
   cursor(0);
@@ -288,12 +346,10 @@ char prompt_okay(char *msg) {
   update_status_line();
   return c;
 }
-#pragma code-name (pop)
 
 /*
  * Error message
  */
-#pragma code-name (push, "LC")
 void show_error(char *msg) {
   cursor(0);
   goto_prompt_row();
@@ -305,7 +361,6 @@ void show_error(char *msg) {
   cgetc();
   update_status_line();
 }
-#pragma code-name (pop)
 
 /*
  * Insert a character into gapbuf at current position
@@ -313,7 +368,7 @@ void show_error(char *msg) {
  */
 void insert_char(char c) {
   if (FREESPACE()) {
-    gapbuf[gapbegin++] = c;
+    set_gapbuf(gapbegin++, c);
     return;
   }
   beep();
@@ -359,12 +414,12 @@ void jump_pos(uint16_t pos) {
     return;
   if (pos > GETPOS()) {
     l = pos - gapbegin;
-    memmove(gapbuf + gapbegin, gapbuf + gapend + 1, l);
+    move_in_gapbuf(gapbegin, gapend + 1, l);
     gapbegin += l;
     gapend += l;
   } else {
     l = gapbegin - pos;
-    memmove(gapbuf + gapend - l + 1, gapbuf + gapbegin - l, l);
+    move_in_gapbuf(gapend - l + 1, gapbegin - l, l);
     gapbegin -= l;
     gapend -= l;
   }
@@ -407,7 +462,11 @@ uint8_t load_file(char *filename, uint8_t replace) {
     gapend = BUFSZ - 1;
     col = 0;
   }
+#ifdef AUXMEM
+  p = iobuf;
+#else
   p = gapbuf + gapend - RDSZ; // Read to just before gapend
+#endif
   do {
     if (FREESPACE() < RDSZ * 2) {
       show_error("File truncated");
@@ -420,17 +479,17 @@ uint8_t load_file(char *filename, uint8_t replace) {
       switch (p[i]) {
       case '\r': // Native Apple2 files
       case '\n': // UNIX files
-        gapbuf[gapbegin++] = '\r';
+        set_gapbuf(gapbegin++, '\r');
         col = 0;
         break;
       case '\t':
         c = next_tabstop(col) - col;
         for (j = 0; j < c; ++j)
-          gapbuf[gapbegin++] = ' ';
+          set_gapbuf(gapbegin++, ' ');
         col += c;
         break;
       default:
-        gapbuf[gapbegin++] = p[i];
+        set_gapbuf(gapbegin++, p[i]);
         ++col;
       }
       if (FREESPACE() < RDSZ * 2) {
@@ -473,7 +532,11 @@ uint8_t save_file(char *filename) {
     goto done;
   jump_pos(0);
   goto_prompt_row();
+#ifdef AUXMEM
+  p = iobuf;
+#else
   p = gapbuf + gapend + 1;
+#endif
   for (i = 0; i < DATASIZE() / WRTSZ; ++i) {
     cputc('.');
     if (fwrite(p, WRTSZ, 1, fp) != 1)
@@ -504,7 +567,7 @@ done:
 uint8_t read_char_update_pos(void) {
   uint16_t delta = gapend - gapbegin;
   char c;
-  if ((c = gapbuf[pos++]) == EOL) {
+  if ((c = get_gapbuf(pos++)) == EOL) {
     if (do_print) {
       rowlen[row] = col + 1;
       clreol_wrap();
@@ -616,7 +679,7 @@ void scroll_down() {
 uint8_t is_last_line(void) {
   uint16_t p = gapend + 1;
   while (p < BUFSZ) {
-    if (gapbuf[p++] == '\r')
+    if (get_gapbuf(p++) == '\r')
       return 0;
   }
   return 1;
@@ -642,7 +705,7 @@ void update_after_delete_char_right(void) {
     clreol_wrap();
 
   // If necessary, print rest of screen
-  if ((gapbuf[gapend] == EOL) || (i == NCOLS - 1)) {
+  if ((get_gapbuf(gapend) == EOL) || (i == NCOLS - 1)) {
     while ((pos < BUFSZ) && (row < NROWS))
       read_char_update_pos();
 
@@ -668,7 +731,7 @@ void update_after_delete_char(void) {
   col = curscol;
   row = cursrow;
 
-  if (gapbuf[gapbegin] == EOL) {
+  if (get_gapbuf(gapbegin) == EOL) {
     // Special handling if we deleted an EOL
     if (row > 0)
       col = rowlen[--row] - 1;
@@ -710,7 +773,7 @@ void update_after_delete_char(void) {
     clreol_wrap();
 
   // If necessary, print rest of screen
-  if ((gapbuf[gapbegin] == EOL) || (i == NCOLS - 1)) {
+  if ((get_gapbuf(gapbegin) == EOL) || (i == NCOLS - 1)) {
     while ((pos < BUFSZ) && (row < NROWS))
       read_char_update_pos();
 
@@ -758,7 +821,7 @@ void update_after_insert_char(void) {
   }
 
   // If necessary, print rest of screen
-  if ((gapbuf[gapbegin - 1] == EOL) || (prevcol == 0))
+  if ((get_gapbuf(gapbegin - 1) == EOL) || (prevcol == 0))
     while ((pos < BUFSZ) && (row < NROWS))
       read_char_update_pos();
 
@@ -772,7 +835,7 @@ void update_after_insert_char(void) {
 #pragma code-name (push, "LC")
 void cursor_left(void) {
   if (gapbegin > 0)
-    gapbuf[gapend--] = gapbuf[--gapbegin];
+    set_gapbuf(gapend--, get_gapbuf(--gapbegin));
   else {
     beep();
     gotoxy(curscol, cursrow);
@@ -794,7 +857,7 @@ void cursor_left(void) {
   if (mode > SEL_MOVE2) {
     endsel = gapbegin;
     revers(gapbegin < startsel ? 1 : 0);
-    cputc(gapbuf[gapbegin]);
+    cputc(get_gapbuf(gapbegin));
   }
   revers(0);
   gotoxy(curscol, cursrow);
@@ -807,7 +870,7 @@ void cursor_left(void) {
 #pragma code-name (push, "LC")
 void cursor_right(void) {
   if (gapend < BUFSZ - 1)
-    gapbuf[gapbegin++] = gapbuf[++gapend];
+    set_gapbuf(gapbegin++, get_gapbuf(++gapend));
   else {
     beep();
     goto done;
@@ -825,7 +888,7 @@ done:
   if (mode > SEL_MOVE2) {
     endsel = gapbegin;
     revers(gapbegin > startsel ? 1 : 0);
-    cputc(gapbuf[gapbegin - 1]);
+    cputc(get_gapbuf(gapbegin - 1));
   }
   revers(0);
   gotoxy(curscol, cursrow);
@@ -848,11 +911,11 @@ uint8_t cursor_up(void) {
     }
   }
   for (i = curscol; i > 0; --i) {
-    gapbuf[gapend--] = gapbuf[--gapbegin];
+    set_gapbuf(gapend--, get_gapbuf(--gapbegin));
     if (mode > SEL_MOVE2) {
       gotoxy(i - 1, cursrow);
       revers(gapbegin < startsel ? 1 : 0);
-      cputc(gapbuf[gapbegin]);
+      cputc(get_gapbuf(gapbegin));
     }
   }
   --cursrow;
@@ -860,11 +923,11 @@ uint8_t cursor_up(void) {
   if (curscol > rowlen[cursrow] - 1)
     curscol = rowlen[cursrow] - 1;
   for (i = rowlen[cursrow]; i > curscol; --i) {
-    gapbuf[gapend--] = gapbuf[--gapbegin];
+    set_gapbuf(gapend--, get_gapbuf(--gapbegin));
     if (mode > SEL_MOVE2) {
       gotoxy(i - 1, cursrow);
       revers(gapbegin < startsel ? 1 : 0);
-      cputc(gapbuf[gapbegin]);
+      cputc(get_gapbuf(gapbegin));
     }
   }
   if (mode > SEL_MOVE2) {
@@ -885,16 +948,16 @@ uint8_t cursor_down(void) {
   uint8_t i;
   if (cursrow == NROWS - 1)
     scroll_down();
-  if ((gapbuf[gapend + rowlen[cursrow] - curscol] != EOL) &&
+  if ((get_gapbuf(gapend + rowlen[cursrow] - curscol) != EOL) &&
       (rowlen[cursrow] != NCOLS))
     return 1; // Last line
 
   for (i = 0; i < rowlen[cursrow] - curscol; ++i) {
     if (gapend < BUFSZ - 1) {
-      gapbuf[gapbegin++] = gapbuf[++gapend];
+      set_gapbuf(gapbegin++, get_gapbuf(++gapend));
       if (mode > SEL_MOVE2) {
         revers(gapbegin > startsel ? 1 : 0);
-        cputc(gapbuf[gapbegin - 1]);
+        cputc(get_gapbuf(gapbegin - 1));
       }
     }
     else { 
@@ -909,10 +972,10 @@ uint8_t cursor_down(void) {
   gotoxy(0, cursrow);
   for (i = 0; i < curscol; ++i) {
     if (gapend < BUFSZ - 1) {
-      gapbuf[gapbegin++] = gapbuf[++gapend];
+      set_gapbuf(gapbegin++, get_gapbuf(++gapend));
       if (mode > SEL_MOVE2) {
         revers(gapbegin > startsel ? 1 : 0);
-        cputc(gapbuf[gapbegin - 1]);
+        cputc(get_gapbuf(gapbegin - 1));
       }
     }
   }
@@ -952,7 +1015,7 @@ void goto_eol(void) {
 void word_left(void) {
   do {
     cursor_left();
-  } while ((gapbuf[gapbegin] != ' ') && (gapbuf[gapbegin] != EOL) &&
+  } while ((get_gapbuf(gapbegin) != ' ') && (get_gapbuf(gapbegin) != EOL) &&
            (gapbegin > 0));
 }
 #pragma code-name (pop)
@@ -964,7 +1027,7 @@ void word_left(void) {
 void word_right(void) {
   do {
     cursor_right();
-  } while ((gapbuf[gapbegin] != ' ') && (gapbuf[gapbegin] != EOL) &&
+  } while ((get_gapbuf(gapbegin) != ' ') && (get_gapbuf(gapbegin) != EOL) &&
            (gapend < BUFSZ - 1));
 }
 #pragma code-name (pop)
@@ -1001,7 +1064,7 @@ void word_wrap_para(uint8_t addbreaks) {
   // Find start of paragraph ("\r\r" delimiter)
   while (i > 0) {
     --i;
-    if (gapbuf[i] == '\r')
+    if (get_gapbuf(i) == '\r')
       ++rets;
     else
       rets = 0;
@@ -1013,18 +1076,18 @@ void word_wrap_para(uint8_t addbreaks) {
   // Iterate through para, up to the cursor
   i = startpara;
   while (i < gapbegin) {
-    if (gapbuf[i] == '\r')
-      gapbuf[i] = ' ';
+    if (get_gapbuf(i) == '\r')
+      set_gapbuf(i, ' ');
     ++col;
     if (addbreaks && (col == 76)) {
       // Backtrack to find a space
-      while ((gapbuf[i] != ' ') && (i > startpara))
+      while ((get_gapbuf(i) != ' ') && (i > startpara))
         --i;
       if (i == startpara) {
         beep();
         return;
       }
-      gapbuf[i] = '\r'; // Break line
+      set_gapbuf(i, '\r'); // Break line
       col = 0;
     }
     ++i;
@@ -1040,7 +1103,7 @@ void help(void) {
   FILE *fp = fopen("EDITHELP.TXT", "rb");
   char *p;
   char c;
-  uint16_t i, j, s;
+  uint16_t i, s;
   uint8_t cont;
   revers(0);
   cursor(0);
@@ -1049,7 +1112,11 @@ void help(void) {
     printf("Can't open EDITHELP.TXT\n\n");
     goto done;
   }
+#ifdef AUXMEM
+  p = iobuf;
+#else
   p = gapbuf + gapend - RDSZ; // Read to just before gapend
+#endif
   do {
     if (FREESPACE() < RDSZ) {
       beep();
@@ -1265,35 +1332,58 @@ int edit(char *fname) {
       }
       mode = SRCH1;
       update_status_line();
+#ifdef AUXMEM
+      // TODO
+#else
       p = strstr(gapbuf + gapend + 1, search);
+#endif
       if (!p) {
         mode = SRCH2;
         update_status_line();
-        gapbuf[gapbegin] = '\0';
+        set_gapbuf(gapbegin, '\0');
+#ifdef AUXMEM
+        // TODO
+#else
         p = strstr(gapbuf, search);
+#endif
         mode = SEL_NONE;
         if (!p) {
           mode = SRCH3;
           update_status_line();
           break;
         }
+#ifdef AUXMEM
+        // TODO
+#else
         jump_pos(p - gapbuf);
+#endif
         if (tmp == 0) { // Replace mode
           for (i = 0; i < strlen(search); ++i)
             delete_char_right();
+#ifdef AUXMEM
+          // TODO
+#else
           memcpy(gapbuf + gapbegin, replace, strlen(userentry));
           gapbegin += strlen(replace);
+#endif
         }
         draw_screen();
         break;
       }
       mode = SEL_NONE;
+#ifdef AUXMEM
+      // TODO
+#else
       jump_pos(gapbegin + p - (gapbuf + gapend + 1));
+#endif
       if (tmp == 0) { // Replace mode
         for (i = 0; i < strlen(search); ++i)
           delete_char_right();
+#ifdef AUXMEM
+#else
         memcpy(gapbuf + gapbegin, replace, strlen(userentry));
         gapbegin += strlen(replace);
+#endif
       }
       draw_screen();
       break;
@@ -1467,10 +1557,11 @@ int edit(char *fname) {
           sprintf(userentry, "%s selection - ", mode == SEL_COPY2 ? "Copy" : "Move");
           if (prompt_okay(userentry)) {
             if (gapbegin >= endsel)
-              memcpy(gapbuf + gapbegin, gapbuf + startsel, endsel - startsel);
+              move_in_gapbuf(gapbegin, startsel, endsel - startsel);
             else
-              memcpy(gapbuf + gapbegin,
-                     gapbuf + gapend + startsel - gapbegin + 1, endsel - startsel);
+              move_in_gapbuf(gapbegin,
+                             gapend + startsel - gapbegin + 1,
+                             endsel - startsel);
             gapbegin += (endsel - startsel);
             if (mode == SEL_MOVE2) {
               jump_pos((gapbegin >= endsel) ? startsel : endsel);
@@ -1498,6 +1589,10 @@ copymove2_cleanup:
 }
 
 void main(int argc, char *argv[]) {
+#ifdef AUXMEM
+  char *pad = 0xbfff;
+  *pad = '\0'; // Null termination for strstr()
+#endif
   if (argc == 2) {
     quit_to_email = 1;
     edit(argv[1]);
