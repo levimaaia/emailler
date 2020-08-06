@@ -131,21 +131,23 @@ void move_in_gapbuf(uint16_t dst, uint16_t src, size_t n) {
     // Start with highest addr
     // dest[n-1] = src[n-1] etc.
     *(uint16_t*)(0xfa) = n;                              // Stuff sz in ZP
-    *(uint16_t*)(0xfc) = (uint16_t)0x0800 + src + n - 1; // Stuff src in ZP
-    *(uint16_t*)(0xfe) = (uint16_t)0x0800 + dst + n - 1; // Stuff dst in ZP
+    *(uint16_t*)(0xfc) = (uint16_t)0x800 + src + n - 1; // Stuff src in ZP
+    *(uint16_t*)(0xfe) = (uint16_t)0x800 + dst + n - 1; // Stuff dst in ZP
     __asm__("sta $c005"); // Write aux mem
     __asm__("sta $c003"); // Read aux mem
              dl1:
     __asm__("lda ($fc)"); // *src
     __asm__("sta ($fe)"); // -> *dst
-    __asm__("dec $fc");   // LSB of src
+    __asm__("lda $fc");   // LSB of src
     __asm__("bne %g", ds1);
     __asm__("dec $fd");   // MSB of src
              ds1:
-    __asm__("dec $fe");   // LSB of dst
+    __asm__("dec $fc");   // LSB of src
+    __asm__("lda $fe");   // LSB of dst
     __asm__("bne %g", ds2);
     __asm__("dec $ff");   // MSB of dst
              ds2:
+    __asm__("dec $fe");   // LSB of dst
     __asm__("dec $fa");   // n
     __asm__("bne %g", dl1);    // Loop
     __asm__("sta $c002"); // Read main mem
@@ -153,8 +155,8 @@ void move_in_gapbuf(uint16_t dst, uint16_t src, size_t n) {
   } else {
     // Start with lowest addr
     *(uint16_t*)(0xfa) = n;                              // Stuff sz in ZP
-    *(uint16_t*)(0xfc) = (uint16_t)0x0800 + src;         // Stuff src in ZP
-    *(uint16_t*)(0xfe) = (uint16_t)0x0800 + dst;         // Stuff dst in ZP
+    *(uint16_t*)(0xfc) = (uint16_t)0x800 + src;         // Stuff src in ZP
+    *(uint16_t*)(0xfe) = (uint16_t)0x800 + dst;         // Stuff dst in ZP
     __asm__("sta $c005"); // Write aux mem
     __asm__("sta $c003"); // Read aux mem
              al1:
@@ -174,7 +176,7 @@ void move_in_gapbuf(uint16_t dst, uint16_t src, size_t n) {
     __asm__("sta $c004"); // Write main mem
   }
 #else
-  memmove(gapbuf + dest, gapbuf + src, n);
+  memmove(gapbuf + dst, gapbuf + src, n);
 #endif
 }
 #pragma code-name (pop)
