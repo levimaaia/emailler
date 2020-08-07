@@ -21,8 +21,7 @@
 #define NROWS      22        // Height of editing screen
 #define CURSORROW  10        // Row cursor is initially shown on (if enough text)
 #define PROMPT_ROW NROWS + 1 // Row where input prompt is shown
-#define RDSZ       1024      // Size of chunks to use when loading file
-#define WRTSZ      1024      // Size of chunks to use when saving file
+#define IOSZ       1024      // Size of chunks to use when loading/saving file
 
 #define EOL       '\r'       // For ProDOS
 
@@ -34,7 +33,7 @@
 
 #ifdef AUXMEM
 #define BUFSZ 0xb7fe             // All of aux from 0x800 to 0xbfff, minus a byte
-char     iobuf[RDSZ];            // Buffer for disk I/O
+char     iobuf[IOSZ];            // Buffer for disk I/O
 #else
 #define BUFSZ (20480 - 1024)     // 19KB
 char     gapbuf[BUFSZ];
@@ -112,7 +111,7 @@ char get_gapbuf(uint16_t i) {
 void set_gapbuf(uint16_t i, char c) {
 #ifdef AUXMEM
   __asm__("sta $c005"); // Write aux mem
-  (*(char*)((char*)0x800 + i)) = c;
+  (*(char*)((char*)0x0800 + i)) = c;
   __asm__("sta $c004"); // Write main mem
 #else
   gapbuf[i] = c;
@@ -129,9 +128,9 @@ void move_in_gapbuf(uint16_t dst, uint16_t src, size_t n) {
 #ifdef AUXMEM
   if (dst > src) {
     // Start with highest addr and copy downwards
-    *(uint16_t*)(0xfa) = n;                             // Stuff sz in ZP
-    *(uint16_t*)(0xfc) = (uint16_t)0x800 + src + n - 1; // Stuff src in ZP
-    *(uint16_t*)(0xfe) = (uint16_t)0x800 + dst + n - 1; // Stuff dst in ZP
+    *(uint16_t*)(0xfa) = n;                              // Stuff sz in ZP
+    *(uint16_t*)(0xfc) = (uint16_t)0x0800 + src + n - 1; // Stuff src in ZP
+    *(uint16_t*)(0xfe) = (uint16_t)0x0800 + dst + n - 1; // Stuff dst in ZP
 #ifdef AUXMEM
     __asm__("sta $c005"); // Write aux mem
     __asm__("sta $c003"); // Read aux mem
@@ -167,9 +166,9 @@ ds3:
 #endif
   } else {
     // Start with highest addr and copy upwards
-    *(uint16_t*)(0xfa) = n;                             // Stuff sz in ZP
-    *(uint16_t*)(0xfc) = (uint16_t)0x800 + src;         // Stuff src in ZP
-    *(uint16_t*)(0xfe) = (uint16_t)0x800 + dst;         // Stuff dst in ZP
+    *(uint16_t*)(0xfa) = n;                              // Stuff sz in ZP
+    *(uint16_t*)(0xfc) = (uint16_t)0x0800 + src;         // Stuff src in ZP
+    *(uint16_t*)(0xfe) = (uint16_t)0x0800 + dst;         // Stuff dst in ZP
     __asm__("sta $c005"); // Write aux mem
     __asm__("sta $c003"); // Read aux mem
 al1:
@@ -533,16 +532,16 @@ uint8_t load_file(char *filename, uint8_t replace) {
 #ifdef AUXMEM
   p = iobuf;
 #else
-  p = gapbuf + gapend - RDSZ; // Read to mem just before gapend
+  p = gapbuf + gapend - IOSZ; // Read to mem just before gapend
 #endif
   do {
-    if (FREESPACE() < RDSZ * 2) {
+    if (FREESPACE() < IOSZ * 2) {
       show_error("File truncated");
       goto done;
     }
     cputc('.');
-    s = fread(p, 1, RDSZ, fp);
-    cont = (s == RDSZ ? 1 : 0);
+    s = fread(p, 1, IOSZ, fp);
+    cont = (s == IOSZ ? 1 : 0);
     for (i = 0; i < s; ++i) {
       switch (p[i]) {
       case '\r': // Native Apple2 files
@@ -560,7 +559,7 @@ uint8_t load_file(char *filename, uint8_t replace) {
         set_gapbuf(gapbegin++, p[i]);
         ++col;
       }
-      if (FREESPACE() < RDSZ * 2) {
+      if (FREESPACE() < IOSZ * 2) {
         show_error("File truncated");
         goto done;
       }
@@ -586,12 +585,15 @@ done:
  * Returns 0 on success
  *         1 if file can't be opened
  */
+#ifndef AUXMEM
 #pragma code-name (push, "LC")
+#endif
 uint8_t save_file(char *filename) {
   uint16_t pos = gapbegin;
   uint8_t retval = 1;
   char *p;
   uint8_t i;
+  uint16_t j;
   FILE *fp;
   _filetype = PRODOS_T_TXT;
   _auxtype = 0;
@@ -601,26 +603,42 @@ uint8_t save_file(char *filename) {
   jump_pos(0);
   goto_prompt_row();
 #ifdef AUXMEM
-  p = iobuf;  ////////// TODO : Need to arrange for data to be copied in here
+  p = gapend + 1;
 #else
   p = gapbuf + gapend + 1;
 #endif
-  for (i = 0; i < DATASIZE() / WRTSZ; ++i) {
+  for (i = 0; i < DATASIZE() / IOSZ; ++i) {
     cputc('.');
-    if (fwrite(p, WRTSZ, 1, fp) != 1)
+#ifdef AUXMEM
+    for (j = 0; j < IOSZ; ++j)
+      iobuf[j] = get_gapbuf(p++);
+    if (fwrite(iobuf, IOSZ, 1, fp) != 1)
       goto done;
-    p += WRTSZ;
+#else
+    if (fwrite(p, IOSZ, 1, fp) != 1)
+      goto done;
+    p += IOSZ;
+#endif
   }
   cputc('.');
-  if (fwrite(p, DATASIZE() - (WRTSZ * i), 1, fp) != 1)
+#ifdef AUXMEM
+  for (j = 0; j < DATASIZE() - (IOSZ * i); ++j)
+    iobuf[j] = get_gapbuf(p++);
+  if (fwrite(iobuf, DATASIZE() - (IOSZ * i), 1, fp) != 1)
     goto done;
+#else
+  if (fwrite(p, DATASIZE() - (IOSZ * i), 1, fp) != 1)
+    goto done;
+#endif
   retval = 0;
 done:
   fclose(fp);
   jump_pos(pos);
   return 0;
 }
+#ifndef AUXMEM
 #pragma code-name (pop)
+#endif
 
 /*
  * Read next char from gapbuf[] and update state.
@@ -1183,15 +1201,15 @@ void help(void) {
 #ifdef AUXMEM
   p = iobuf;
 #else
-  p = gapbuf + gapend - RDSZ; // Read to just before gapend
+  p = gapbuf + gapend - IOSZ; // Read to just before gapend
 #endif
   do {
-    if (FREESPACE() < RDSZ) {
+    if (FREESPACE() < IOSZ) {
       beep();
       goto done;
     }
-    s = fread(p, 1, RDSZ, fp);
-    cont = (s == RDSZ ? 1 : 0);
+    s = fread(p, 1, IOSZ, fp);
+    cont = (s == IOSZ ? 1 : 0);
     for (i = 0; i < s; ++i) {
       c = p[i];
       if (c == '@')
