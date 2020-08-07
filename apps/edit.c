@@ -7,7 +7,7 @@
 
 // TODO: Finish off auxmem support. See TODOs below
 
-#define AUXMEM               // HIGHLY EXPERIMENTAL
+#undef AUXMEM               // HIGHLY EXPERIMENTAL
 
 #include <conio.h>
 #include <ctype.h>
@@ -87,6 +87,8 @@ char openapple[] = "\x0f\x1b""A\x18\x0e";
 /*
  * Obtain one byte from the gapbuf[] in aux memory
  * Must be in LC
+ * i - Index into gapbuf[]
+ * Returns value at gapbuf[i]
  */
 #pragma code-name (push, "LC")
 char get_gapbuf(uint16_t i) {
@@ -106,6 +108,8 @@ char get_gapbuf(uint16_t i) {
 /*
  * Set one byte in the gapbuf[] in aux memory
  * Must be in LC
+ * i - Index into gapbuf
+ * c - Byte value to set
  */
 #pragma code-name (push, "LC")
 void set_gapbuf(uint16_t i, char c) {
@@ -122,6 +126,9 @@ void set_gapbuf(uint16_t i, char c) {
 /*
  * Do a memmove() on aux memory. Uses indices into gapbuf[].
  * Must be in LC
+ * dst - Destination index into gapbuf[]
+ * src - Source index into gapbuf[]
+ * n - Length in bytes
  */
 #pragma code-name (push, "LC")
 void move_in_gapbuf(uint16_t dst, uint16_t src, size_t n) {
@@ -201,6 +208,28 @@ as3:
   }
 #else
   memmove(gapbuf + dst, gapbuf + src, n);
+#endif
+}
+#pragma code-name (pop)
+
+/*
+ * Do a strstr() on aux memory. Uses index into gapbuf[].
+ * Must be in LC
+ * i - Index into gapbuf[]
+ * needle - String to search for
+ * loc - Location where string found (index into gapbuf[]) returned here
+ * Returns 1 if found, 0 otherwise
+ */
+#pragma code-name (push, "LC")
+uint8_t search_in_gapbuf(uint16_t i, char *needle, uint16_t *loc) {
+#ifdef AUXMEM
+#else
+  char *p = strstr(gapbuf + i, needle);
+  if (p) {
+    *loc = p - gapbuf;
+    return 1;
+  } else
+    return 0;
 #endif
 }
 #pragma code-name (pop)
@@ -593,7 +622,9 @@ uint8_t save_file(char *filename) {
   uint8_t retval = 1;
   char *p;
   uint8_t i;
+#ifdef AUXMEM
   uint16_t j;
+#endif
   FILE *fp;
   _filetype = PRODOS_T_TXT;
   _auxtype = 0;
@@ -1277,8 +1308,8 @@ void save(void) {
  * Main editor routine
  */
 int edit(char *fname) {
-  char c, *p;
-  uint16_t pos, tmp;
+  char c; 
+  uint16_t pos, tmp, foundpos;
   uint8_t i;
   videomode(VIDEOMODE_80COL);
   if (fname) {
@@ -1418,58 +1449,33 @@ int edit(char *fname) {
       }
       mode = SRCH1;
       update_status_line();
-#ifdef AUXMEM
-      // TODO
-#else
-      p = strstr(gapbuf + gapend + 1, search);
-#endif
-      if (!p) {
+      if (search_in_gapbuf(gapend + 1, search, &foundpos) == 0) {
         mode = SRCH2;
         update_status_line();
         set_gapbuf(gapbegin, '\0');
-#ifdef AUXMEM
-        // TODO
-#else
-        p = strstr(gapbuf, search);
-#endif
-        mode = SEL_NONE;
-        if (!p) {
+        if (search_in_gapbuf(0, search, &foundpos) == 0) {
           mode = SRCH3;
           update_status_line();
           break;
         }
-#ifdef AUXMEM
-        // TODO
-#else
-        jump_pos(p - gapbuf);
-#endif
+        mode = SEL_NONE;
+        jump_pos(foundpos);
         if (tmp == 0) { // Replace mode
           for (i = 0; i < strlen(search); ++i)
             delete_char_right();
-#ifdef AUXMEM
-          // TODO
-#else
-          memcpy(gapbuf + gapbegin, replace, strlen(userentry));
-          gapbegin += strlen(replace);
-#endif
+          for (i = 0; i < strlen(replace); ++i)
+            insert_char(replace[i]);
         }
         draw_screen();
         break;
       }
       mode = SEL_NONE;
-#ifdef AUXMEM
-      // TODO
-#else
-      jump_pos(gapbegin + p - (gapbuf + gapend + 1));
-#endif
+      jump_pos(gapbegin + foundpos - (gapend + 1));
       if (tmp == 0) { // Replace mode
         for (i = 0; i < strlen(search); ++i)
           delete_char_right();
-#ifdef AUXMEM
-#else
-        memcpy(gapbuf + gapbegin, replace, strlen(userentry));
-        gapbegin += strlen(replace);
-#endif
+        for (i = 0; i < strlen(replace); ++i)
+          insert_char(replace[i]);
       }
       draw_screen();
       break;
