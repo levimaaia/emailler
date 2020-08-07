@@ -133,47 +133,85 @@ void move_in_gapbuf(uint16_t dst, uint16_t src, size_t n) {
     *(uint16_t*)(0xfa) = n;                              // Stuff sz in ZP
     *(uint16_t*)(0xfc) = (uint16_t)0x800 + src + n - 1; // Stuff src in ZP
     *(uint16_t*)(0xfe) = (uint16_t)0x800 + dst + n - 1; // Stuff dst in ZP
+    //*(uint16_t*)(0xfc) = (uint16_t)gapbuf + src + n - 1;  // Stuff src in ZP
+    //*(uint16_t*)(0xfe) = (uint16_t)gapbuf + dst + n - 1;  // Stuff dst in ZP
+#ifdef AUXMEM
     __asm__("sta $c005"); // Write aux mem
     __asm__("sta $c003"); // Read aux mem
-             dl1:
+#endif
+//    memmove(gapbuf + dst, gapbuf + src, n);
+//    return;
+dl1:
     __asm__("lda ($fc)"); // *src
     __asm__("sta ($fe)"); // -> *dst
+
     __asm__("lda $fc");   // LSB of src
     __asm__("bne %g", ds1);
     __asm__("dec $fd");   // MSB of src
-             ds1:
+ds1:
     __asm__("dec $fc");   // LSB of src
+
     __asm__("lda $fe");   // LSB of dst
     __asm__("bne %g", ds2);
     __asm__("dec $ff");   // MSB of dst
-             ds2:
+ds2:
     __asm__("dec $fe");   // LSB of dst
-    __asm__("dec $fa");   // n
+
+    __asm__("lda $fa");   // LSB of n
+    __asm__("bne %g", ds3);
+    __asm__("dec $fb");   // MSB of n
+ds3:
+    __asm__("dec $fa");   // LSB of n
+
+    __asm__("lda $fa");   // LSB of n - NEEDED?
     __asm__("bne %g", dl1);    // Loop
+    __asm__("lda $fb");   // MSB of n
+    __asm__("bne %g", dl1);    // Loop
+#ifdef AUXMEM
     __asm__("sta $c002"); // Read main mem
     __asm__("sta $c004"); // Write main mem
+#endif
   } else {
     // Start with lowest addr
     *(uint16_t*)(0xfa) = n;                              // Stuff sz in ZP
     *(uint16_t*)(0xfc) = (uint16_t)0x800 + src;         // Stuff src in ZP
     *(uint16_t*)(0xfe) = (uint16_t)0x800 + dst;         // Stuff dst in ZP
+    //*(uint16_t*)(0xfc) = (uint16_t)gapbuf + src;         // Stuff src in ZP
+    //*(uint16_t*)(0xfe) = (uint16_t)gapbuf + dst;         // Stuff dst in ZP
+#ifdef AUXMEM
     __asm__("sta $c005"); // Write aux mem
     __asm__("sta $c003"); // Read aux mem
-             al1:
-    __asm__("lda ($fc)"); // *src
+#endif
+//    memmove(gapbuf + dst, gapbuf + src, n);
+//    return;
+al1:
+    __asm__("lda ($fc)"); // *src           // d517
     __asm__("sta ($fe)"); // -> *dst
+
     __asm__("inc $fc");   // LSB of src
     __asm__("bne %g", as1);
     __asm__("inc $fd");   // MSB of src
-             as1:
+as1:
+
     __asm__("inc $fe");   // LSB of dst
     __asm__("bne %g", as2);
     __asm__("inc $ff");   // MSB of dst
-             as2:
-    __asm__("dec $fa");   // n
+as2:
+
+    __asm__("lda $fa");   // LSB of n
+    __asm__("bne %g", as3);
+    __asm__("dec $fb");   // MSB of n
+as3:
+    __asm__("dec $fa");   // LSB of n
+
+    __asm__("lda $fa");   // LSB of n - NEEDED?
     __asm__("bne %g", al1);    // Loop
+    __asm__("lda $fb");   // MSB of n
+    __asm__("bne %g", al1);    // Loop
+#ifdef AUXMEM
     __asm__("sta $c002"); // Read main mem
     __asm__("sta $c004"); // Write main mem
+#endif
   }
 #else
   memmove(gapbuf + dst, gapbuf + src, n);
@@ -508,7 +546,7 @@ uint8_t load_file(char *filename, uint8_t replace) {
 #ifdef AUXMEM
   p = iobuf;
 #else
-  p = gapbuf + gapend - RDSZ; // Read to just before gapend
+  p = gapbuf + gapend - RDSZ; // Read to mem just before gapend
 #endif
   do {
     if (FREESPACE() < RDSZ * 2) {
@@ -576,7 +614,7 @@ uint8_t save_file(char *filename) {
   jump_pos(0);
   goto_prompt_row();
 #ifdef AUXMEM
-  p = iobuf;
+  p = iobuf;  ////////// TODO : Need to arrange for data to be copied in here
 #else
   p = gapbuf + gapend + 1;
 #endif
@@ -1273,27 +1311,27 @@ int edit(char *fname) {
       draw_screen();
       break;
     case 0x80 + '3':
-      jump_pos(2 * DATASIZE() / 8);
+      jump_pos(2L * DATASIZE() / 8);
       draw_screen();
       break;
     case 0x80 + '4':
-      jump_pos(3 * DATASIZE() / 8);
+      jump_pos(3L * DATASIZE() / 8);
       draw_screen();
       break;
     case 0x80 + '5':
-      jump_pos(4 * DATASIZE() / 8);
+      jump_pos(4L * DATASIZE() / 8);
       draw_screen();
       break;
     case 0x80 + '6':
-      jump_pos(5 * DATASIZE() / 8);
+      jump_pos(5L * DATASIZE() / 8);
       draw_screen();
       break;
     case 0x80 + '7':
-      jump_pos(6 * DATASIZE() / 8);
+      jump_pos(6L * DATASIZE() / 8);
       draw_screen();
       break;
     case 0x80 + '8':
-      jump_pos(7 * DATASIZE() / 8);
+      jump_pos(7L * DATASIZE() / 8);
       draw_screen();
       break;
     case 0x80 + '9': // Bottom
