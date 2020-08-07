@@ -128,19 +128,14 @@ void set_gapbuf(uint16_t i, char c) {
 void move_in_gapbuf(uint16_t dst, uint16_t src, size_t n) {
 #ifdef AUXMEM
   if (dst > src) {
-    // Start with highest addr
-    // dest[n-1] = src[n-1] etc.
-    *(uint16_t*)(0xfa) = n;                              // Stuff sz in ZP
+    // Start with highest addr and copy downwards
+    *(uint16_t*)(0xfa) = n;                             // Stuff sz in ZP
     *(uint16_t*)(0xfc) = (uint16_t)0x800 + src + n - 1; // Stuff src in ZP
     *(uint16_t*)(0xfe) = (uint16_t)0x800 + dst + n - 1; // Stuff dst in ZP
-    //*(uint16_t*)(0xfc) = (uint16_t)gapbuf + src + n - 1;  // Stuff src in ZP
-    //*(uint16_t*)(0xfe) = (uint16_t)gapbuf + dst + n - 1;  // Stuff dst in ZP
 #ifdef AUXMEM
     __asm__("sta $c005"); // Write aux mem
     __asm__("sta $c003"); // Read aux mem
 #endif
-//    memmove(gapbuf + dst, gapbuf + src, n);
-//    return;
 dl1:
     __asm__("lda ($fc)"); // *src
     __asm__("sta ($fe)"); // -> *dst
@@ -163,7 +158,6 @@ ds2:
 ds3:
     __asm__("dec $fa");   // LSB of n
 
-    __asm__("lda $fa");   // LSB of n - NEEDED?
     __asm__("bne %g", dl1);    // Loop
     __asm__("lda $fb");   // MSB of n
     __asm__("bne %g", dl1);    // Loop
@@ -172,18 +166,12 @@ ds3:
     __asm__("sta $c004"); // Write main mem
 #endif
   } else {
-    // Start with lowest addr
-    *(uint16_t*)(0xfa) = n;                              // Stuff sz in ZP
+    // Start with highest addr and copy upwards
+    *(uint16_t*)(0xfa) = n;                             // Stuff sz in ZP
     *(uint16_t*)(0xfc) = (uint16_t)0x800 + src;         // Stuff src in ZP
     *(uint16_t*)(0xfe) = (uint16_t)0x800 + dst;         // Stuff dst in ZP
-    //*(uint16_t*)(0xfc) = (uint16_t)gapbuf + src;         // Stuff src in ZP
-    //*(uint16_t*)(0xfe) = (uint16_t)gapbuf + dst;         // Stuff dst in ZP
-#ifdef AUXMEM
     __asm__("sta $c005"); // Write aux mem
     __asm__("sta $c003"); // Read aux mem
-#endif
-//    memmove(gapbuf + dst, gapbuf + src, n);
-//    return;
 al1:
     __asm__("lda ($fc)"); // *src           // d517
     __asm__("sta ($fe)"); // -> *dst
@@ -204,7 +192,6 @@ as2:
 as3:
     __asm__("dec $fa");   // LSB of n
 
-    __asm__("lda $fa");   // LSB of n - NEEDED?
     __asm__("bne %g", al1);    // Loop
     __asm__("lda $fb");   // MSB of n
     __asm__("bne %g", al1);    // Loop
