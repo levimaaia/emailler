@@ -1,13 +1,11 @@
 /////////////////////////////////////////////////////////////////////////////
 // Simple text editor
-// Bobbi July 2020
+// Bobbi July-Aug 2020
 /////////////////////////////////////////////////////////////////////////////
 
 // Note: Use my fork of cc65 to get a flashing cursor!!
 
-// TODO: Finish off auxmem support. See TODOs below
-
-#undef AUXMEM               // HIGHLY EXPERIMENTAL
+#define AUXMEM               // Still somewhat experimental
 
 #include <conio.h>
 #include <ctype.h>
@@ -47,6 +45,7 @@ uint8_t rowlen[NROWS];       // Number of chars on each row of screen
 
 char    filename[80]  = "";
 char    userentry[82] = "";  // Couple extra chars so we can store 80 col line
+
 char    search[80]    = "";
 char    replace[80]   = "";
 
@@ -176,8 +175,10 @@ ds3:
     *(uint16_t*)(0xfa) = n;                              // Stuff sz in ZP
     *(uint16_t*)(0xfc) = (uint16_t)0x0800 + src;         // Stuff src in ZP
     *(uint16_t*)(0xfe) = (uint16_t)0x0800 + dst;         // Stuff dst in ZP
+#ifdef AUXMEM
     __asm__("sta $c005"); // Write aux mem
     __asm__("sta $c003"); // Read aux mem
+#endif
 al1:
     __asm__("lda ($fc)"); // *src           // d517
     __asm__("sta ($fe)"); // -> *dst
@@ -212,26 +213,124 @@ as3:
 }
 #pragma code-name (pop)
 
+#pragma data-name (push, "LC")
+char needle[80] = "The";               // Must be in LC memory if using AUXMEM
+#pragma data-name (pop)
+
 /*
  * Do a strstr() on aux memory. Uses index into gapbuf[].
  * Must be in LC
  * i - Index into gapbuf[]
- * needle - String to search for
+ * srch - String to search for
  * loc - Location where string found (index into gapbuf[]) returned here
  * Returns 1 if found, 0 otherwise
  */
 #pragma code-name (push, "LC")
-uint8_t search_in_gapbuf(uint16_t i, char *needle, uint16_t *loc) {
+#pragma optimize (off)
+uint8_t search_in_gapbuf(uint16_t i, char *srch, uint16_t *loc) {
+
+  __asm__("lda $c083"); // Read and write LC RAM bank 2
+  __asm__("lda $c083"); // Read and write LC RAM bank 2
+  memcpy(needle, srch, 80);
+
+  // ZP usage
+  // $f7:     TMP1
+  // $f8-$f9: PTR4 in original strstr.s code.
+  // $fa-$fb: PTR1 in original strstr.s code.
+  // $fc-$fd: PTR2 in original strstr.s code.
+  // $fe-$ff: PTR3 in original strstr.s code.
+  *(uint16_t*)(0xfc) = (uint16_t)needle;
+  *(uint16_t*)(0xf8) = (uint16_t)needle; // Another copy of needle ptr
+
 #ifdef AUXMEM
+  *(uint16_t*)(0xfa) = (uint16_t)0x0800 + i; // Haystack pointer
+  __asm__("sta $c005"); // Write aux mem
+  __asm__("sta $c003"); // Read aux mem
 #else
-  char *p = strstr(gapbuf + i, needle);
-  if (p) {
-    *loc = p - gapbuf;
-    return 1;
-  } else
-    return 0;
+  *(uint16_t*)(0xfa) = (uint16_t)gapbuf + i; // Haystack pointer
 #endif
+
+  __asm__("ldy #$00");
+  __asm__("lda ($fc),y");      // Get first byte of needle
+  __asm__("beq %g", found);    // Needle is empty --> we're done
+
+// Search for beginning of string
+  __asm__("sta $f7");          // Save start of needle
+l1:
+  __asm__("lda ($fa),y");      // Get next char from haystack
+  __asm__("beq %g", notfound); // Jump if end
+  __asm__("cmp $f7");          // Start of needle found?
+  __asm__("beq %g", l2);       // Jump if so
+  __asm__("iny");              // Next char
+  __asm__("bne %g", l1);
+  __asm__("inc $fb");          // Bump high byte of haystack
+  __asm__("bne %g", l1);       // Branch always
+
+// We found the start of needle in haystack
+l2:
+  __asm__("tya");              // Get offset
+  __asm__("clc");
+  __asm__("adc $fa");
+  __asm__("sta $fa");          // Make ptr1 point to start
+  __asm__("bcc %g", l3);
+  __asm__("inc $fb");
+
+// ptr1 points to the start of needle now. Setup temporary pointers for the
+// search. The low byte of ptr4 is already set.
+l3:
+  __asm__("sta $fe");             // LSB PTR3
+  __asm__("lda $fb");             // MSB PTR1
+  __asm__("sta $ff");             // MSB PTR3
+  __asm__("lda $fd");             // MSB PTR2
+  __asm__("sta $f9");             // MSB PTR4
+  __asm__("ldy #1");              // First char is identical, so start on second
+
+// Do the compare
+l4:
+  __asm__("lda ($f8),y");         // Get char from needle
+  __asm__("beq %g", found);       // Jump if end of needle (-> found)
+  __asm__("cmp ($fe),y");         // Compare with haystack
+  __asm__("bne %g", l5);          // Jump if not equal
+  __asm__("iny");                 // Next char
+  __asm__("bne %g", l4);
+  __asm__("inc $ff");
+  __asm__("inc $f9");             // Bump hi byte of pointers
+  __asm__("bne %g", l4);          // Next char (branch always)
+
+// The strings did not compare equal, search next start of needle
+l5:
+  __asm__("ldy #1");              // Start after this char
+  __asm__("bne %g", l1);          // Branch always
+
+// We found the needle
+found:
+#ifdef AUXMEM
+    __asm__("sta $c002"); // Read main mem
+    __asm__("sta $c004"); // Write main mem
+  *loc = *(uint16_t*)0xfa - 0x0800;
+#else
+  *loc = *(uint16_t*)0xfa - (uint16_t)gapbuf;
+#endif
+  return 1;
+
+// We reached end of haystack without finding needle
+notfound:
+#ifdef AUXMEM
+    __asm__("sta $c002"); // Read main mem
+    __asm__("sta $c004"); // Write main mem
+#endif
+  return 0;
+
+//#else
+//  char *p = strstr(gapbuf + i, needle);
+//  if (p) {
+//    *loc = p - gapbuf;
+//    return 1;
+//  } else
+//    return 0;
+//#endif
 }
+#pragma optimize (on)
 #pragma code-name (pop)
 
 /*
