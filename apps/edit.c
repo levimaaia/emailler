@@ -214,7 +214,7 @@ as3:
 #pragma code-name (pop)
 
 #pragma data-name (push, "LC")
-char needle[80] = "The";               // Must be in LC memory if using AUXMEM
+char needle[80] = "";               // Must be in LC memory if using AUXMEM
 #pragma data-name (pop)
 
 /*
