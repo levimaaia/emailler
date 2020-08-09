@@ -3,7 +3,8 @@
 // Bobbi July-Aug 2020
 /////////////////////////////////////////////////////////////////////////////
 
-// TODO: Search options - ignore case, complete word, replace all
+// TODO: Search options - ignore case, complete word.
+// TODO: Highlight words using selection when replacing.
 
 // Note: Use my fork of cc65 to get a flashing cursor!!
 
@@ -1422,23 +1423,32 @@ uint8_t finish_search_replace(uint16_t pos, uint8_t r, uint8_t ask) {
   uint8_t i;
   mode = SEL_NONE;
   jump_pos(pos);
+  startsel = gapend + 1;
+  endsel = gapend + 1 + strlen(search);
   draw_screen();
   if (r == 0) { // Replace mode
     if (ask) {
       i = prompt_okay("Replace");
-      if (i == 1) // 'n'
+      if (i == 1) { // 'n'
+        cursor_right();
         return 1; // Continue
-      if (i == 2) // ESC
+      }
+      if (i == 2) { // ESC
+        startsel = endsel = 65535U;
         return 0; // Abort
-    }  
+      }
+    }
     for (i = 0; i < strlen(search); ++i)
       delete_char_right();
     for (i = 0; i < strlen(replace); ++i)
       insert_char(replace[i]);
+    set_modified(1);
+    draw_screen();
+    cursor_right();
+    return 1; // Continue
   }
-  set_modified(1);
-  draw_screen();
-  return (r == 0 ? 1 : 0); // Always continue for replace
+  startsel = endsel = 65535U;
+  return 0; // Do not continue
 }
 
 /*
@@ -1449,9 +1459,9 @@ uint8_t finish_search_replace(uint16_t pos, uint8_t r, uint8_t ask) {
 void do_search_replace(uint8_t r, uint8_t ask) {
   uint8_t wrapcount = 0;
   uint16_t foundpos;
+search:
   mode = SRCH1; // Searching ..
   update_status_line();
-search:
   if (search_in_gapbuf(gapend + 1, search, &foundpos) == 0) {
     if (wrapcount > 0)
       return; // Wrapped already. Give up.
@@ -1466,10 +1476,12 @@ search:
     }
     if (finish_search_replace(foundpos, r, ask) == 1)
       goto search;
+    mode = SEL_NONE;
     return;
   }
   if (finish_search_replace(gapbegin + foundpos - (gapend + 1), r, ask) == 1)
     goto search;
+  mode = SEL_NONE;
 }
 
 /*
@@ -1477,7 +1489,7 @@ search:
  */
 int edit(char *fname) {
   char c; 
-  uint16_t pos, tmp, foundpos;
+  uint16_t pos, tmp;
   uint8_t i, ask;
   videomode(VIDEOMODE_80COL);
   if (fname) {

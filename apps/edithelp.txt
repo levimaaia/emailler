@@ -1,5 +1,5 @@
 +------------------------------------------------------------------------------+
-| emai//er EDIT.SYSTEM HELP                                    v1.0 Bobbi 2020 |
+| emai//er EDIT.SYSTEM HELP                                   v1.01 Bobbi 2020 |
 +-------------------------------------+----------------------------------------+
 |Navigation:                          | Editing:                               |
 |  Cursor keys  Move the cursor       | [Return]    Split line                 |
