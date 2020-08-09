@@ -1,9 +1,10 @@
 /////////////////////////////////////////////////////////////////////////////
 // Simple text editor
+// Supports Apple //e Auxiliary memory and RamWorks style expansions
 // Bobbi July-Aug 2020
 /////////////////////////////////////////////////////////////////////////////
 
-// TODO: Support for RamWorks ... multiple buffers
+// TODO: Cut/Copy/Paste ... within and between buffers
 // TODO: Search options - ignore case, complete word.
 
 // Note: Use my fork of cc65 to get a flashing cursor!!
@@ -35,7 +36,9 @@
 #ifdef AUXMEM
 #define BUFSZ 0xb7fe             // All of aux from 0x800 to 0xbfff, minus a byte
 char     iobuf[IOSZ];            // Buffer for disk I/O
-uint8_t  auxbank;                // Currently selected aux bank
+uint8_t  banktbl[1+8*16];        // Handles up to 8MB. Map of banks.
+uint8_t  auxbank;                // Currently selected aux bank (physical)
+uint8_t  l_auxbank;                // Currently selected aux bank (logical)
 #else
 #define BUFSZ (20480 - 1024)     // 19KB
 char     gapbuf[BUFSZ];
@@ -429,7 +432,7 @@ void update_status_line(void) {
   switch (mode) {
   case SEL_NONE:
     cprintf("OA-? Help | [%03u] %c File:%s  %2uKB free",
-            auxbank, modified ? '*' : ' ', filename, (FREESPACE() + 512) / 1024);
+            l_auxbank, modified ? '*' : ' ', filename, (FREESPACE() + 512) / 1024);
     l = 44 - strlen(filename);
     break;
   case SEL_DEL:
@@ -462,7 +465,7 @@ void update_status_line(void) {
     break;
   case SRCH3:
     cprintf("OA-? Help | [%03u] %c File:%s  %2uKB free | Not Found",
-            auxbank, modified ? '*' : ' ', filename, (FREESPACE() + 512) / 1024);
+            l_auxbank, modified ? '*' : ' ', filename, (FREESPACE() + 512) / 1024);
     l = 44 - 12 - strlen(filename);
     break;
   }
@@ -655,11 +658,9 @@ void jump_pos(uint16_t pos) {
 /*
  * Go to next tabstop
  */
-#pragma code-name (push, "LC")
 uint8_t next_tabstop(uint8_t col) {
   return (col / 8) * 8 + 8;
 }
-#pragma code-name (pop)
 
 /*
  * Load a file from disk into the gapbuf
@@ -1237,22 +1238,18 @@ uint8_t cursor_down(void) {
 /*
  * Goto beginning of line
  */
-#pragma code-name (push, "LC")
 void goto_bol(void) {
   while (curscol > 0)
     cursor_left();  
 }
-#pragma code-name (pop)
 
 /*
  * Goto end of line
  */
-#pragma code-name (push, "LC")
 void goto_eol(void) {
   while (curscol < rowlen[cursrow] - 1)
     cursor_right();  
 }
-#pragma code-name (pop)
 
 /*
  * Word left
@@ -1530,17 +1527,80 @@ void copyaux(char *src, char *dst, uint16_t len, uint8_t dir) {
 #endif
 
 /*
+ * Available aux banks.  Taken from RamWorks III Manual p47
+ */
+void avail_aux_banks(void) {
+  __asm__("sta $c009"); // Store in ALTZP
+  __asm__("ldy #$7f");  // Maximum valid bank
+findbanks:
+  __asm__("sty $c073"); // Select bank
+  __asm__("sty $00");   // Store bank num in ALTZP
+  __asm__("tya");
+  __asm__("eor #$ff");
+  __asm__("sta $01");   // Store the inverse in ALTZP too
+  __asm__("dey");
+  __asm__("bpl %g", findbanks);
+// Read back the bytes we wrote to find valid banks
+  __asm__("lda #$00");
+  __asm__("tay");
+  __asm__("tax");
+findthem:
+  __asm__("sty $c073"); // Select bank
+  __asm__("sta $c076"); // Why?
+  __asm__("cpy $00");
+  __asm__("bne %g", notone);
+  __asm__("tya");
+  __asm__("eor #$ff");
+  __asm__("cmp $01");
+  __asm__("bne %g", notone);
+  __asm__("inx");
+  __asm__("tya");
+  __asm__("sta %v,x", banktbl);
+  __asm__("cpx #128"); // 8MB max
+  __asm__("bcs %g", done);
+notone:
+  __asm__("iny");
+  __asm__("bpl %g", findthem);
+done:
+  __asm__("lda #$00");
+  __asm__("sta $c073"); // Back to aux bank 0
+  __asm__("sta $c008"); // Turn off ALTZP
+  __asm__("stx %v", banktbl); // Number of banks
+  __asm__("lda #$ff");
+  __asm__("inx");
+  __asm__("sta %v,x", banktbl); // Terminator
+}
+
+/*
+ * Translate logic aux bank number to physical.
+ * This is necessary because there may be 'holes' in the banks
+ * Logical banks are numbered 1..maxbank contiguously.
+ * Physical banks start at 0 and may be non-contiguous.
+ */
+uint8_t bank_log_to_phys(uint8_t l) {
+  uint8_t i;
+  for (i = 1; i < 1+8*16; ++i)
+    if (banktbl[i] == l - 1)
+      return i - 1;
+  show_error("Bad bank"); // Should never happen
+}
+
+/*
  * Initialize the data at 0x200 in each aux bank so that all buffers
  * are empty, unmodified and without a filename
  */
 void init_aux_banks(void) {
-  for (auxbank = 0; auxbank < 128; ++auxbank) {
+  uint8_t i;
+  cprintf("%u 64KB aux banks -> %uKB\n", banktbl[0], banktbl[0]*64);
+  for (i = 1; i < banktbl[0]; ++i) {
+    auxbank = bank_log_to_phys(i);
     // Saves filename[], gapbegin, gapend and modified (85 bytes)
     __asm__("lda %v", auxbank); 
     __asm__("sta $c073");  // Set aux bank
     copyaux(filename, (void*)0x0200, 85, TOAUX);
   }
   auxbank = 0;
+  l_auxbank = 1;
   __asm__("lda #$00");
   __asm__("sta $c073");  // Set aux bank back to 0
 }
@@ -1553,22 +1613,24 @@ void init_aux_banks(void) {
 #pragma code-name (push, "LC")
 void change_aux_bank(void) {
   int16_t i;
-  if (prompt_for_name("Bank #", 0) == 255)
+  sprintf(userentry, "Buffer # (1-%u)", banktbl[0]);
+  if (prompt_for_name(userentry, 0) == 255)
     return;
   if (strlen(userentry) == 0)
     return;
   i = atoi(userentry);
-  if ((i < 0) || (i > 127)) { // TODO: Detect how many banks
+  if ((i < 1) || (i >= banktbl[0])) {
     beep();
     return;
   }
+  l_auxbank = i;
   // Saves filename[], gapbegin, gapend and modified (85 bytes)
   __asm__("lda %v", auxbank); 
   __asm__("sta $c073");  // Set aux bank
   copyaux(filename, (void*)0x0200, 85, TOAUX);
 
   // Load new filename[], gapbegin, gapend and modified (85 bytes)
-  auxbank = i;
+  auxbank = bank_log_to_phys(l_auxbank);
   __asm__("lda %v", auxbank); 
   __asm__("sta $c073");  // Set aux bank
   copyaux((void*)0x0200, filename, 85, FROMAUX);
@@ -1932,6 +1994,7 @@ void main(int argc, char *argv[]) {
 #ifdef AUXMEM
   char *pad = (char*)0xbfff;
   *pad = '\0'; // Null termination for strstr()
+  avail_aux_banks();
   init_aux_banks();
 #endif
   if (argc == 2) {
