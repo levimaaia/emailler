@@ -3,8 +3,8 @@
 // Bobbi July-Aug 2020
 /////////////////////////////////////////////////////////////////////////////
 
+// TODO: Support for RamWorks ... multiple buffers
 // TODO: Search options - ignore case, complete word.
-// TODO: Highlight words using selection when replacing.
 
 // Note: Use my fork of cc65 to get a flashing cursor!!
 
@@ -35,32 +35,35 @@
 #ifdef AUXMEM
 #define BUFSZ 0xb7fe             // All of aux from 0x800 to 0xbfff, minus a byte
 char     iobuf[IOSZ];            // Buffer for disk I/O
+uint8_t  auxbank;                // Currently selected aux bank
 #else
 #define BUFSZ (20480 - 1024)     // 19KB
 char     gapbuf[BUFSZ];
 char     padding = 0;            // To null terminate for strstr()
 #endif
 
-uint16_t gapbegin = 0;
-uint16_t gapend = BUFSZ - 1;
+// The following fields, plus the gap buffer, represent the state of
+// the current buffer.  These are stashed in each aux page from 0x200 up.
+// Total 80 + 2 + 2 + 1 = 85 bytes
+char     filename[80]  = "";
+uint16_t gapbegin      = 0;
+uint16_t gapend        = BUFSZ - 1;
+uint8_t  modified;        // If 1, file contents have been modified
 
 uint8_t rowlen[NROWS];       // Number of chars on each row of screen
 
-char    filename[80]  = "";
 char    userentry[82] = "";  // Couple extra chars so we can store 80 col line
-
 char    search[80]    = "";
 char    replace[80]   = "";
 
 // Interface to read_char_update_pos()
-uint8_t  do_print, modified;
+uint8_t  do_print;
 uint16_t pos, startsel, endsel;
 uint8_t  row, col;
 
 uint8_t cursrow, curscol; // Cursor position is kept here by draw_screen()
 
 uint8_t  quit_to_email;   // If 1, launch EMAIL.SYSTEM on quit
-uint8_t  modified;        // If 1, file contents have been modified
 
 // The order of the cases matters! SRCH1/2/3 are not really a selection modes.
 enum selmode {SEL_NONE, SEL_DEL2, SEL_COPY2, SEL_MOVE2, SEL_DEL, SEL_MOVE, SEL_COPY,
@@ -96,10 +99,14 @@ char openapple[] = "\x0f\x1b""A\x18\x0e";
 char get_gapbuf(uint16_t i) {
 #ifdef AUXMEM
   *(uint16_t*)(0xfe) = (uint16_t)0x0800 + i; // Stuff address in Zero Page
-  __asm__("sta $c003"); // Read aux mem
+  __asm__("lda %v", auxbank); 
+  __asm__("sta $c073");  // Set aux bank
+  __asm__("sta $c003");  // Read aux mem
   __asm__("lda ($fe)");
   __asm__("sta $ff");
-  __asm__("sta $c002"); // Read main mem
+  __asm__("sta $c002");  // Read main mem
+  __asm__("lda #$00");
+  __asm__("sta $c073");  // Set aux bank back to 0
   return *(uint8_t*)(0xff);
 #else
   return gapbuf[i];
@@ -116,9 +123,13 @@ char get_gapbuf(uint16_t i) {
 #pragma code-name (push, "LC")
 void set_gapbuf(uint16_t i, char c) {
 #ifdef AUXMEM
+  __asm__("lda %v", auxbank); 
+  __asm__("sta $c073");  // Set aux bank
   __asm__("sta $c005"); // Write aux mem
   (*(char*)((char*)0x0800 + i)) = c;
   __asm__("sta $c004"); // Write main mem
+  __asm__("lda #$00");
+  __asm__("sta $c073");  // Set aux bank back to 0
 #else
   gapbuf[i] = c;
 #endif
@@ -141,6 +152,8 @@ void move_in_gapbuf(uint16_t dst, uint16_t src, size_t n) {
     *(uint16_t*)(0xfc) = (uint16_t)0x0800 + src + n - 1; // Stuff src in ZP
     *(uint16_t*)(0xfe) = (uint16_t)0x0800 + dst + n - 1; // Stuff dst in ZP
 #ifdef AUXMEM
+    __asm__("lda %v", auxbank); 
+    __asm__("sta $c073");  // Set aux bank
     __asm__("sta $c005"); // Write aux mem
     __asm__("sta $c003"); // Read aux mem
 #endif
@@ -172,6 +185,8 @@ ds3:
 #ifdef AUXMEM
     __asm__("sta $c002"); // Read main mem
     __asm__("sta $c004"); // Write main mem
+    __asm__("lda #$00");
+    __asm__("sta $c073"); // Set aux bank back to 0
 #endif
   } else {
     // Start with highest addr and copy upwards
@@ -179,11 +194,13 @@ ds3:
     *(uint16_t*)(0xfc) = (uint16_t)0x0800 + src;         // Stuff src in ZP
     *(uint16_t*)(0xfe) = (uint16_t)0x0800 + dst;         // Stuff dst in ZP
 #ifdef AUXMEM
+    __asm__("lda %v", auxbank); 
+    __asm__("sta $c073");  // Set aux bank
     __asm__("sta $c005"); // Write aux mem
     __asm__("sta $c003"); // Read aux mem
 #endif
 al1:
-    __asm__("lda ($fc)"); // *src           // d517
+    __asm__("lda ($fc)"); // *src
     __asm__("sta ($fe)"); // -> *dst
 
     __asm__("inc $fc");   // LSB of src
@@ -208,6 +225,8 @@ as3:
 #ifdef AUXMEM
     __asm__("sta $c002"); // Read main mem
     __asm__("sta $c004"); // Write main mem
+    __asm__("lda #$00");
+    __asm__("sta $c073"); // Set aux bank back to 0
 #endif
   }
 #else
@@ -247,6 +266,8 @@ uint8_t search_in_gapbuf(uint16_t i, char *srch, uint16_t *loc) {
 
 #ifdef AUXMEM
   *(uint16_t*)(0xfa) = (uint16_t)0x0800 + i; // Haystack pointer
+  __asm__("lda %v", auxbank); 
+  __asm__("sta $c073"); // Set aux bank
   __asm__("sta $c005"); // Write aux mem
   __asm__("sta $c003"); // Read aux mem
 #else
@@ -308,8 +329,10 @@ l5:
 // We found the needle
 found:
 #ifdef AUXMEM
-    __asm__("sta $c002"); // Read main mem
-    __asm__("sta $c004"); // Write main mem
+  __asm__("sta $c002"); // Read main mem
+  __asm__("sta $c004"); // Write main mem
+  __asm__("lda #$00");
+  __asm__("sta $c073"); // Set aux bank back to 0
   *loc = *(uint16_t*)0xfa - 0x0800;
 #else
   *loc = *(uint16_t*)0xfa - (uint16_t)gapbuf;
@@ -319,8 +342,10 @@ found:
 // We reached end of haystack without finding needle
 notfound:
 #ifdef AUXMEM
-    __asm__("sta $c002"); // Read main mem
-    __asm__("sta $c004"); // Write main mem
+  __asm__("sta $c002"); // Read main mem
+  __asm__("sta $c004"); // Write main mem
+  __asm__("lda #$00");
+  __asm__("sta $c073"); // Set aux bank back to 0
 #endif
   return 0;
 
@@ -403,9 +428,9 @@ void update_status_line(void) {
   revers(1);
   switch (mode) {
   case SEL_NONE:
-    cprintf("OA-? Help | %c File:%s  %2uKB free",
-            modified ? '*' : ' ', filename, (FREESPACE() + 512) / 1024);
-    l = 50 - strlen(filename);
+    cprintf("OA-? Help | [%03u] %c File:%s  %2uKB free",
+            auxbank, modified ? '*' : ' ', filename, (FREESPACE() + 512) / 1024);
+    l = 44 - strlen(filename);
     break;
   case SEL_DEL:
     cprintf("Del%s", selmsg1);
@@ -436,9 +461,9 @@ void update_status_line(void) {
     l = 80 - 23;
     break;
   case SRCH3:
-    cprintf("OA-? Help | %c File:%s  %2uKB free | Not Found",
-            modified ? '*' : ' ', filename, (FREESPACE() + 512) / 1024);
-    l = 50 - 12 - strlen(filename);
+    cprintf("OA-? Help | [%03u] %c File:%s  %2uKB free | Not Found",
+            auxbank, modified ? '*' : ' ', filename, (FREESPACE() + 512) / 1024);
+    l = 44 - 12 - strlen(filename);
     break;
   }
   for (i = 0; i < l; ++i)
@@ -580,7 +605,6 @@ void insert_char(char c) {
 /*
  * Delete the character to the left of the current position
  */
-#pragma code-name (push, "LC")
 void delete_char(void) {
   if (gapbegin == 0) {
     beep();
@@ -588,12 +612,10 @@ void delete_char(void) {
   }
   --gapbegin;
 }
-#pragma code-name (pop)
 
 /*
  * Delete the character to the right of the current position
  */
-#pragma code-name (push, "LC")
 void delete_char_right(void) {
   if (gapend == BUFSZ - 1) {
     beep();
@@ -601,7 +623,6 @@ void delete_char_right(void) {
   }
   ++gapend;
 }
-#pragma code-name (pop)
 
 /*
  * Move the current position
@@ -1485,6 +1506,80 @@ search:
   mode = SEL_NONE;
 }
 
+#ifdef AUXMEM
+#define FROMAUX 0
+#define TOAUX   1
+/*
+ * Copy to/from aux memory using AUXMOVE
+ */
+void copyaux(char *src, char *dst, uint16_t len, uint8_t dir) {
+    char **a1 = (char**)0x3c;
+    char **a2 = (char**)0x3e;
+    char **a4 = (char**)0x42;
+    *a1 = src;
+    *a2 = src + len - 1; // AUXMOVE moves length+1 bytes!!
+    *a4 = dst;
+    if (dir == TOAUX) {
+        __asm__("sec");       // Copy main->aux
+        __asm__("jsr $c311"); // AUXMOVE
+    } else {
+        __asm__("clc");       // Copy aux->main
+        __asm__("jsr $c311"); // AUXMOVE
+    }
+}
+#endif
+
+/*
+ * Initialize the data at 0x200 in each aux bank so that all buffers
+ * are empty, unmodified and without a filename
+ */
+void init_aux_banks(void) {
+  for (auxbank = 0; auxbank < 128; ++auxbank) {
+    // Saves filename[], gapbegin, gapend and modified (85 bytes)
+    __asm__("lda %v", auxbank); 
+    __asm__("sta $c073");  // Set aux bank
+    copyaux(filename, (void*)0x0200, 85, TOAUX);
+  }
+  auxbank = 0;
+  __asm__("lda #$00");
+  __asm__("sta $c073");  // Set aux bank back to 0
+}
+
+/*
+ * Change the active bank of aux memory
+ * Must be in LC.
+ */
+#ifdef AUXMEM
+#pragma code-name (push, "LC")
+void change_aux_bank(void) {
+  int16_t i;
+  if (prompt_for_name("Bank #", 0) == 255)
+    return;
+  if (strlen(userentry) == 0)
+    return;
+  i = atoi(userentry);
+  if ((i < 0) || (i > 127)) { // TODO: Detect how many banks
+    beep();
+    return;
+  }
+  // Saves filename[], gapbegin, gapend and modified (85 bytes)
+  __asm__("lda %v", auxbank); 
+  __asm__("sta $c073");  // Set aux bank
+  copyaux(filename, (void*)0x0200, 85, TOAUX);
+
+  // Load new filename[], gapbegin, gapend and modified (85 bytes)
+  auxbank = i;
+  __asm__("lda %v", auxbank); 
+  __asm__("sta $c073");  // Set aux bank
+  copyaux((void*)0x0200, filename, 85, FROMAUX);
+
+  __asm__("lda #$00");
+  __asm__("sta $c073");  // Set aux bank back to 0
+  draw_screen();
+}
+#pragma code-name (pop)
+#endif
+
 /*
  * Main editor routine
  */
@@ -1575,6 +1670,12 @@ int edit(char *fname) {
     case 0x8a:  // OA-Down "Page Down"
       page_down();
       break;
+#ifdef AUXMEM
+    case 0x80 + 'B': // OA-B "Buffer"
+    case 0x80 + 'b': // OA-b
+      change_aux_bank();
+      break;
+#endif
     case 0x80 + 'C': // OA-C "Copy"
     case 0x80 + 'c': // OA-c
       mode = SEL_COPY;
@@ -1831,6 +1932,7 @@ void main(int argc, char *argv[]) {
 #ifdef AUXMEM
   char *pad = (char*)0xbfff;
   *pad = '\0'; // Null termination for strstr()
+  init_aux_banks();
 #endif
   if (argc == 2) {
     quit_to_email = 1;
