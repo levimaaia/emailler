@@ -1410,8 +1410,9 @@ void save(void) {
  * Perform replace part of search/replace
  * pos - position where search term was found
  * r - if 0 then perform replace operation
+ * Returns 1 if search should continue, 0 otherwise
  */
-void finish_search_replace(uint16_t pos, uint8_t r) {
+uint8_t finish_search_replace(uint16_t pos, uint8_t r) {
   uint8_t i;
   mode = SEL_NONE;
   jump_pos(pos);
@@ -1423,6 +1424,37 @@ void finish_search_replace(uint16_t pos, uint8_t r) {
   }
   set_modified(1);
   draw_screen();
+  return (r == 0 ? 1 : 0); // Always continue for replace
+}
+
+/*
+ * Perform search/replace operation
+ * r - if 0 then perform replace operation
+ */
+void do_search_replace(uint8_t r) {
+  uint8_t wrapcount = 0;
+  uint16_t foundpos;
+  mode = SRCH1; // Searching ..
+  update_status_line();
+search:
+  if (search_in_gapbuf(gapend + 1, search, &foundpos) == 0) {
+    if (wrapcount > 0)
+      return; // Wrapped already. Give up.
+    ++wrapcount;
+    mode = SRCH2; // Wrapped .. 
+    update_status_line();
+    set_gapbuf(gapbegin, '\0'); // NULL term for search_in_gapbuf()
+    if (search_in_gapbuf(0, search, &foundpos) == 0) {
+      mode = SRCH3; // Not found ..
+      update_status_line();
+      return;
+    }
+    if (finish_search_replace(foundpos, r) == 1)
+      goto search;
+    return;
+  }
+  if (finish_search_replace(gapbegin + foundpos - (gapend + 1), r) == 1)
+    goto search;
 }
 
 /*
@@ -1568,21 +1600,7 @@ int edit(char *fname) {
             break;
         }
       }
-      mode = SRCH1;
-      update_status_line();
-      if (search_in_gapbuf(gapend + 1, search, &foundpos) == 0) {
-        mode = SRCH2;
-        update_status_line();
-        set_gapbuf(gapbegin, '\0');
-        if (search_in_gapbuf(0, search, &foundpos) == 0) {
-          mode = SRCH3;
-          update_status_line();
-          break;
-        }
-        finish_search_replace(foundpos, tmp);
-        break;
-      }
-      finish_search_replace(gapbegin + foundpos - (gapend + 1), tmp);
+      do_search_replace(tmp);
       break;
     case 0x80 + 'I': // OA-I "Insert file"
     case 0x80 + 'i':
