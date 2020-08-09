@@ -1463,15 +1463,16 @@ search:
   mode = SRCH1; // Searching ..
   update_status_line();
   if (search_in_gapbuf(gapend + 1, search, &foundpos) == 0) {
-    if (wrapcount > 0)
+    if (wrapcount > 0) {
+      mode = SEL_NONE;
       return; // Wrapped already. Give up.
+    }
     ++wrapcount;
     mode = SRCH2; // Wrapped .. 
     update_status_line();
     set_gapbuf(gapbegin, '\0'); // NULL term for search_in_gapbuf()
     if (search_in_gapbuf(0, search, &foundpos) == 0) {
       mode = SRCH3; // Not found ..
-      update_status_line();
       return;
     }
     if (finish_search_replace(foundpos, r, ask) == 1)
@@ -1605,32 +1606,23 @@ int edit(char *fname) {
         break; // ESC pressed
       if (strlen(userentry) > 0)
         strcpy(search, userentry);
-      else {
-        if (strlen(search) == 0)
-          break;
-        sprintf(userentry, "Search for '%s'", search);
-        if (prompt_okay(userentry) != 0)
-          break;
-        cursor_right();
-      }
+      else if (strlen(search) == 0)
+        break;
+      cursor_right();
       if (tmp == 0) { // Replace mode
         sprintf(userentry, "Replace (%s)", replace);
         if (prompt_for_name(userentry, 0) == 255)
           break; // ESC pressed
         if (strlen(userentry) > 0)
           strcpy(replace, userentry);
-        else {
-          if (strlen(replace) == 0)
-            break;
-          sprintf(userentry, "Replace with '%s'", replace);
-          if (prompt_okay(userentry) != 0)
-            break;
-        }
+        else if (strlen(replace) == 0)
+          break;
         ask = 0;
         if (prompt_okay("Ask for each") == 0)
           ask = 1;
       }
       do_search_replace(tmp, ask);
+      update_status_line();
       break;
     case 0x80 + 'I': // OA-I "Insert file"
     case 0x80 + 'i':
