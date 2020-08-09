@@ -1565,6 +1565,7 @@ int edit(char *fname) {
           for (i = 0; i < strlen(replace); ++i)
             insert_char(replace[i]);
         }
+        set_modified(1);
         draw_screen();
         break;
       }
@@ -1576,6 +1577,7 @@ int edit(char *fname) {
         for (i = 0; i < strlen(replace); ++i)
           insert_char(replace[i]);
       }
+      set_modified(1);
       draw_screen();
       break;
     case 0x80 + 'I': // OA-I "Insert file"
