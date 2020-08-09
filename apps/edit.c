@@ -521,6 +521,9 @@ esc_pressed:
 
 /*
  * Prompt ok?
+ * Returns 0 for yes
+ *         1 for no
+ *         2 for ESC
  */
 char prompt_okay(char *msg) {
   char c;
@@ -528,7 +531,7 @@ char prompt_okay(char *msg) {
   goto_prompt_row();
   clreol();
   revers(1);
-  cprintf("%sSure? (y/n)", msg);
+  cprintf("%s (y/n/ESC)", msg);
   revers(0);
   while (1) {
     c = cgetc();
@@ -537,9 +540,11 @@ char prompt_okay(char *msg) {
     beep();
   }
   if ((c == 'y') || (c == 'Y'))
-    c = 1;
-  else
     c = 0;
+  else if (c == ESC)
+    c = 2;
+  else
+    c = 1;
   update_status_line();
   return c;
 }
@@ -1394,8 +1399,8 @@ void save(void) {
       return;
     strcpy(filename, userentry);
   }
-  sprintf(userentry, "Save to %s - ", filename);
-  if (prompt_okay(userentry)) {
+  sprintf(userentry, "Save to %s", filename);
+  if (prompt_okay(userentry) == 0) {
     if (save_file(filename)) {
       sprintf(userentry, "%cCan't save %s", filename);
       show_error(userentry);
@@ -1410,13 +1415,22 @@ void save(void) {
  * Perform replace part of search/replace
  * pos - position where search term was found
  * r - if 0 then perform replace operation
+ * ask - if 1 then prompt for each replacement
  * Returns 1 if search should continue, 0 otherwise
  */
-uint8_t finish_search_replace(uint16_t pos, uint8_t r) {
+uint8_t finish_search_replace(uint16_t pos, uint8_t r, uint8_t ask) {
   uint8_t i;
   mode = SEL_NONE;
   jump_pos(pos);
+  draw_screen();
   if (r == 0) { // Replace mode
+    if (ask) {
+      i = prompt_okay("Replace");
+      if (i == 1) // 'n'
+        return 1; // Continue
+      if (i == 2) // ESC
+        return 0; // Abort
+    }  
     for (i = 0; i < strlen(search); ++i)
       delete_char_right();
     for (i = 0; i < strlen(replace); ++i)
@@ -1430,8 +1444,9 @@ uint8_t finish_search_replace(uint16_t pos, uint8_t r) {
 /*
  * Perform search/replace operation
  * r - if 0 then perform replace operation
+ * ask - if 1 then prompt for each replacement
  */
-void do_search_replace(uint8_t r) {
+void do_search_replace(uint8_t r, uint8_t ask) {
   uint8_t wrapcount = 0;
   uint16_t foundpos;
   mode = SRCH1; // Searching ..
@@ -1449,11 +1464,11 @@ search:
       update_status_line();
       return;
     }
-    if (finish_search_replace(foundpos, r) == 1)
+    if (finish_search_replace(foundpos, r, ask) == 1)
       goto search;
     return;
   }
-  if (finish_search_replace(gapbegin + foundpos - (gapend + 1), r) == 1)
+  if (finish_search_replace(gapbegin + foundpos - (gapend + 1), r, ask) == 1)
     goto search;
 }
 
@@ -1463,7 +1478,7 @@ search:
 int edit(char *fname) {
   char c; 
   uint16_t pos, tmp, foundpos;
-  uint8_t i;
+  uint8_t i, ask;
   videomode(VIDEOMODE_80COL);
   if (fname) {
     strcpy(filename, fname);
@@ -1581,8 +1596,8 @@ int edit(char *fname) {
       else {
         if (strlen(search) == 0)
           break;
-        sprintf(userentry, "Search for '%s' - ", search);
-        if (!prompt_okay(userentry))
+        sprintf(userentry, "Search for '%s'", search);
+        if (prompt_okay(userentry) != 0)
           break;
         cursor_right();
       }
@@ -1595,12 +1610,15 @@ int edit(char *fname) {
         else {
           if (strlen(replace) == 0)
             break;
-          sprintf(userentry, "Replace with '%s' - ", replace);
-          if (!prompt_okay(userentry))
+          sprintf(userentry, "Replace with '%s'", replace);
+          if (prompt_okay(userentry) != 0)
             break;
         }
+        ask = 0;
+        if (prompt_okay("Ask for each") == 0)
+          ask = 1;
       }
-      do_search_replace(tmp);
+      do_search_replace(tmp, ask);
       break;
     case 0x80 + 'I': // OA-I "Insert file"
     case 0x80 + 'i':
@@ -1659,12 +1677,12 @@ int edit(char *fname) {
       if (modified)
         save();
       if (quit_to_email) {
-        if (prompt_okay("Add attachments - "))
+        if (prompt_okay("Add attachments") == 0)
           load_attacher();
-        if (prompt_okay("Quit to EMAIL - "))
+        if (prompt_okay("Quit to EMAIL") == 0)
           load_email();
       } else {
-        if (prompt_okay("Quit to ProDOS - ")) {
+        if (prompt_okay("Quit to ProDOS") == 0) {
           revers(0);
           clrscr();
           exit(0);
@@ -1744,7 +1762,7 @@ int edit(char *fname) {
         switch (mode) {
         case SEL_DEL:
           mode = SEL_DEL2;
-          if (prompt_okay("Delete selection - ")) {
+          if (prompt_okay("Delete selection") == 0) {
             jump_pos(startsel);
             gapend += (endsel - startsel);
           }
@@ -1771,8 +1789,8 @@ int edit(char *fname) {
             show_error("No space");
             goto copymove2_cleanup;
           }
-          sprintf(userentry, "%s selection - ", mode == SEL_COPY2 ? "Copy" : "Move");
-          if (prompt_okay(userentry)) {
+          sprintf(userentry, "%s selection", mode == SEL_COPY2 ? "Copy" : "Move");
+          if (prompt_okay(userentry) == 0) {
             if (gapbegin >= endsel)
               move_in_gapbuf(gapbegin, startsel, endsel - startsel);
             else
