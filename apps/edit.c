@@ -3,6 +3,8 @@
 // Bobbi July-Aug 2020
 /////////////////////////////////////////////////////////////////////////////
 
+// TODO: Search options - ignore case, complete word, replace all
+
 // Note: Use my fork of cc65 to get a flashing cursor!!
 
 #define AUXMEM               // Still somewhat experimental
@@ -719,10 +721,11 @@ done:
 uint8_t save_file(char *filename) {
   uint16_t pos = gapbegin;
   uint8_t retval = 1;
-  char *p;
   uint8_t i;
 #ifdef AUXMEM
-  uint16_t j;
+  uint16_t p, j;
+#else
+  char *p;
 #endif
   FILE *fp;
   _filetype = PRODOS_T_TXT;
@@ -1404,6 +1407,25 @@ void save(void) {
 }
 
 /*
+ * Perform replace part of search/replace
+ * pos - position where search term was found
+ * r - if 0 then perform replace operation
+ */
+void finish_search_replace(uint16_t pos, uint8_t r) {
+  uint8_t i;
+  mode = SEL_NONE;
+  jump_pos(pos);
+  if (r == 0) { // Replace mode
+    for (i = 0; i < strlen(search); ++i)
+      delete_char_right();
+    for (i = 0; i < strlen(replace); ++i)
+      insert_char(replace[i]);
+  }
+  set_modified(1);
+  draw_screen();
+}
+
+/*
  * Main editor routine
  */
 int edit(char *fname) {
@@ -1557,28 +1579,10 @@ int edit(char *fname) {
           update_status_line();
           break;
         }
-        mode = SEL_NONE;
-        jump_pos(foundpos);
-        if (tmp == 0) { // Replace mode
-          for (i = 0; i < strlen(search); ++i)
-            delete_char_right();
-          for (i = 0; i < strlen(replace); ++i)
-            insert_char(replace[i]);
-        }
-        set_modified(1);
-        draw_screen();
+        finish_search_replace(foundpos, tmp);
         break;
       }
-      mode = SEL_NONE;
-      jump_pos(gapbegin + foundpos - (gapend + 1));
-      if (tmp == 0) { // Replace mode
-        for (i = 0; i < strlen(search); ++i)
-          delete_char_right();
-        for (i = 0; i < strlen(replace); ++i)
-          insert_char(replace[i]);
-      }
-      set_modified(1);
-      draw_screen();
+      finish_search_replace(gapbegin + foundpos - (gapend + 1), tmp);
       break;
     case 0x80 + 'I': // OA-I "Insert file"
     case 0x80 + 'i':
@@ -1592,6 +1596,8 @@ int edit(char *fname) {
       break;
     case 0x80 + 'L': // OA-L "Load"
     case 0x80 + 'l':
+      if (modified)
+        save();
       if (prompt_for_name("File to load", 1) == 255)
         break; // ESC pressed
       if (strlen(userentry) == 0)
@@ -1783,7 +1789,7 @@ copymove2_cleanup:
 
 void main(int argc, char *argv[]) {
 #ifdef AUXMEM
-  char *pad = 0xbfff;
+  char *pad = (char*)0xbfff;
   *pad = '\0'; // Null termination for strstr()
 #endif
   if (argc == 2) {
