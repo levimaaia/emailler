@@ -5,6 +5,8 @@
 /////////////////////////////////////////////////////////////////////////////
 
 // TODO: Cut/Copy/Paste ... within and between buffers
+// TODO: Buffer list. Prompt unsaved buffers on exit.
+// TODO: Load big files spanning multiple buffers (& keep track of it)
 // TODO: Search options - ignore case, complete word.
 
 // Note: Use my fork of cc65 to get a flashing cursor!!
@@ -69,7 +71,8 @@ uint8_t cursrow, curscol; // Cursor position is kept here by draw_screen()
 uint8_t  quit_to_email;   // If 1, launch EMAIL.SYSTEM on quit
 
 // The order of the cases matters! SRCH1/2/3 are not really a selection modes.
-enum selmode {SEL_NONE, SEL_DEL2, SEL_COPY2, SEL_MOVE2, SEL_DEL, SEL_MOVE, SEL_COPY,
+enum selmode {SEL_NONE, SEL_DEL2, SEL_COPY2, SEL_MOVE2,
+              SEL_DEL, SEL_MOVE, SEL_COPY, SEL_SEL,
               SRCH1, SRCH2, SRCH3};
 enum selmode mode;
 
@@ -447,6 +450,10 @@ void update_status_line(void) {
     cprintf("Move%s", selmsg1);
     l = 80 - 43;
     break;
+  case SEL_SEL:
+    cprintf("Select: OA-[Space] to end");
+    l = 80 - 25;
+    break;
   case SEL_COPY2:
     cprintf("Copy%scopy", selmsg2);
     l = 80 - 41;
@@ -740,14 +747,16 @@ done:
 /*
  * Save gapbuf to file
  * filename - name of file to load
+ * copymode - if 1, copy test from startsel to endsel only
  * Returns 0 on success
  *         1 if file can't be opened
  */
 #ifndef AUXMEM
 #pragma code-name (push, "LC")
 #endif
-uint8_t save_file(char *filename) {
+uint8_t save_file(char *filename, uint8_t copymode) {
   uint16_t pos = gapbegin;
+  uint16_t sz;
   uint8_t retval = 1;
   uint8_t i;
 #ifdef AUXMEM
@@ -761,14 +770,18 @@ uint8_t save_file(char *filename) {
   fp = fopen(filename, "w");
   if (!fp)
     goto done;
-  jump_pos(0);
+  jump_pos(copymode == 1 ? startsel : 0);
   goto_prompt_row();
 #ifdef AUXMEM
   p = gapend + 1;
 #else
   p = gapbuf + gapend + 1;
 #endif
-  for (i = 0; i < DATASIZE() / IOSZ; ++i) {
+  if (copymode)
+    sz = endsel - startsel;
+  else
+    sz = DATASIZE();
+  for (i = 0; i < sz / IOSZ; ++i) {
     cputc('.');
 #ifdef AUXMEM
     for (j = 0; j < IOSZ; ++j)
@@ -783,19 +796,19 @@ uint8_t save_file(char *filename) {
   }
   cputc('.');
 #ifdef AUXMEM
-  for (j = 0; j < DATASIZE() - (IOSZ * i); ++j)
+  for (j = 0; j < sz - (IOSZ * i); ++j)
     iobuf[j] = get_gapbuf(p++);
-  if (fwrite(iobuf, DATASIZE() - (IOSZ * i), 1, fp) != 1)
+  if (fwrite(iobuf, sz - (IOSZ * i), 1, fp) != 1)
     goto done;
 #else
-  if (fwrite(p, DATASIZE() - (IOSZ * i), 1, fp) != 1)
+  if (fwrite(p, sz - (IOSZ * i), 1, fp) != 1)
     goto done;
 #endif
   retval = 0;
 done:
   fclose(fp);
   jump_pos(pos);
-  return 0;
+  return retval;
 }
 #ifndef AUXMEM
 #pragma code-name (pop)
@@ -1420,8 +1433,8 @@ void save(void) {
   }
   sprintf(userentry, "Save to %s", filename);
   if (prompt_okay(userentry) == 0) {
-    if (save_file(filename)) {
-      sprintf(userentry, "%cCan't save %s", filename);
+    if (save_file(filename, 0)) {
+      sprintf(userentry, "Can't save %s", filename);
       show_error(userentry);
       draw_screen();
     } else {
@@ -1637,10 +1650,20 @@ void change_aux_bank(void) {
 
   __asm__("lda #$00");
   __asm__("sta $c073");  // Set aux bank back to 0
+  startsel = endsel = 65535U;
   draw_screen();
 }
 #pragma code-name (pop)
 #endif
+
+void order_selection(void) {
+  uint16_t tmp;
+  if (startsel > endsel) {
+    tmp = endsel;
+    endsel = startsel;
+    startsel = tmp;
+  }
+}
 
 /*
  * Main editor routine
@@ -1720,10 +1743,12 @@ int edit(char *fname) {
       break;
     case 0x80 + ',':  // OA-< "Home"
     case 0x80 + '<':
+    case 0x01:        // Ctrl-A (Emacs style)
       goto_bol();
       break;
     case 0x80 + '.':  // OA-> "End"
     case 0x80 + '>':
+    case 0x05:        // Ctrl-E (Emacs style)
       goto_eol();
       break;
     case 0x8b:  // OA-Up "Page Up"
@@ -1738,6 +1763,42 @@ int edit(char *fname) {
       change_aux_bank();
       break;
 #endif
+    case 0x80 + ' ': // OA-SPACE start/end selection
+      tmp = (startsel == 65535U ? 0 : 1); // Prev selection active?
+      if (tmp) {
+        endsel = gapbegin;
+        mode = SEL_NONE;
+        draw_screen();
+      } else {
+        startsel = endsel = gapbegin;
+        mode = SEL_SEL;
+        update_status_line();
+      }
+      break;
+    case 0x03:       // ^C "Copy"
+    case 0x18:       // ^X "Cut"
+      order_selection();
+      if (save_file("CLIPBOARD", 1)) {
+        show_error("Can't save CLIPBOARD");
+        draw_screen();
+        break;
+      }
+      if (c == 0x18) {
+        jump_pos(startsel);
+        gapend += (endsel - startsel);
+        set_modified(1);
+      }
+      startsel = endsel = 65535U;
+      mode = SEL_NONE;
+      draw_screen();
+      break;
+    case 0x16:       // ^V "Paste"
+      if (load_file("CLIPBOARD", 0))
+        show_error("Can't open CLIPBOARD");
+      startsel = endsel = 65535U;
+      mode = SEL_NONE;
+      draw_screen();
+      break;
     case 0x80 + 'C': // OA-C "Copy"
     case 0x80 + 'c': // OA-c
       mode = SEL_COPY;
@@ -1916,16 +1977,12 @@ int edit(char *fname) {
       cursor_down();
       break;
     case EOL:   // Return
-      if (mode == SEL_NONE) {
+      if ((mode == SEL_NONE) || (mode == SEL_SEL)) {
         insert_char(c);
         update_after_insert_char();
         set_modified(1);
       } else {
-        if (startsel > endsel) {
-          tmp = endsel;
-          endsel = startsel;
-          startsel = tmp;
-        }
+        order_selection();
         switch (mode) {
         case SEL_DEL:
           mode = SEL_DEL2;
