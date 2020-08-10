@@ -79,6 +79,9 @@ enum selmode mode;
 // Mousetext Open-Apple
 char openapple[] = "\x0f\x1b""A\x18\x0e";
 
+// Mousetext Closed-Apple
+char closedapple[] = "\x0f\x1b""@\x18\x0e";
+
 /*
  * Return number of bytes of freespace in gapbuf
  */
@@ -1382,8 +1385,10 @@ void help(void) {
     cont = (s == IOSZ ? 1 : 0);
     for (i = 0; i < s; ++i) {
       c = p[i];
-      if (c == '@')
+      if (c == '{')
         printf("%s", openapple);
+      if (c == '}')
+        printf("%s", closedapple);
       else if ((c != '\r') && (c != '\n'))
         putchar(c);
     }
@@ -1604,7 +1609,10 @@ uint8_t bank_log_to_phys(uint8_t l) {
  */
 void init_aux_banks(void) {
   uint8_t i;
-  cprintf("%u 64KB aux banks -> %uKB\n", banktbl[0], banktbl[0]*64);
+  revers(1);
+  cprintf("EDIT.SYSTEM                   Bobbi 2020");
+  revers(0);
+  cprintf("\n\n\n%u x 64KB aux banks -> %uKB\n", banktbl[0], banktbl[0]*64);
   for (i = 1; i < banktbl[0]; ++i) {
     auxbank = bank_log_to_phys(i);
     // Saves filename[], gapbegin, gapend and modified (85 bytes)
@@ -1956,6 +1964,23 @@ int edit(char *fname) {
         delete_char();
         update_after_delete_char();
         set_modified(1);
+      } else if (mode == SEL_SEL) {
+        tmp = (startsel == 65535U ? 0 : 1); // Selection active?
+        if (!tmp) {
+          beep();
+          break;
+        }
+        sprintf(userentry, "Delete selection (%d chars)", abs(endsel - startsel));
+        if (prompt_okay(userentry) != 0)
+          break;
+        order_selection();
+        mode = SEL_NONE;
+        jump_pos(startsel);
+        gapend += (endsel - startsel);
+        set_modified(1);
+        startsel = endsel = 65535U;
+        draw_screen();
+        break;
       }
       break;
     case 0x09:  // Tab
