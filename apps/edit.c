@@ -1620,34 +1620,23 @@ void init_aux_banks(void) {
 
 /*
  * Change the active bank of aux memory
+ * Current physical bank is in auxbank
+ * logbank - desired logical bank
  * Must be in LC.
  */
 #ifdef AUXMEM
 #pragma code-name (push, "LC")
-void change_aux_bank(void) {
-  int16_t i;
-  sprintf(userentry, "Buffer # (1-%u)", banktbl[0]);
-  if (prompt_for_name(userentry, 0) == 255)
-    return;
-  if (strlen(userentry) == 0)
-    return;
-  i = atoi(userentry);
-  if ((i < 1) || (i >= banktbl[0])) {
-    beep();
-    return;
-  }
-  l_auxbank = i;
+void change_aux_bank(uint8_t logbank) {
+  l_auxbank = logbank;
   // Saves filename[], gapbegin, gapend and modified (85 bytes)
   __asm__("lda %v", auxbank); 
   __asm__("sta $c073");  // Set aux bank
   copyaux(filename, (void*)0x0200, 85, TOAUX);
-
   // Load new filename[], gapbegin, gapend and modified (85 bytes)
   auxbank = bank_log_to_phys(l_auxbank);
   __asm__("lda %v", auxbank); 
   __asm__("sta $c073");  // Set aux bank
   copyaux((void*)0x0200, filename, 85, FROMAUX);
-
   __asm__("lda #$00");
   __asm__("sta $c073");  // Set aux bank back to 0
   startsel = endsel = 65535U;
@@ -1760,7 +1749,17 @@ int edit(char *fname) {
 #ifdef AUXMEM
     case 0x80 + 'B': // OA-B "Buffer"
     case 0x80 + 'b': // OA-b
-      change_aux_bank();
+      sprintf(userentry, "Buffer # (1-%u)", banktbl[0]);
+      if (prompt_for_name(userentry, 0) == 255)
+        break;
+      if (strlen(userentry) == 0)
+        break;
+      tmp = atoi(userentry);
+      if ((tmp < 1) || (tmp >= banktbl[0])) {
+        beep();
+        break;
+      }
+      change_aux_bank(tmp);
       break;
 #endif
     case 0x80 + ' ': // OA-SPACE start/end selection
@@ -2042,6 +2041,13 @@ copymove2_cleanup:
       }
       break;
     default:
+      if (*(uint8_t*)0xc062 & 0x80) { // Closed Apple depressed
+        // CA-number (1-9) - quick jump to first 9 buffers
+        if ((c >= '1') && (c <= '9')) {
+          change_aux_bank(c - '0');
+          break;
+        }
+      }
       //printf("**%02x**", c);
       if ((c >= 0x20) && (c < 0x80) && (mode == SEL_NONE)) {
         insert_char(c);
