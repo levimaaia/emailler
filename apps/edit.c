@@ -4,7 +4,7 @@
 // Bobbi July-Aug 2020
 /////////////////////////////////////////////////////////////////////////////
 
-// TODO: Cut/Copy/Paste ... within and between buffers
+// TODO: Cut/Copy/Paste ... within and between buffers. Almost working. 1 char short!
 // TODO: Buffer list. Prompt unsaved buffers on exit.
 // TODO: Load big files spanning multiple buffers (& keep track of it)
 // TODO: Search options - ignore case, complete word.
@@ -730,7 +730,7 @@ uint8_t load_file(char *filename, uint8_t replace) {
       }
     }
   } while (cont);
-  --gapbegin; // Eat EOF character
+//  --gapbegin; // Eat EOF character
 done:
   fclose(fp);
   if (replace) {
@@ -1777,6 +1777,7 @@ int edit(char *fname) {
       break;
     case 0x03:       // ^C "Copy"
     case 0x18:       // ^X "Cut"
+      mode = SEL_NONE;
       order_selection();
       if (save_file("CLIPBOARD", 1)) {
         show_error("Can't save CLIPBOARD");
@@ -1789,14 +1790,13 @@ int edit(char *fname) {
         set_modified(1);
       }
       startsel = endsel = 65535U;
-      mode = SEL_NONE;
       draw_screen();
       break;
     case 0x16:       // ^V "Paste"
+      mode = SEL_NONE;
       if (load_file("CLIPBOARD", 0))
         show_error("Can't open CLIPBOARD");
       startsel = endsel = 65535U;
-      mode = SEL_NONE;
       draw_screen();
       break;
     case 0x80 + 'C': // OA-C "Copy"
