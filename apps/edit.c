@@ -4,7 +4,7 @@
 // Bobbi July-Aug 2020
 /////////////////////////////////////////////////////////////////////////////
 
-// TODO: Cut/Copy/Paste ... within and between buffers. Almost working. 1 char short!
+// TODO: Load or save is one char short!!! Obvious with cut/paste.
 // TODO: Buffer list. Prompt unsaved buffers on exit.
 // TODO: Load big files spanning multiple buffers (& keep track of it)
 // TODO: Search options - ignore case, complete word.
@@ -1778,6 +1778,11 @@ int edit(char *fname) {
     case 0x03:       // ^C "Copy"
     case 0x18:       // ^X "Cut"
       mode = SEL_NONE;
+      tmp = (startsel == 65535U ? 0 : 1); // Selection active?
+      if (!tmp) {
+        beep();
+        break;
+      }
       order_selection();
       if (save_file("CLIPBOARD", 1)) {
         show_error("Can't save CLIPBOARD");
