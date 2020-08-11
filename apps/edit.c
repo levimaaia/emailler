@@ -4,7 +4,6 @@
 // Bobbi July-Aug 2020
 /////////////////////////////////////////////////////////////////////////////
 
-// TODO: Load or save is one char short!!! Obvious with cut/paste.
 // TODO: Buffer list. Prompt unsaved buffers on exit.
 // TODO: Load big files spanning multiple buffers (& keep track of it)
 // TODO: Search options - ignore case, complete word.
@@ -12,6 +11,7 @@
 // Note: Use my fork of cc65 to get a flashing cursor!!
 
 #define AUXMEM               // Still somewhat experimental
+#undef OLD_SELMODE           // Enable/disable Appleworks-style move/copy/del
 
 #include <conio.h>
 #include <ctype.h>
@@ -441,6 +441,7 @@ void update_status_line(void) {
             l_auxbank, modified ? '*' : ' ', filename, (FREESPACE() + 512) / 1024);
     l = 44 - strlen(filename);
     break;
+#ifdef OLD_SELMODE
   case SEL_DEL:
     cprintf("Del%s", selmsg1);
     l = 80 - 42;
@@ -453,10 +454,6 @@ void update_status_line(void) {
     cprintf("Move%s", selmsg1);
     l = 80 - 43;
     break;
-  case SEL_SEL:
-    cprintf("Select: OA-[Space] to end");
-    l = 80 - 25;
-    break;
   case SEL_COPY2:
     cprintf("Copy%scopy", selmsg2);
     l = 80 - 41;
@@ -464,6 +461,11 @@ void update_status_line(void) {
   case SEL_MOVE2:
     cprintf("Move%smove", selmsg2);
     l = 80 - 41;
+    break;
+#endif
+  case SEL_SEL:
+    cprintf("Select: OA-[Space] to end");
+    l = 80 - 25;
     break;
   case SRCH1:
     cprintf("Searching ...");
@@ -1387,7 +1389,7 @@ void help(void) {
       c = p[i];
       if (c == '{')
         printf("%s", openapple);
-      if (c == '}')
+      else if (c == '}')
         printf("%s", closedapple);
       else if ((c != '\r') && (c != '\n'))
         putchar(c);
@@ -1395,7 +1397,6 @@ void help(void) {
   } while (cont);
 done:
   fclose(fp);
-  printf("[Press Any Key]");
   cgetc();
   clrscr();
 }
@@ -1430,7 +1431,7 @@ void load_attacher(void) {
  */
 void save(void) {
   if (strlen(filename) == 0) {
-    if (prompt_for_name("File to save", 1) == 255)
+    if (prompt_for_name("*UNSAVED CHANGES* File to save", 1) == 255)
       return; // If ESC pressed
     if (strlen(userentry) == 0)
       return;
@@ -1754,22 +1755,6 @@ int edit(char *fname) {
     case 0x8a:  // OA-Down "Page Down"
       page_down();
       break;
-#ifdef AUXMEM
-    case 0x80 + 'B': // OA-B "Buffer"
-    case 0x80 + 'b': // OA-b
-      sprintf(userentry, "Buffer # (1-%u)", banktbl[0]);
-      if (prompt_for_name(userentry, 0) == 255)
-        break;
-      if (strlen(userentry) == 0)
-        break;
-      tmp = atoi(userentry);
-      if ((tmp < 1) || (tmp >= banktbl[0])) {
-        beep();
-        break;
-      }
-      change_aux_bank(tmp);
-      break;
-#endif
     case 0x80 + ' ': // OA-SPACE start/end selection
       tmp = (startsel == 65535U ? 0 : 1); // Prev selection active?
       if (tmp) {
@@ -1782,11 +1767,16 @@ int edit(char *fname) {
         update_status_line();
       }
       break;
-    case 0x03:       // ^C "Copy"
+    case 0x80 + 'X': // OA-X "Cut"
+    case 0x80 + 'x': // OA-x
     case 0x18:       // ^X "Cut"
+      tmp = 65535U;
+    case 0x80 + 'C': // OA-C "Copy"
+    case 0x80 + 'c': // OA-c
+    case 0x03:       // ^C "Copy"
+      ++tmp;
       mode = SEL_NONE;
-      tmp = (startsel == 65535U ? 0 : 1); // Selection active?
-      if (!tmp) {
+      if (startsel == 65535U) { // No selection
         beep();
         break;
       }
@@ -1796,7 +1786,7 @@ int edit(char *fname) {
         draw_screen();
         break;
       }
-      if (c == 0x18) {
+      if (tmp == 0) {
         jump_pos(startsel);
         gapend += (endsel - startsel);
         set_modified(1);
@@ -1804,6 +1794,8 @@ int edit(char *fname) {
       startsel = endsel = 65535U;
       draw_screen();
       break;
+    case 0x80 + 'V': // OA-V "Paste"
+    case 0x80 + 'v': // OA-v
     case 0x16:       // ^V "Paste"
       mode = SEL_NONE;
       if (load_file("CLIPBOARD", 0))
@@ -1811,6 +1803,7 @@ int edit(char *fname) {
       startsel = endsel = 65535U;
       draw_screen();
       break;
+#ifdef OLD_SELMODE
     case 0x80 + 'C': // OA-C "Copy"
     case 0x80 + 'c': // OA-c
       mode = SEL_COPY;
@@ -1821,6 +1814,8 @@ int edit(char *fname) {
       else
         update_status_line();
       break;
+#endif
+#ifdef OLD_SELMODE
     case 0x80 + 'D': // OA-D "Delete"
     case 0x80 + 'd': // OA-d
       mode = SEL_DEL;
@@ -1831,6 +1826,7 @@ int edit(char *fname) {
       else
         update_status_line();
       break;
+#endif
     case 0x80 + 'R': // OA-R "Replace"
     case 0x80 + 'r': // OA-r
       tmp = 65535U;
@@ -1893,6 +1889,7 @@ int edit(char *fname) {
       }
       draw_screen();
       break;
+#ifdef OLD_SELMODE
     case 0x80 + 'M': // OA-M "Move"
     case 0x80 + 'm': // OA-m
       mode = SEL_MOVE;
@@ -1903,6 +1900,7 @@ int edit(char *fname) {
       else
         update_status_line();
       break;
+#endif
     case 0x80 + 'N': // OA-N "Name"
     case 0x80 + 'n': // OA-n
       if (prompt_for_name("New filename", 1) == 255)
@@ -2010,7 +2008,9 @@ int edit(char *fname) {
         insert_char(c);
         update_after_insert_char();
         set_modified(1);
-      } else {
+      }
+#ifdef OLD_SELMODE
+      else {
         order_selection();
         switch (mode) {
         case SEL_DEL:
@@ -2064,14 +2064,32 @@ copymove2_cleanup:
           break;
         }
       }
+#endif
       break;
     default:
+#ifdef AUXMEM
       if (*(uint8_t*)0xc062 & 0x80) { // Closed Apple depressed
         // CA-number (1-9) - quick jump to first 9 buffers
         if ((c >= '1') && (c <= '9')) {
           change_aux_bank(c - '0');
           break;
         }
+        // CA-B "Buffer"
+        if ((c == 'B') || (c == 'b')) {
+          sprintf(userentry, "Buffer # (1-%u)", banktbl[0]);
+          if (prompt_for_name(userentry, 0) == 255)
+            break;
+          if (strlen(userentry) == 0)
+            break;
+          tmp = atoi(userentry);
+          if ((tmp < 1) || (tmp >= banktbl[0])) {
+            beep();
+            break;
+          }
+          change_aux_bank(tmp);
+          break;
+        }
+#endif
       }
       //printf("**%02x**", c);
       if ((c >= 0x20) && (c < 0x80) && (mode == SEL_NONE)) {

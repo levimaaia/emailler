@@ -1,23 +1,24 @@
-+------------------------------------------------------------------------------+
-| emai//er EDIT.SYSTEM HELP                                   v1.01 Bobbi 2020 |
-+-------------------------------------+----------------------------------------+
-|Navigation:                          | Editing:                               |
-|  Cursor keys  Move the cursor       | [Return]    Split line                 |
-|  @-Up         Page up               | [Delete]    Delete char left           |
-|  @-Down       Page down             | @-[Delete]  Delete char right          |
-|  @-Left       Word left             | [Tab]       Go to next tabstop         |
-|  @-Right      Word right            +----------------------------------------+
-|  @-<          Beginning of line     | Search and Replace:                    |
-|  @->          End of line           | @-F         Find string                |
-|  @-1 ...      Beginning of file ... | @-R         Find and replace string    |
-|  @-9          through end of file   +----------------------------------------+
-+-------------------------------------+ Block Commands:                        |
-|File Management Commands             | @-C         Copy block of text         |
-|  @-I          Insert file at cursor | @-D         Delete block of text       |
-|  @-L          Load file             | @-M         Move block of text         |
-|  @-N          Set file name to save +----------------------------------------+
-|  @-Q          Quit                  | Miscellaneous:                         |
-|  @-S          Save file             | @-W         Word-wrap paragraph        |
-|  ESC          Cancel                | @-U         Unwrap paragraph           |
-|  @-?          This help             | Ctrl-L      Refresh screen             |
-+-------------------------------------+----------------------------------------+
+Navigation:                           | Editing:                                
+  Cursor keys  Move the cursor        |  [Return]    Split line                 
+  {-Up         Page up                |  [Delete]    Delete char left           
+  {-Down       Page down              |  {-[Delete]  Delete char right          
+  {-Left       Word left              |  [Tab]       Go to next tabstop         
+  {-Right      Word right             +-----------------------------------------
+  {-<          Beginning of line      | Search and Replace:                     
+  {->          End of line            |  {-F         Find string                
+  {-1 ...      Beginning of file ...  |  {-R         Find and replace string    
+  {-9          through end of file    +-----------------------------------------
+--------------------------------------+ Block Commands:                         
+File Management Commands              |  {-[Space]   Mark start/end of selection
+  {-I          Insert file at cursor  |  {-X         Cut selected text          
+  {-L          Load file              |  {-C         Copy selected text         
+  {-N          Set file name to save  |  {-P         Paste previous cut or copy 
+  {-Q          Quit                   |  [Delete]    Delete selected text       
+  {-S          Save file              |  ESC         Clear selection            
+--------------------------------------+-----------------------------------------
+Buffer Management:                    | Paragraph Formatting:                   
+  }-1 ...     Jump to buffer 1 ...    |  {-W         Word-wrap paragrap         
+  }-9         through buffer 9        |  {-U         Unwrap paragraph           
+  }-B         Select any buffer 1-128 +-----------------------------------------
+--------------------------------------+  {-?         This help                  
+ EDIT.SYSTEM v1.02                    |  Ctrl-L      Refresh screen            
