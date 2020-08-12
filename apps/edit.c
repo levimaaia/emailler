@@ -4,10 +4,12 @@
 // Bobbi July-Aug 2020
 /////////////////////////////////////////////////////////////////////////////
 
-// TODO: More refined multibank support. Either allow non-contiguous ranges or
-//       at the very least check buffers are free when allocating them in
-//       load_file(). Also need way to extend an existing file by editing it
-//       to add an addional buffer. Think about workflow etc.
+// TODO: Multibank
+//       1) save_multipart_file() needs to check if any bank has been modified
+//       2) save_all() needs to work properly with multipart files
+//       3) CA-E to extend a buffer
+//       4) CA-T to truncate a buffer
+// TODO: Reinstate some form of local cut/copy/paste -- faster!!!
 // TODO: Search options - ignore case, complete word.
 
 // Note: Use my fork of cc65 to get a flashing cursor!!
@@ -742,12 +744,17 @@ void change_aux_bank(uint8_t logbank) {
 
 /*
  * Used by load_file() when opening a new bank for a large file
+ * Returns 0 if all is well, 1 if we run into an already occupied bank
  */
-void do_load_new_bank(uint8_t partnum) {
+uint8_t do_load_new_bank(uint8_t partnum) {
   strcpy(userentry, filename);
   status[2] = partnum;
-  change_aux_bank(++l_auxbank); /// TODO: EXPERIMENT!!!
+  change_aux_bank(++l_auxbank);
+  if (DATASIZE() > 0) {
+    return 1;
+  }
   strcpy(filename, userentry);
+  return 0;
 }
 
 /*
@@ -797,8 +804,15 @@ uint8_t load_file(char *fname, uint8_t replace) {
       case '\n': // UNIX files
         set_gapbuf(gapbegin++, '\r');
         col = 0;
+#ifdef AUXMEM
         if (replace && (FREESPACE() < 15000))
-          do_load_new_bank(++partctr);
+          if (do_load_new_bank(++partctr) == 1) {
+            sprintf(userentry,
+                    "Buffer [%03u] is used. Truncating file.", l_auxbank);
+            show_error(userentry);
+            goto done;
+          }
+#endif
         break;
       case '\t':
         c = next_tabstop(col) - col;
@@ -845,7 +859,7 @@ done:
 
 /*
  * Save gapbuf to file
- * fname - name of file to load
+ * If copymode is 0, use filename[] otherwise "CLIPBOARD"
  * copymode - if 1, copy test from startsel to endsel only
  * append - if 1, append to file instead of overwriting
  * Returns 0 on success
@@ -854,7 +868,7 @@ done:
 #ifndef AUXMEM
 #pragma code-name (push, "LC")
 #endif
-uint8_t save_file(char *fname, uint8_t copymode, uint8_t append) {
+uint8_t save_file(uint8_t copymode, uint8_t append) {
   uint16_t pos = gapbegin;
   uint16_t sz;
   uint8_t retval = 1;
@@ -867,7 +881,7 @@ uint8_t save_file(char *fname, uint8_t copymode, uint8_t append) {
   FILE *fp;
   _filetype = PRODOS_T_TXT;
   _auxtype = 0;
-  fp = fopen(fname, (append ? "a" : "w"));
+  fp = fopen((copymode ? "CLIPBOARD" : filename), (append ? "a" : "w"));
   if (!fp)
     goto done;
   jump_pos(copymode == 1 ? startsel : 0);
@@ -934,7 +948,7 @@ void draw_screen(void);
  * Save a large file that spans multiple banks
  */
 #ifdef AUXMEM
-uint8_t save_multibank_file(char *fname) {
+uint8_t save_multibank_file(void) {
   uint8_t bank = find_first_bank();
   if (bank != l_auxbank) {
     change_aux_bank(bank);
@@ -942,18 +956,18 @@ uint8_t save_multibank_file(char *fname) {
   }
   bank = status[2];
   if (bank == 0) // Oh, it's actually just a single bank file
-    return save_file(fname, 0, 0);
+    return save_file(0, 0);
   if (bank != 1) {
     show_error("SBF error"); // Should never happen
     return 1;
   }
-  if (save_file(fname, 0, 0) == 1)
+  if (save_file(0, 0) == 1)
     return 1;
   change_aux_bank(++l_auxbank);
   while (status[2] == bank + 1) {
     draw_screen();
     bank = status[2];
-    if (save_file(fname, 0, 1) == 1) // Append
+    if (save_file(0, 1) == 1) // Append
       return 1;
     change_aux_bank(++l_auxbank);
   }
@@ -1575,16 +1589,16 @@ void save(void) {
     fp = fopen(filename, "r");
     if (fp) {
       fclose(fp);
-      sprintf(userentry, "File '%s' exists, overwrite");
+      sprintf(userentry, "File '%s' exists, overwrite", filename);
       if (prompt_okay(userentry) != 0)
         return; 
     }
     fclose(fp);
   }
 #ifdef AUXMEM
-  rc = save_multibank_file(filename);
+  rc = save_multibank_file();
 #else
-  rc = save_file(filename, 0, 0);
+  rc = save_file(0, 0);
 #endif
   switch (rc) {
   case 0: // Success
@@ -1790,7 +1804,7 @@ void save_all(void) {
     change_aux_bank(i);
     if (status[0]) { // If buffer is modified
       draw_screen();
-      save();
+      save_multibank_file();
     }
   }
   change_aux_bank(o_aux);
@@ -1927,7 +1941,7 @@ int edit(char *fname) {
         break;
       }
       order_selection();
-      if (save_file("CLIPBOARD", 1, 0) == 1) {
+      if (save_file(1, 0) == 1) {
         show_error("Can't save CLIPBOARD");
         draw_screen();
         break;
