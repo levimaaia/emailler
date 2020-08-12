@@ -5,10 +5,8 @@
 /////////////////////////////////////////////////////////////////////////////
 
 // TODO: Multibank
-//       1) save_multipart_file() needs to check if any bank has been modified
-//       2) save_all() needs to work properly with multipart files
-//       3) CA-E to extend a buffer
-//       4) CA-T to truncate a buffer
+//       1) CA-E to extend a buffer
+//       2) CA-T to truncate a buffer
 // TODO: Reinstate some form of local cut/copy/paste -- faster!!!
 // TODO: Search options - ignore case, complete word.
 
@@ -757,6 +755,9 @@ uint8_t do_load_new_bank(uint8_t partnum) {
   return 0;
 }
 
+// Forward declaration
+void draw_screen(void);
+
 /*
  * Load a file from disk into the gapbuf
  * filename - name of file to load
@@ -805,13 +806,15 @@ uint8_t load_file(char *fname, uint8_t replace) {
         set_gapbuf(gapbegin++, '\r');
         col = 0;
 #ifdef AUXMEM
-        if (replace && (FREESPACE() < 15000))
+        if (replace && (FREESPACE() < 15000)) {
+          draw_screen();
           if (do_load_new_bank(++partctr) == 1) {
             sprintf(userentry,
                     "Buffer [%03u] is used. Truncating file.", l_auxbank);
             show_error(userentry);
             goto done;
           }
+        }
 #endif
         break;
       case '\t':
@@ -919,6 +922,7 @@ uint8_t save_file(uint8_t copymode, uint8_t append) {
     goto done;
 #endif
   retval = 0;
+  status[0] = 0; // No longer marked modified
 done:
   fclose(fp);
   jump_pos(pos);
@@ -941,36 +945,58 @@ uint8_t find_first_bank(void) {
 }
 #endif
 
-// Forward declaration
-void draw_screen(void);
-
 /*
  * Save a large file that spans multiple banks
  */
 #ifdef AUXMEM
 uint8_t save_multibank_file(void) {
   uint8_t bank = find_first_bank();
-  if (bank != l_auxbank) {
+  uint8_t origbank = l_auxbank;
+  uint8_t retval = 0;
+  uint8_t filebank, modified = 0;
+  if (bank != origbank) {
     change_aux_bank(bank);
     draw_screen();
   }
-  bank = status[2];
-  if (bank == 0) // Oh, it's actually just a single bank file
+  filebank = status[2];
+  if (filebank == 0) // Oh, it's actually just a single bank file
     return save_file(0, 0);
-  if (bank != 1) {
+  if (filebank != 1) {
     show_error("SBF error"); // Should never happen
-    return 1;
+    retval = 1;
+    goto done;
   }
-  if (save_file(0, 0) == 1)
-    return 1;
-  change_aux_bank(++l_auxbank);
-  while (status[2] == bank + 1) {
-    draw_screen();
-    bank = status[2];
-    if (save_file(0, 1) == 1) // Append
-      return 1;
+  // Look at all banks and see if any are modified
+  while (status[2] == filebank + 1) {
+    filebank = status[2];
+    if (status[1] == 1) {
+      modified = 1;
+      break;
+    }
     change_aux_bank(++l_auxbank);
   }
+  change_aux_bank(bank);
+  if (save_file(0, 0) == 1) {
+    retval = 1;
+    goto done;
+  }
+  change_aux_bank(++l_auxbank);
+  draw_screen();
+  while (status[2] == filebank + 1) {
+    filebank = status[2];
+    if (save_file(0, 1) == 1) { // Append
+      retval = 1;
+      goto done;
+    }
+    change_aux_bank(++l_auxbank);
+    draw_screen();
+  }
+done:
+  if (origbank != l_auxbank) {
+     change_aux_bank(origbank);
+     draw_screen();
+  }
+  return retval;
 }
 #endif
 
@@ -1804,7 +1830,7 @@ void save_all(void) {
     change_aux_bank(i);
     if (status[0]) { // If buffer is modified
       draw_screen();
-      save_multibank_file();
+      save();
     }
   }
   change_aux_bank(o_aux);
