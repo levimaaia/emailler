@@ -4,7 +4,10 @@
 // Bobbi July-Aug 2020
 /////////////////////////////////////////////////////////////////////////////
 
-// TODO: Load big files spanning multiple buffers (& keep track of it)
+// TODO: More refined multibank support. Either allow non-contiguous ranges or
+//       at the very least check buffers are free when allocating them in
+//       load_file(). Also need way to extend an existing file by editing it
+//       to add an addional buffer. Think about workflow etc.
 // TODO: Search options - ignore case, complete word.
 
 // Note: Use my fork of cc65 to get a flashing cursor!!
@@ -48,11 +51,12 @@ char     padding = 0;            // To null terminate for strstr()
 
 // The following fields, plus the gap buffer, represent the state of
 // the current buffer.  These are stashed in each aux page from 0x200 up.
-// Total 80 + 2 + 2 + 2 = 86 bytes
-#define BUFINFOSZ 86
+// Total 80 + 3 + 2 + 2 = 87 bytes
+#define BUFINFOSZ 87
 char     filename[80]  = "";
-char     status[2] = "";         // status[0] is 1 if file has been modified
+uint8_t  status[3] = {0, 0, 0};  // status[0] is 1 if file has been modified
                                  // status[1] is 1 if should warn for overwrite
+                                 // status[2] is part # for multi-part files
 uint16_t gapbegin      = 0;
 uint16_t gapend        = BUFSZ - 1;
 
@@ -716,17 +720,16 @@ uint8_t bank_log_to_phys(uint8_t l) {
  * Change the active bank of aux memory
  * Current physical bank is in auxbank
  * logbank - desired logical bank
- * Must be in LC.
  */
 #ifdef AUXMEM
 #pragma code-name (push, "LC")
 void change_aux_bank(uint8_t logbank) {
   l_auxbank = logbank;
-  // Saves filename[], gapbegin, gapend and modified (BUFINFOSZ bytes)
+  // Saves filename[], status, gapbegin, gapend (BUFINFOSZ bytes)
   __asm__("lda %v", auxbank); 
   __asm__("sta $c073");  // Set aux bank
   copyaux(filename, (void*)0x0200, BUFINFOSZ, TOAUX);
-  // Load new filename[], gapbegin, gapend and modified (BUFINFOSZ bytes)
+  // Load new filename[], status, gapbegin, gapend (BUFINFOSZ bytes)
   auxbank = bank_log_to_phys(l_auxbank);
   __asm__("lda %v", auxbank); 
   __asm__("sta $c073");  // Set aux bank
@@ -736,6 +739,16 @@ void change_aux_bank(uint8_t logbank) {
 }
 #pragma code-name (pop)
 #endif
+
+/*
+ * Used by load_file() when opening a new bank for a large file
+ */
+void do_load_new_bank(uint8_t partnum) {
+  strcpy(userentry, filename);
+  status[2] = partnum;
+  change_aux_bank(++l_auxbank); /// TODO: EXPERIMENT!!!
+  strcpy(filename, userentry);
+}
 
 /*
  * Load a file from disk into the gapbuf
@@ -769,20 +782,7 @@ uint8_t load_file(char *fname, uint8_t replace) {
   p = gapbuf + gapend - IOSZ; // Read to mem just before gapend
 #endif
   do {
-#ifdef AUXMEM
-    if (replace) {
-      if (FREESPACE() < 15000) {
-        strcpy(userentry, filename);
-        change_aux_bank(++l_auxbank); /// TODO: EXPERIMENT!!!
-        sprintf(filename, "%s:%u", userentry, ++partctr);
-      }
-    } else {
-      if (FREESPACE() < IOSZ * 2) {
-        show_error("File truncated");
-        goto done;
-      }
-    }
-#else
+#ifndef AUXMEM
     if (FREESPACE() < IOSZ * 2) {
       show_error("File truncated");
       goto done;
@@ -797,6 +797,8 @@ uint8_t load_file(char *fname, uint8_t replace) {
       case '\n': // UNIX files
         set_gapbuf(gapbegin++, '\r');
         col = 0;
+        if (replace && (FREESPACE() < 15000))
+          do_load_new_bank(++partctr);
         break;
       case '\t':
         c = next_tabstop(col) - col;
@@ -809,17 +811,11 @@ uint8_t load_file(char *fname, uint8_t replace) {
         ++col;
       }
 #ifdef AUXMEM
-      if (replace) {
-        if (FREESPACE() < 15000) {
-          strcpy(userentry, filename);
-          change_aux_bank(++l_auxbank); /// TODO: EXPERIMENT!!!
-          sprintf(filename, "%s:%u", userentry, ++partctr);
-        }
-      } else {
-        if (FREESPACE() < IOSZ * 2) {
-          show_error("File truncated");
-          goto done;
-        }
+      // Will never happen in replace mode because
+      // we will have already opened a new bank
+      if (FREESPACE() < IOSZ * 2) {
+        show_error("File truncated");
+        goto done;
       }
 #else
       if (FREESPACE() < IOSZ * 2) {
@@ -832,6 +828,10 @@ uint8_t load_file(char *fname, uint8_t replace) {
 done:
   fclose(fp);
   if (replace) {
+#ifdef AUXMEM
+    if (partctr > 0)
+      status[2] = ++partctr;
+#endif
     jump_pos(0);
     pos = 0;
     set_modified(0);
@@ -845,16 +845,16 @@ done:
 
 /*
  * Save gapbuf to file
- * filename - name of file to load
+ * fname - name of file to load
  * copymode - if 1, copy test from startsel to endsel only
+ * append - if 1, append to file instead of overwriting
  * Returns 0 on success
  *         1 if file can't be opened
- *         2 if user aborts
  */
 #ifndef AUXMEM
 #pragma code-name (push, "LC")
 #endif
-uint8_t save_file(char *filename, uint8_t copymode) {
+uint8_t save_file(char *fname, uint8_t copymode, uint8_t append) {
   uint16_t pos = gapbegin;
   uint16_t sz;
   uint8_t retval = 1;
@@ -865,20 +865,9 @@ uint8_t save_file(char *filename, uint8_t copymode) {
   char *p;
 #endif
   FILE *fp;
-  // If status[1] is set, check for overwrite
-  if (!copymode && status[1]) {
-    fp = fopen(filename, "r");
-    if (fp) {
-      fclose(fp);
-      sprintf(userentry, "File '%s' exists, overwrite");
-      if (prompt_okay(userentry) != 0)
-        return 2; 
-    }
-    fclose(fp);
-  }
   _filetype = PRODOS_T_TXT;
   _auxtype = 0;
-  fp = fopen(filename, "w");
+  fp = fopen(fname, (append ? "a" : "w"));
   if (!fp)
     goto done;
   jump_pos(copymode == 1 ? startsel : 0);
@@ -923,6 +912,52 @@ done:
 }
 #ifndef AUXMEM
 #pragma code-name (pop)
+#endif
+
+/*
+ * Obtain the first bank number for the current file
+ */
+#ifdef AUXMEM
+uint8_t find_first_bank(void) {
+  if (status[2] == 0) // Not a multi-bank file
+    return l_auxbank;
+  if (status[2] == 1) // First bank of multi-bank file
+    return l_auxbank;
+  return l_auxbank - status[2] + 1; // Assumes banks allocated in order
+}
+#endif
+
+// Forward declaration
+void draw_screen(void);
+
+/*
+ * Save a large file that spans multiple banks
+ */
+#ifdef AUXMEM
+uint8_t save_multibank_file(char *fname) {
+  uint8_t bank = find_first_bank();
+  if (bank != l_auxbank) {
+    change_aux_bank(bank);
+    draw_screen();
+  }
+  bank = status[2];
+  if (bank == 0) // Oh, it's actually just a single bank file
+    return save_file(fname, 0, 0);
+  if (bank != 1) {
+    show_error("SBF error"); // Should never happen
+    return 1;
+  }
+  if (save_file(fname, 0, 0) == 1)
+    return 1;
+  change_aux_bank(++l_auxbank);
+  while (status[2] == bank + 1) {
+    draw_screen();
+    bank = status[2];
+    if (save_file(fname, 0, 1) == 1) // Append
+      return 1;
+    change_aux_bank(++l_auxbank);
+  }
+}
 #endif
 
 /*
@@ -1525,6 +1560,7 @@ void load_attacher(void) {
  */
 void save(void) {
   uint8_t rc;
+  FILE *fp;
   if (strlen(filename) == 0) {
     status[1] = 1; // Prompt if save will overwrite existing file
     sprintf(userentry, "[%03u] *UNSAVED CHANGES* File to save", l_auxbank);
@@ -1534,7 +1570,22 @@ void save(void) {
       return;
     strcpy(filename, userentry);
   }
-  rc = save_file(filename, 0);
+  // If status[1] is set, check for overwrite
+  if (status[1]) {
+    fp = fopen(filename, "r");
+    if (fp) {
+      fclose(fp);
+      sprintf(userentry, "File '%s' exists, overwrite");
+      if (prompt_okay(userentry) != 0)
+        return; 
+    }
+    fclose(fp);
+  }
+#ifdef AUXMEM
+  rc = save_multibank_file(filename);
+#else
+  rc = save_file(filename, 0, 0);
+#endif
   switch (rc) {
   case 0: // Success
     status[1] = 0; // No need to prompt for overwrite next time
@@ -1705,12 +1756,12 @@ void buffer_list(void) {
   for (i = 1; i < banktbl[0]; ++i) {
     if (row == 0) {
       clrscr();
-      cprintf("Buf   Size   Mod  Filename\r");
+      cprintf(" Buf  Size   Mod  Part  Filename\r");
       gotoxy(0, ++row);
     }
     change_aux_bank(i);
-    cprintf("[%03u] %05u | %c | %s\r",
-            i, DATASIZE(), (status[0] ? '*' : ' '), filename);
+    cprintf("[%03u] %05u | %c | %3u | %s\r",
+            i, DATASIZE(), (status[0] ? '*' : ' '), status[2], filename);
     if (DATASIZE() > 0)
       gotoxy(0, ++row);
     if (row == 22) {
@@ -1731,7 +1782,6 @@ void buffer_list(void) {
  * Save all modified buffers
  */
 #ifdef AUXMEM
-#pragma code-name (push, "LC")
 void save_all(void) {
   uint8_t o_aux = l_auxbank;
   uint8_t i;
@@ -1745,7 +1795,6 @@ void save_all(void) {
   }
   change_aux_bank(o_aux);
 }
-#pragma code-name (pop)
 #endif
 
 /*
@@ -1878,7 +1927,7 @@ int edit(char *fname) {
         break;
       }
       order_selection();
-      if (save_file("CLIPBOARD", 1) == 1) {
+      if (save_file("CLIPBOARD", 1, 0) == 1) {
         show_error("Can't save CLIPBOARD");
         draw_screen();
         break;
