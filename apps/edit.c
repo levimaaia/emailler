@@ -4,6 +4,7 @@
 // Bobbi July-Aug 2020
 /////////////////////////////////////////////////////////////////////////////
 
+// TODO: Why does in memory copy not work between buffers?
 // TODO: Spinner for file/load save
 // TODO: Update help - needs two pages
 // TODO: File picker!!
@@ -779,6 +780,7 @@ uint8_t load_file(char *fname, uint8_t replace) {
     col = 0;
   }
 #ifdef AUXMEM
+  cutbuflen = 0;
   p = iobuf;
 #else
   p = gapbuf + gapend - IOSZ; // Read to mem just before gapend
@@ -884,6 +886,7 @@ uint8_t save_file(uint8_t copymode, uint8_t append) {
   jump_pos(copymode == 1 ? startsel : 0);
   goto_prompt_row();
 #ifdef AUXMEM
+  cutbuflen = 0;
   p = gapend + 1;
 #else
   p = gapbuf + gapend + 1;
@@ -1538,6 +1541,7 @@ void help(void) {
     goto done;
   }
 #ifdef AUXMEM
+  cutbuflen = 0;
   p = iobuf;
 #else
   p = gapbuf + gapend - IOSZ; // Read to just before gapend
@@ -1993,7 +1997,11 @@ int edit(char *fname) {
       if (endsel - startsel <= CUTBUFSZ) {
         cutbuflen = endsel - startsel;
         jump_pos(startsel);
+        __asm__("lda %v", auxbank); 
+        __asm__("sta $c073");  // Set aux bank
         copyaux((char*)0x0800 + gapend + 1, iobuf, cutbuflen, FROMAUX);
+        __asm__("lda #$00");
+        __asm__("sta $c073");  // Set aux bank back to 0
       } else {
         cutbuflen = 0;
 #endif
@@ -2019,7 +2027,11 @@ int edit(char *fname) {
     case 0x16:       // ^V "Paste"
       mode = SEL_NONE;
       if (cutbuflen > 0) {
+        __asm__("lda %v", auxbank); 
+        __asm__("sta $c073");  // Set aux bank
         copyaux(iobuf, (char*)0x0800 + gapbegin, cutbuflen, TOAUX);
+        __asm__("lda #$00");
+        __asm__("sta $c073");  // Set aux bank back to 0
         gapbegin += cutbuflen;
       } else {
         if (load_file("CLIPBOARD", 0))
