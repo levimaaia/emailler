@@ -4,7 +4,6 @@
 // Bobbi July-Aug 2020
 /////////////////////////////////////////////////////////////////////////////
 
-// TODO: when truncating file to just one bank, should set status[2] to zero
 // TODO: Bug - cursor down at EOF succeeds when it should fail
 // TODO: Reinstate some form of local cut/copy/paste -- faster!!!
 // TODO: Search options - ignore case, complete word.
@@ -2337,6 +2336,8 @@ copymove2_cleanup:
             gapend = BUFSZ - 1;
             draw_screen();
             if (status[2] > 0) { // If multipart
+              if (status[2] == 1) // Truncating in first bank
+                status[2] = 0;    // Make it a singleton
               change_aux_bank(++l_auxbank);
               do {
                 gapbegin = 0;
