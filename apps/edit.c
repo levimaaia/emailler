@@ -4,9 +4,8 @@
 // Bobbi July-Aug 2020
 /////////////////////////////////////////////////////////////////////////////
 
-// TODO: Multibank
-//       1) CA-E to extend a buffer
-//       2) CA-T to truncate a buffer
+// TODO: save_multi always returns error code it seems (?)
+// TODO: save_multi needs filename to be the same in all banks.
 // TODO: Reinstate some form of local cut/copy/paste -- faster!!!
 // TODO: Search options - ignore case, complete word.
 
@@ -742,9 +741,10 @@ void change_aux_bank(uint8_t logbank) {
 
 /*
  * Used by load_file() when opening a new bank for a large file
+ * and also by CA-E "Extend file"
  * Returns 0 if all is well, 1 if we run into an already occupied bank
  */
-uint8_t do_load_new_bank(uint8_t partnum) {
+uint8_t open_new_aux_bank(uint8_t partnum) {
   strcpy(userentry, filename);
   status[2] = partnum;
   change_aux_bank(++l_auxbank);
@@ -808,7 +808,7 @@ uint8_t load_file(char *fname, uint8_t replace) {
 #ifdef AUXMEM
         if (replace && (FREESPACE() < 15000)) {
           draw_screen();
-          if (do_load_new_bank(++partctr) == 1) {
+          if (open_new_aux_bank(++partctr) == 1) {
             sprintf(userentry,
                     "Buffer [%03u] is used. Truncating file.", l_auxbank);
             show_error(userentry);
@@ -958,43 +958,40 @@ uint8_t save_multibank_file(void) {
     change_aux_bank(bank);
     draw_screen();
   }
-  filebank = status[2];
-  if (filebank == 0) // Oh, it's actually just a single bank file
+  if (status[2] == 0) // Oh, it's actually just a single bank file
     return save_file(0, 0);
-  if (filebank != 1) {
+  if (status[2] != 1) {
     show_error("SBF error"); // Should never happen
     retval = 1;
     goto done;
   }
   // Look at all banks and see if any are modified
-  while (status[2] == filebank + 1) {
+  do {
     filebank = status[2];
     if (status[1] == 1) {
       modified = 1;
       break;
     }
     change_aux_bank(++l_auxbank);
-  }
+  } while (status[2] == filebank + 1);
   change_aux_bank(bank);
   if (save_file(0, 0) == 1) {
     retval = 1;
     goto done;
   }
-  change_aux_bank(++l_auxbank);
-  draw_screen();
-  while (status[2] == filebank + 1) {
+  do {
     filebank = status[2];
+    change_aux_bank(++l_auxbank);
+    draw_screen();
     if (save_file(0, 1) == 1) { // Append
       retval = 1;
       goto done;
     }
-    change_aux_bank(++l_auxbank);
-    draw_screen();
-  }
+  } while (status[2] == filebank + 1);
 done:
   if (origbank != l_auxbank) {
-     change_aux_bank(origbank);
-     draw_screen();
+    change_aux_bank(origbank);
+    draw_screen();
   }
   return retval;
 }
@@ -1855,7 +1852,7 @@ void order_selection(void) {
 int edit(char *fname) {
   char c; 
   uint16_t pos, tmp;
-  uint8_t i, ask;
+  uint8_t i, j, ask;
   videomode(VIDEOMODE_80COL);
   if (fname) {
     strcpy(filename, fname);
@@ -2265,7 +2262,6 @@ copymove2_cleanup:
           change_aux_bank(c - '0');
           startsel = endsel = 65535U;
           draw_screen();
-          break;
         } else if ((c == 'B') || (c == 'b')) { // CA-B "Buffer"
           sprintf(userentry, "Buffer # (1-%u)", banktbl[0]);
           if (prompt_for_name(userentry, 0) == 255)
@@ -2280,16 +2276,45 @@ copymove2_cleanup:
           change_aux_bank(tmp);
           startsel = endsel = 65535U;
           draw_screen();
-          break;
+        } else if ((c == 'E') || (c == 'e')) { // CA-E "Extend file"
+          i = status[2];
+          if (i == 0) // If this was single buf file, make it part 1
+            i = 1;
+          if (open_new_aux_bank(i) == 1) {
+            sprintf(userentry,
+                    "Buffer [%03u] is used. Can't extend.", l_auxbank);
+            show_error(userentry);
+            break;
+          }
+          status[2] = i + 1;
+          draw_screen();
         } else if ((c == 'L') || (c == 'l')) {
           buffer_list();
           draw_screen();
-          break;
+        } else if ((c == 'T') || (c == 't')) { // CA-T "Truncate file"
+          if (prompt_okay("Truncate file here") == 0) {
+            gapend = BUFSZ - 1;
+            draw_screen();
+            i = status[2];
+            if (i > 0) { // If multipart
+              do {
+                i = status[2];
+                change_aux_bank(++l_auxbank);
+                gapbegin = 0;
+                gapend = BUFSZ - 1;
+                j = status[2];
+                filename[0] = '\0';
+                status[0] = status[1] = status[2] = 0;
+                draw_screen();
+              } while (j == i + 1);
+            }
+          }
         }
-#endif
       }
-      //printf("**%02x**", c);
+      else if ((c >= 0x20) && (c < 0x80) && (mode == SEL_NONE)) {
+#else
       if ((c >= 0x20) && (c < 0x80) && (mode == SEL_NONE)) {
+#endif
         insert_char(c);
         update_after_insert_char();
         set_modified(1);
