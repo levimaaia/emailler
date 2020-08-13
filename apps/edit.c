@@ -4,8 +4,10 @@
 // Bobbi July-Aug 2020
 /////////////////////////////////////////////////////////////////////////////
 
-// TODO: Bug - cursor down at EOF succeeds when it should fail
 // TODO: Reinstate some form of local cut/copy/paste -- faster!!!
+// TODO: Spinner for file/load save
+// TODO: Update help - needs two pages
+// TODO: Bug - cursor down at EOF succeeds when it should fail
 // TODO: Search options - ignore case, complete word.
 
 // Note: Use my fork of cc65 to get a flashing cursor!!
@@ -1809,10 +1811,11 @@ void buffer_list(void) {
       gotoxy(0, ++row);
     }
     change_aux_bank(i);
-    cprintf("[%03u] %05u | %c | %3u | %s\r",
-            i, DATASIZE(), (status[0] ? '*' : ' '), status[2], filename);
-    if (DATASIZE() > 0)
+    if (DATASIZE() > 0) {
+      cprintf("[%03u] %05u | %c | %3u | %s\r",
+              i, DATASIZE(), (status[0] ? '*' : ' '), status[2], filename);
       gotoxy(0, ++row);
+    }
     if (row == 22) {
       cprintf("[Press Any Key]");
       cgetc();
