@@ -4,7 +4,7 @@
 // Bobbi July-Aug 2020
 /////////////////////////////////////////////////////////////////////////////
 
-// TODO: save_multi needs filename to be the same in all banks. Fix OA-N ?
+// TODO: when truncating file to just one bank, should set status[2] to zero
 // TODO: Bug - cursor down at EOF succeeds when it should fail
 // TODO: Reinstate some form of local cut/copy/paste -- faster!!!
 // TODO: Search options - ignore case, complete word.
@@ -441,9 +441,18 @@ void update_status_line(void) {
   revers(1);
   switch (mode) {
   case SEL_NONE:
-    cprintf("OA-? Help | [%03u] %c File:%s  %2uKB free",
-            l_auxbank, status[0] ? '*' : ' ', filename, (FREESPACE() + 512) / 1024);
-    l = 44 - strlen(filename);
+    if (status[2] == 0) {
+      cprintf("OA-? Help | [%03u] %c File:%s  %2uKB free",
+              l_auxbank, status[0] ? '*' : ' ', filename,
+              (FREESPACE() + 512) / 1024);
+      l = 44 - strlen(filename);
+    } else {
+      sprintf(userentry, "%s Part:%u", filename, status[2]);
+      cprintf("OA-? Help | [%03u] %c File:%s %2uKB free",
+              l_auxbank, status[0] ? '*' : ' ', userentry,
+              (FREESPACE() + 512) / 1024);
+      l = 45 - strlen(userentry);
+    } 
     break;
 #ifdef OLD_SELMODE
   case SEL_DEL:
@@ -480,9 +489,17 @@ void update_status_line(void) {
     l = 80 - 23;
     break;
   case SRCH3:
-    cprintf("OA-? Help | [%03u] %c File:%s  %2uKB free | Not Found",
-            l_auxbank, status[0] ? '*' : ' ', filename, (FREESPACE() + 512) / 1024);
-    l = 44 - 12 - strlen(filename);
+    if (status[2] == 0) {
+      cprintf("OA-? Help | [%03u] %c File:%s  %2uKB free | Not Found",
+              l_auxbank, status[0] ? '*' : ' ', filename, (FREESPACE() + 512) / 1024);
+      l = 44 - 12 - strlen(filename);
+    } else {
+      sprintf(userentry, "%s Part:%u", filename, status[2]);
+      cprintf("OA-? Help | [%03u] %c File:%s %2uKB free | Not Found",
+              l_auxbank, status[0] ? '*' : ' ', userentry,
+              (FREESPACE() + 512) / 1024);
+      l = 45 - 12 - strlen(userentry);
+    }
     break;
   }
   for (i = 0; i < l; ++i)
@@ -1812,6 +1829,39 @@ void buffer_list(void) {
 #endif
 
 /*
+ * Rename a file, taking care of multi-bank files
+ */
+void name_file(void) {
+  uint8_t bank = find_first_bank();
+  uint8_t origbank = l_auxbank;
+  uint8_t retval = 0, modified = 0, first = 1;
+  uint8_t filebank;
+  if (prompt_for_name("New filename", 1) == 255)
+    return; // ESC pressed
+  if (strlen(userentry) == 0)
+    return;
+  if (bank != origbank)
+    change_aux_bank(bank);
+  if (status[2] == 0) { // Oh, it's actually just a single bank file
+    strcpy(filename, userentry);
+    status[1] = 1; // Should prompt if overwriting file on save
+    return;
+  }
+  if (status[2] != 1) {
+    show_error("SBF error"); // Should never happen
+    return;
+  }
+  do {
+    filebank = status[2];
+    strcpy(filename, userentry);
+    status[1] = 1; // Should prompt if overwriting file on save
+    change_aux_bank(++l_auxbank);
+  } while (status[2] == filebank + 1);
+  change_aux_bank(origbank);
+  update_status_line();
+}
+
+/*
  * Save all modified buffers
  */
 #ifdef AUXMEM
@@ -1848,7 +1898,7 @@ void order_selection(void) {
 int edit(char *fname) {
   char c; 
   uint16_t pos, tmp;
-  uint8_t i, j, ask;
+  uint8_t i, ask;
   videomode(VIDEOMODE_80COL);
   if (fname) {
     strcpy(filename, fname);
@@ -2082,13 +2132,7 @@ int edit(char *fname) {
 #endif
     case 0x80 + 'N': // OA-N "Name"
     case 0x80 + 'n': // OA-n
-      if (prompt_for_name("New filename", 1) == 255)
-        break; // ESC pressed
-      if (strlen(userentry) == 0)
-        break;
-      strcpy(filename, userentry);
-      status[1] = 1; // Should prompt if overwriting file on save
-      update_status_line();
+      name_file();
       break;
     case 0x80 + 'Q': // OA-Q "Quit"
     case 0x80 + 'q': // OA-q
@@ -2289,20 +2333,20 @@ copymove2_cleanup:
           draw_screen();
         } else if ((c == 'T') || (c == 't')) { // CA-T "Truncate file"
           if (prompt_okay("Truncate file here") == 0) {
+            tmp = l_auxbank;
             gapend = BUFSZ - 1;
             draw_screen();
-            i = status[2];
-            if (i > 0) { // If multipart
+            if (status[2] > 0) { // If multipart
+              change_aux_bank(++l_auxbank);
               do {
-                i = status[2];
-                change_aux_bank(++l_auxbank);
                 gapbegin = 0;
                 gapend = BUFSZ - 1;
-                j = status[2];
                 filename[0] = '\0';
+                i = status[2];
                 status[0] = status[1] = status[2] = 0;
-                draw_screen();
-              } while (j == i + 1);
+                change_aux_bank(++l_auxbank);
+              } while (status[2] == i + 1);
+              change_aux_bank(tmp);
             }
           }
         }
