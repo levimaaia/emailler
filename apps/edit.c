@@ -4,8 +4,6 @@
 // Bobbi July-Aug 2020
 /////////////////////////////////////////////////////////////////////////////
 
-// TODO: Why does in memory copy not work between buffers?
-// TODO: Spinner for file/load save
 // TODO: Update help - needs two pages
 // TODO: File picker!!
 // TODO: Bug - cursor down at EOF succeeds when it should fail
@@ -480,8 +478,9 @@ void update_status_line(void) {
     }
     break;
   }
-  for (i = 0; i < l; ++i)
-    cputc(' ');
+  cclear(l);
+//  for (i = 0; i < l; ++i)
+//    cputc(' ');
   revers(0);
 
   if (nofile)
@@ -750,6 +749,23 @@ uint8_t open_new_aux_bank(uint8_t partnum) {
   return 0;
 }
 
+/*
+ * Spinner while loading / saving
+ */
+void spinner(uint32_t sz, uint8_t saving) {
+  static char chars[] = "|/-\\";
+  static char buf[20] = "";
+  static uint8_t i = 0;
+  uint8_t j;
+  gotoxy(0, PROMPT_ROW);
+  sprintf(buf, "%s %c [%lu]",
+         (saving ? "Saving" : "Loading"), chars[(i++) % 4], sz);
+  revers(1);
+  cprintf("%s", buf);
+  cclear(79 - strlen(buf));
+  revers(0);
+}
+
 // Forward declaration
 void draw_screen(void);
 
@@ -792,7 +808,7 @@ uint8_t load_file(char *fname, uint8_t replace) {
       goto done;
     }
 #endif
-    cputc('.');
+    spinner(DATASIZE(), 0);
     s = fread(p, 1, IOSZ, fp);
     cont = (s == IOSZ ? 1 : 0);
     for (i = 0; i < s; ++i) {
@@ -896,7 +912,7 @@ uint8_t save_file(uint8_t copymode, uint8_t append) {
   else
     sz = DATASIZE();
   for (i = 0; i < sz / IOSZ; ++i) {
-    cputc('.');
+    spinner(i * IOSZ, 1);
 #ifdef AUXMEM
     for (j = 0; j < IOSZ; ++j)
       iobuf[j] = get_gapbuf(p++);
@@ -908,7 +924,7 @@ uint8_t save_file(uint8_t copymode, uint8_t append) {
     p += IOSZ;
 #endif
   }
-  cputc('.');
+  spinner(i * IOSZ, 1);
 #ifdef AUXMEM
   for (j = 0; j < sz - (IOSZ * i); ++j)
     iobuf[j] = get_gapbuf(p++);
@@ -1892,7 +1908,6 @@ int edit(char *fname) {
     }
   }
   jump_pos(0);
-//  pos = 0;
   set_modified(0);
   startsel = endsel = 65535U;
   mode = SEL_NONE;
@@ -2088,7 +2103,6 @@ int edit(char *fname) {
       if (strlen(userentry) == 0)
         break;
       jump_pos(0);
-//      pos = 0;
       set_modified(0);
       startsel = endsel = 65535U;
       mode = SEL_NONE;
@@ -2105,6 +2119,7 @@ int edit(char *fname) {
     case 0x80 + 'N': // OA-N "Name"
     case 0x80 + 'n': // OA-n
       name_file();
+      update_status_line();
       break;
     case 0x80 + 'Q': // OA-Q "Quit"
     case 0x80 + 'q': // OA-q
