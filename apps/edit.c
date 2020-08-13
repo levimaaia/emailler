@@ -4,16 +4,15 @@
 // Bobbi July-Aug 2020
 /////////////////////////////////////////////////////////////////////////////
 
-// TODO: Reinstate some form of local cut/copy/paste -- faster!!!
 // TODO: Spinner for file/load save
 // TODO: Update help - needs two pages
+// TODO: File picker!!
 // TODO: Bug - cursor down at EOF succeeds when it should fail
 // TODO: Search options - ignore case, complete word.
 
 // Note: Use my fork of cc65 to get a flashing cursor!!
 
 #define AUXMEM               // Still somewhat experimental
-#undef OLD_SELMODE           // Enable/disable Appleworks-style move/copy/del
 
 #include <conio.h>
 #include <ctype.h>
@@ -28,6 +27,7 @@
 #define CURSORROW  10        // Row cursor initially shown on (if enough text)
 #define PROMPT_ROW NROWS + 1 // Row where input prompt is shown
 #define IOSZ       1024      // Size of chunks to use when loading/saving file
+#define CUTBUFSZ   8192      // Size of cut buffer. Must be >IOSZ.
 
 #define EOL       '\r'       // For ProDOS
 
@@ -39,10 +39,11 @@
 
 #ifdef AUXMEM
 #define BUFSZ 0xb7fe             // Aux from 0x800 to 0xbfff, minus a pad byte
-char     iobuf[IOSZ];            // Buffer for disk I/O
+char     iobuf[CUTBUFSZ];        // Buffer for disk I/O and cut/paste
 uint8_t  banktbl[1+8*16];        // Handles up to 8MB. Map of banks.
 uint8_t  auxbank;                // Currently selected aux bank (physical)
 uint8_t  l_auxbank;              // Currently selected aux bank (logical)
+uint16_t cutbuflen = 0;          // Length of data in cut buffer
 #else
 #define BUFSZ (20480 - 1024)     // 19KB
 char     gapbuf[BUFSZ];
@@ -75,11 +76,8 @@ uint8_t cursrow, curscol; // Cursor position is kept here by draw_screen()
 
 uint8_t  quit_to_email;   // If 1, launch EMAIL.SYSTEM on quit
 
-// The order of the cases matters! SRCH1/2/3 are not really a selection modes.
-enum selmode {SEL_NONE, SEL_DEL2, SEL_COPY2, SEL_MOVE2,
-              SEL_DEL, SEL_MOVE, SEL_COPY, SEL_SEL,
-              SRCH1, SRCH2, SRCH3};
-enum selmode mode;
+enum editmode {SEL_NONE, SEL_SELECT, SRCH1, SRCH2, SRCH3};
+enum editmode mode;
 
 // Mousetext Open-Apple
 char openapple[] = "\x0f\x1b""A\x18\x0e";
@@ -455,29 +453,7 @@ void update_status_line(void) {
       l = 45 - strlen(userentry);
     } 
     break;
-#ifdef OLD_SELMODE
-  case SEL_DEL:
-    cprintf("Del%s", selmsg1);
-    l = 80 - 42;
-    break;
-  case SEL_COPY:
-    cprintf("Copy%s", selmsg1);
-    l = 80 - 43;
-    break;
-  case SEL_MOVE:
-    cprintf("Move%s", selmsg1);
-    l = 80 - 43;
-    break;
-  case SEL_COPY2:
-    cprintf("Copy%scopy", selmsg2);
-    l = 80 - 41;
-    break;
-  case SEL_MOVE2:
-    cprintf("Move%smove", selmsg2);
-    l = 80 - 41;
-    break;
-#endif
-  case SEL_SEL:
+  case SEL_SELECT:
     cprintf("Select: OA-[Space] to end");
     l = 80 - 25;
     break;
@@ -684,7 +660,7 @@ void jump_pos(uint16_t pos) {
     gapbegin -= l;
     gapend -= l;
   }
-  if (mode > SEL_MOVE2)
+  if (mode == SEL_SELECT)
     endsel = gapbegin;
   return;
 }
@@ -1312,7 +1288,7 @@ void cursor_left(void) {
   } else
     --curscol;
   gotoxy(curscol, cursrow);
-  if (mode > SEL_MOVE2) {
+  if (mode == SEL_SELECT) {
     endsel = gapbegin;
     revers(gapbegin < startsel ? 1 : 0);
     cputc(get_gapbuf(gapbegin));
@@ -1343,7 +1319,7 @@ void cursor_right(void) {
     curscol = 0;
   }
 done:
-  if (mode > SEL_MOVE2) {
+  if (mode == SEL_SELECT) {
     endsel = gapbegin;
     revers(gapbegin > startsel ? 1 : 0);
     cputc(get_gapbuf(gapbegin - 1));
@@ -1370,7 +1346,7 @@ uint8_t cursor_up(void) {
   }
   for (i = curscol; i > 0; --i) {
     set_gapbuf(gapend--, get_gapbuf(--gapbegin));
-    if (mode > SEL_MOVE2) {
+    if (mode == SEL_SELECT) {
       gotoxy(i - 1, cursrow);
       revers(gapbegin < startsel ? 1 : 0);
       cputc(get_gapbuf(gapbegin));
@@ -1382,13 +1358,13 @@ uint8_t cursor_up(void) {
     curscol = rowlen[cursrow] - 1;
   for (i = rowlen[cursrow]; i > curscol; --i) {
     set_gapbuf(gapend--, get_gapbuf(--gapbegin));
-    if (mode > SEL_MOVE2) {
+    if (mode == SEL_SELECT) {
       gotoxy(i - 1, cursrow);
       revers(gapbegin < startsel ? 1 : 0);
       cputc(get_gapbuf(gapbegin));
     }
   }
-  if (mode > SEL_MOVE2) {
+  if (mode == SEL_SELECT) {
     endsel = gapbegin;
   }
   revers(0);
@@ -1413,7 +1389,7 @@ uint8_t cursor_down(void) {
   for (i = 0; i < rowlen[cursrow] - curscol; ++i) {
     if (gapend < BUFSZ - 1) {
       set_gapbuf(gapbegin++, get_gapbuf(++gapend));
-      if (mode > SEL_MOVE2) {
+      if (mode == SEL_SELECT) {
         revers(gapbegin > startsel ? 1 : 0);
         cputc(get_gapbuf(gapbegin - 1));
       }
@@ -1431,13 +1407,13 @@ uint8_t cursor_down(void) {
   for (i = 0; i < curscol; ++i) {
     if (gapend < BUFSZ - 1) {
       set_gapbuf(gapbegin++, get_gapbuf(++gapend));
-      if (mode > SEL_MOVE2) {
+      if (mode == SEL_SELECT) {
         revers(gapbegin > startsel ? 1 : 0);
         cputc(get_gapbuf(gapbegin - 1));
       }
     }
   }
-  if (mode > SEL_MOVE2) {
+  if (mode == SEL_SELECT) {
     endsel = gapbegin;
   }
   revers(0);
@@ -1899,7 +1875,7 @@ void order_selection(void) {
  */
 int edit(char *fname) {
   char c; 
-  uint16_t pos, tmp;
+  uint16_t position, tmp;
   uint8_t i, ask;
   videomode(VIDEOMODE_80COL);
   if (fname) {
@@ -1912,7 +1888,7 @@ int edit(char *fname) {
     }
   }
   jump_pos(0);
-  pos = 0;
+//  pos = 0;
   set_modified(0);
   startsel = endsel = 65535U;
   mode = SEL_NONE;
@@ -1994,7 +1970,7 @@ int edit(char *fname) {
         draw_screen();
       } else {
         startsel = endsel = gapbegin;
-        mode = SEL_SEL;
+        mode = SEL_SELECT;
         update_status_line();
       }
       break;
@@ -2012,16 +1988,29 @@ int edit(char *fname) {
         break;
       }
       order_selection();
-      if (save_file(1, 0) == 1) {
-        show_error("Can't save CLIPBOARD");
-        draw_screen();
-        break;
+      position = gapbegin;
+#ifdef AUXMEM
+      if (endsel - startsel <= CUTBUFSZ) {
+        cutbuflen = endsel - startsel;
+        jump_pos(startsel);
+        copyaux((char*)0x0800 + gapend + 1, iobuf, cutbuflen, FROMAUX);
+      } else {
+        cutbuflen = 0;
+#endif
+        if (save_file(1, 0) == 1) {
+          show_error("Can't save CLIPBOARD");
+          draw_screen();
+          break;
+        }
+#ifdef AUXMEM
       }
-      if (tmp == 0) {
+#endif
+      if (tmp == 0) { // Cut
         jump_pos(startsel);
         gapend += (endsel - startsel);
         set_modified(1);
-      }
+      } else // Copy
+        jump_pos(position);
       startsel = endsel = 65535U;
       draw_screen();
       break;
@@ -2029,35 +2018,16 @@ int edit(char *fname) {
     case 0x80 + 'v': // OA-v
     case 0x16:       // ^V "Paste"
       mode = SEL_NONE;
-      if (load_file("CLIPBOARD", 0))
-        show_error("Can't open CLIPBOARD");
+      if (cutbuflen > 0) {
+        copyaux(iobuf, (char*)0x0800 + gapbegin, cutbuflen, TOAUX);
+        gapbegin += cutbuflen;
+      } else {
+        if (load_file("CLIPBOARD", 0))
+          show_error("Can't open CLIPBOARD");
+      }
       startsel = endsel = 65535U;
       draw_screen();
       break;
-#ifdef OLD_SELMODE
-    case 0x80 + 'C': // OA-C "Copy"
-    case 0x80 + 'c': // OA-c
-      mode = SEL_COPY;
-      tmp = (startsel == 65535U ? 0 : 1); // Prev selection active?
-      endsel = startsel = gapbegin;
-      if (tmp)
-        draw_screen();
-      else
-        update_status_line();
-      break;
-#endif
-#ifdef OLD_SELMODE
-    case 0x80 + 'D': // OA-D "Delete"
-    case 0x80 + 'd': // OA-d
-      mode = SEL_DEL;
-      tmp = (startsel == 65535U ? 0 : 1); // Prev selection active?
-      endsel = startsel = gapbegin;
-      if (tmp)
-        draw_screen();
-      else
-        update_status_line();
-      break;
-#endif
     case 0x80 + 'R': // OA-R "Replace"
     case 0x80 + 'r': // OA-r
       tmp = 65535U;
@@ -2106,7 +2076,7 @@ int edit(char *fname) {
       if (strlen(userentry) == 0)
         break;
       jump_pos(0);
-      pos = 0;
+//      pos = 0;
       set_modified(0);
       startsel = endsel = 65535U;
       mode = SEL_NONE;
@@ -2120,18 +2090,6 @@ int edit(char *fname) {
       }
       draw_screen();
       break;
-#ifdef OLD_SELMODE
-    case 0x80 + 'M': // OA-M "Move"
-    case 0x80 + 'm': // OA-m
-      mode = SEL_MOVE;
-      tmp = (startsel == 65535U ? 0 : 1); // Prev selection active?
-      endsel = startsel = gapbegin;
-      if (tmp)
-        draw_screen();
-      else
-        update_status_line();
-      break;
-#endif
     case 0x80 + 'N': // OA-N "Name"
     case 0x80 + 'n': // OA-n
       name_file();
@@ -2192,7 +2150,7 @@ int edit(char *fname) {
         delete_char();
         update_after_delete_char();
         set_modified(1);
-      } else if (mode == SEL_SEL) {
+      } else if (mode == SEL_SELECT) {
         tmp = (startsel == 65535U ? 0 : 1); // Selection active?
         if (!tmp) {
           beep();
@@ -2234,67 +2192,11 @@ int edit(char *fname) {
       cursor_down();
       break;
     case EOL:   // Return
-      if ((mode == SEL_NONE) || (mode == SEL_SEL)) {
+      if ((mode == SEL_NONE) || (mode == SEL_SELECT)) {
         insert_char(c);
         update_after_insert_char();
         set_modified(1);
       }
-#ifdef OLD_SELMODE
-      else {
-        order_selection();
-        switch (mode) {
-        case SEL_DEL:
-          mode = SEL_DEL2;
-          if (prompt_okay("Delete selection") == 0) {
-            jump_pos(startsel);
-            gapend += (endsel - startsel);
-          }
-          startsel = endsel = 65535U;
-          mode = SEL_NONE;
-          set_modified(1);
-          draw_screen();
-          break;
-        case SEL_COPY:
-          mode = SEL_COPY2;
-          update_status_line();
-          break;
-        case SEL_MOVE:
-          mode = SEL_MOVE2;
-          update_status_line();
-          break;
-        case SEL_COPY2:
-        case SEL_MOVE2:
-          if ((gapbegin > startsel) && (gapbegin < endsel)) {
-            show_error("Bad destination");
-            goto copymove2_cleanup;
-          }
-          if ((endsel - startsel) > FREESPACE()) {
-            show_error("No space");
-            goto copymove2_cleanup;
-          }
-          sprintf(userentry, "%s selection", mode == SEL_COPY2 ? "Copy" : "Move");
-          if (prompt_okay(userentry) == 0) {
-            if (gapbegin >= endsel)
-              move_in_gapbuf(gapbegin, startsel, endsel - startsel);
-            else
-              move_in_gapbuf(gapbegin,
-                             gapend + startsel - gapbegin + 1,
-                             endsel - startsel);
-            gapbegin += (endsel - startsel);
-            if (mode == SEL_MOVE2) {
-              jump_pos((gapbegin >= endsel) ? startsel : endsel);
-              gapend += (endsel - startsel);
-            }
-          }
-copymove2_cleanup:
-          startsel = endsel = 65535U;
-          mode = SEL_NONE;
-          set_modified(1);
-          draw_screen();
-          break;
-        }
-      }
-#endif
       break;
     default:
 #ifdef AUXMEM
