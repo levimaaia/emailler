@@ -4,8 +4,8 @@
 // Bobbi July-Aug 2020
 /////////////////////////////////////////////////////////////////////////////
 
-// TODO: save_multi always returns error code it seems (?)
-// TODO: save_multi needs filename to be the same in all banks.
+// TODO: save_multi needs filename to be the same in all banks. Fix OA-N ?
+// TODO: Bug - cursor down at EOF succeeds when it should fail
 // TODO: Reinstate some form of local cut/copy/paste -- faster!!!
 // TODO: Search options - ignore case, complete word.
 
@@ -952,8 +952,8 @@ uint8_t find_first_bank(void) {
 uint8_t save_multibank_file(void) {
   uint8_t bank = find_first_bank();
   uint8_t origbank = l_auxbank;
-  uint8_t retval = 0;
-  uint8_t filebank, modified = 0;
+  uint8_t retval = 0, modified = 0, first = 1;
+  uint8_t filebank;
   if (bank != origbank) {
     change_aux_bank(bank);
     draw_screen();
@@ -975,18 +975,15 @@ uint8_t save_multibank_file(void) {
     change_aux_bank(++l_auxbank);
   } while (status[2] == filebank + 1);
   change_aux_bank(bank);
-  if (save_file(0, 0) == 1) {
-    retval = 1;
-    goto done;
-  }
   do {
     filebank = status[2];
-    change_aux_bank(++l_auxbank);
     draw_screen();
-    if (save_file(0, 1) == 1) { // Append
+    if (save_file(0, (first == 1 ? 0 : 1)) == 1) {
       retval = 1;
       goto done;
     }
+    first = 0;
+    change_aux_bank(++l_auxbank);
   } while (status[2] == filebank + 1);
 done:
   if (origbank != l_auxbank) {
@@ -1631,7 +1628,6 @@ void save(void) {
   case 1: // Save error
     sprintf(userentry, "Can't save '%s'", filename);
     show_error(userentry);
-    draw_screen();
     break;
   }
 }
