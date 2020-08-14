@@ -759,11 +759,11 @@ uint8_t open_new_aux_bank(uint8_t partnum) {
  */
 void spinner(uint32_t sz, uint8_t saving) {
   static char chars[] = "|/-\\";
-  static char buf[20] = "";
+  static char buf[40] = "";
   static uint8_t i = 0;
   gotoxy(0, PROMPT_ROW);
-  sprintf(buf, "%s %c [%lu]",
-         (saving ? "Saving" : "Loading"), chars[(i++) % 4], sz);
+  sprintf(buf, "%s '%s': %c [%lu]",
+         (saving ? "Saving" : "Opening"), filename, chars[(i++) % 4], sz);
   revers(1);
   cprintf("%s", buf);
   cclear(79 - strlen(buf));
@@ -1785,7 +1785,7 @@ void init_aux_banks(void) {
   cprintf("EDIT.SYSTEM                   Bobbi 2020");
   revers(0);
   cprintf("\n\n\n  %u x 64KB aux banks -> %uKB\n", banktbl[0], banktbl[0]*64);
-  for (i = 1; i < banktbl[0]; ++i) {
+  for (i = 1; i <= banktbl[0]; ++i) {
     auxbank = bank_log_to_phys(i);
     // Saves filename[], gapbegin, gapend and modified (BUFINFOSZ bytes)
     __asm__("lda %v", auxbank); 
@@ -2257,7 +2257,7 @@ donehelp:
           startsel = endsel = 65535U;
           draw_screen();
         } else if ((c == 'B') || (c == 'b')) { // CA-B "Buffer"
-          sprintf(userentry, "Buffer # (1-%u)", banktbl[0]);
+          sprintf(userentry, "Buffer # (1 - %u)", banktbl[0]);
           if (prompt_for_name(userentry, 0) == 255) {
             update_status_line();
             break;
@@ -2267,7 +2267,7 @@ donehelp:
             break;
           }
           tmp = atoi(userentry);
-          if ((tmp < 1) || (tmp >= banktbl[0])) {
+          if ((tmp < 1) || (tmp > banktbl[0])) {
             beep();
             update_status_line();
             break;
