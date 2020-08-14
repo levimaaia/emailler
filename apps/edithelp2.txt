@@ -14,11 +14,11 @@ Buffer Management:
   }-L         Buffer list                                                       
   }-T         Truncate file here, freeing any subsequent buffers                
   }-E         Extend file by appending a new buffer                             
+  }-S         Save all open files                                               
 ---------------------------------------+----------------------------------------
 Paragraph Formatting                   | Miscellaneous:                         
-  {-W         Word-wrap paragraph      |  {-?         The help                  
+  {-W         Word-wrap paragraph      |  {-?         This help                 
   {-U         Unwrap paragraph         |  [CTRL]-L    Refresh screen            
-                                       |  {-Q         Quit                      
 ---------------------------------------+----------------------------------------
-[Cursor Up] Previous Page              |                                  [Q]uit
+[Cursor Up] Previous Page              |                                 [Q]uit 
 ---------------------------------------+---------------------------------------

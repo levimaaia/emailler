@@ -4,7 +4,8 @@
 // Bobbi July-Aug 2020
 /////////////////////////////////////////////////////////////////////////////
 
-// TODO: Fix code so it doesn't crash without RamWorks!
+// TODO: Don't save files *without asking* on quit or save all
+// TODO: Some weird bugs on my //e with 192KB
 // TODO: File picker!!
 // TODO: Bug - cursor down at EOF succeeds when it should fail
 // TODO: Search options - ignore case, complete word.
@@ -1781,6 +1782,7 @@ done:
  */
 void init_aux_banks(void) {
   uint8_t i;
+  uint16_t count;
   revers(1);
   cprintf("EDIT.SYSTEM                   Bobbi 2020");
   revers(0);
@@ -1796,6 +1798,7 @@ void init_aux_banks(void) {
   l_auxbank = 1;
   __asm__("lda #$00");
   __asm__("sta $c073");  // Set aux bank back to 0
+  for (count = 0; count < 10000; ++count); // Delay so user can read message
 }
 
 /*
@@ -1874,7 +1877,7 @@ void save_all(void) {
   uint8_t o_aux = l_auxbank;
   uint8_t i;
   cursor(0);
-  for (i = 1; i < banktbl[0]; ++i) {
+  for (i = 1; i <= banktbl[0]; ++i) {
     change_aux_bank(i);
     if (status[0]) { // If buffer is modified
       draw_screen();
@@ -2159,11 +2162,6 @@ int edit(char *fname) {
       save();
       draw_screen();
       break;
-    case 0x80 + 'A': // OA-A "Save All"
-    case 0x80 + 'a': // OA-a
-      save_all();
-      draw_screen();
-      break;
     case 0x80 + DELETE: // OA-Backspace
     case 0x04:  // Ctrl-D "DELETE"
       if (mode == SEL_NONE) {
@@ -2310,6 +2308,9 @@ donehelp:
               change_aux_bank(tmp);
             }
           }
+        } else if ((c =='S') || (c == 's')) { // CA-S "Save all"
+          save_all();
+          draw_screen();
         }
       }
       else if ((c >= 0x20) && (c < 0x80) && (mode == SEL_NONE)) {
