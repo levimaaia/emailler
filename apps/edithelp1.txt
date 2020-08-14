@@ -1,7 +1,7 @@
 --------------------------------------------------------------------------------
  v1.10                       }}} EDIT.SYSTEM HELP }}}                  Page One 
 --------------------------------------+-----------------------------------------
-Navigation:                           | Editing:                                
+ Navigation:                          | Editing:                                
   Cursor keys  Move the cursor        |  [Return]    Split line                 
   {-Up         Page up                |  [Delete]    Delete char left           
   {-Down       Page down              |  {-[Delete]  Delete char right          
@@ -12,7 +12,7 @@ Navigation:                           | Editing:
   {-1 ...      Beginning of file ...  |  {-R         Find and replace string    
   {-9          through end of file    +-----------------------------------------
 --------------------------------------+ Block Commands:                         
-File Management Commands              |  {-[Space]   Mark start/end of selection
+ File Management Commands:            |  {-[Space]   Mark start/end of selection
   {-I          Insert file at cursor  |  {-X         Cut selected text          
   {-L          Load file              |  {-C         Copy selected text         
   {-N          Set file name to save  |  {-P         Paste previous cut or copy 
