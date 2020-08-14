@@ -743,8 +743,11 @@ void change_aux_bank(uint8_t logbank) {
 uint8_t open_new_aux_bank(uint8_t partnum) {
   strcpy(userentry, filename);
   status[2] = partnum;
+  if (l_auxbank >= banktbl[0])
+    return 1;
   change_aux_bank(++l_auxbank);
   if (DATASIZE() > 0) {
+    change_aux_bank(--l_auxbank);
     return 1;
   }
   strcpy(filename, userentry);
@@ -819,12 +822,15 @@ uint8_t load_file(char *fname, uint8_t replace) {
         set_gapbuf(gapbegin++, '\r');
         col = 0;
 #ifdef AUXMEM
-        if (replace && (FREESPACE() < 15000)) {
+        if (replace && (FREESPACE() < 15000) && (banktbl[0] > 1)) {
           draw_screen();
           if (open_new_aux_bank(++partctr) == 1) {
             sprintf(userentry,
-                    "Buffer [%03u] is used. Truncating file.", l_auxbank);
+                    "Buffer [%03u] not avail. Truncating file.", l_auxbank + 1);
             show_error(userentry);
+            if (partctr == 1) // If truncated to one part ...
+              status[2] = 0; // Make it a singleton
+            partctr = 0; // Prevent status[2] increment below
             goto done;
           }
         }
@@ -2095,11 +2101,11 @@ int edit(char *fname) {
         show_error("Can't open");
       draw_screen();
       break;
-    case 0x80 + 'L': // OA-L "Load"
-    case 0x80 + 'l':
+    case 0x80 + 'O': // OA-O "Open"
+    case 0x80 + 'o':
       if (status[0])
         save();
-      if (prompt_for_name("File to load", 1) == 255)
+      if (prompt_for_name("File to open", 1) == 255)
         break; // ESC pressed
       if (strlen(userentry) == 0)
         break;
@@ -2111,7 +2117,7 @@ int edit(char *fname) {
       gapend = BUFSZ - 1;
       strcpy(filename, userentry);
       if (load_file(filename, 1)) {
-        sprintf(userentry, "Can't load '%s'", filename);
+        sprintf(userentry, "Can't open '%s'", filename);
         show_error(userentry);
         strcpy(filename, "");
       }
@@ -2275,7 +2281,7 @@ donehelp:
             i = 1;
           if (open_new_aux_bank(i) == 1) {
             sprintf(userentry,
-                    "Buffer [%03u] is used. Can't extend.", l_auxbank);
+                    "Buffer [%03u] not avail. Can't extend.", l_auxbank + 1);
             show_error(userentry);
             break;
           }

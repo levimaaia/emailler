@@ -14,7 +14,7 @@
 --------------------------------------+ Block Commands:                         
  File Management Commands:            |  {-[Space]   Mark start/end of selection
   {-I          Insert file at cursor  |  {-X         Cut selected text          
-  {-L          Load file              |  {-C         Copy selected text         
+  {-O          Open file              |  {-C         Copy selected text         
   {-N          Set file name to save  |  {-P         Paste previous cut or copy 
   {-S          Save file              |  [Delete]    Delete selected text       
   {-A          Save all unsaved files |  ESC         Clear selection            
