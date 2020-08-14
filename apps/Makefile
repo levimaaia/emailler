@@ -140,7 +140,8 @@ ip65.dsk: bin
 	java -jar $(AC) -as $@ date65              < date65.bin
 	java -jar $(AC) -p  $@ date65.system   sys < $(CC65)/apple2enh/util/loader.system
 	java -jar $(AC) -as $@ edit                < edit.bin
-	java -jar $(AC) -p  $@ edithelp.txt    txt < edithelp.txt
+	java -jar $(AC) -p  $@ edithelp1.txt   txt < edithelp1.txt
+	java -jar $(AC) -p  $@ edithelp2.txt   txt < edithelp2.txt
 	java -jar $(AC) -p  $@ edit.system     sys < $(CC65)/apple2enh/util/loader.system
 	java -jar $(AC) -as $@ email               < email.bin
 	java -jar $(AC) -p  $@ email.cfg       txt < email.cfg

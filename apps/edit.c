@@ -425,7 +425,7 @@ void goto_prompt_row(void) {
  */
 void update_status_line(void) {
   uint8_t nofile = 0;
-  uint8_t i, l;
+  uint8_t l;
 
   static char selmsg1[] = ": Go to end of selection, then [Return]";
   static char selmsg2[] = ": Go to target, then [Return] to ";
@@ -479,8 +479,6 @@ void update_status_line(void) {
     break;
   }
   cclear(l);
-//  for (i = 0; i < l; ++i)
-//    cputc(' ');
   revers(0);
 
   if (nofile)
@@ -756,7 +754,6 @@ void spinner(uint32_t sz, uint8_t saving) {
   static char chars[] = "|/-\\";
   static char buf[20] = "";
   static uint8_t i = 0;
-  uint8_t j;
   gotoxy(0, PROMPT_ROW);
   sprintf(buf, "%s %c [%lu]",
          (saving ? "Saving" : "Loading"), chars[(i++) % 4], sz);
@@ -1543,8 +1540,8 @@ void word_wrap_para(uint8_t addbreaks) {
  * Help screen
  * EDITHELP.TXT is expected to contain lines of exactly 80 chars
  */
-void help(void) {
-  FILE *fp = fopen("EDITHELP.TXT", "rb");
+void help(uint8_t num) {
+  FILE *fp;
   char *p;
   char c;
   uint16_t i, s;
@@ -1552,8 +1549,10 @@ void help(void) {
   revers(0);
   cursor(0);
   clrscr();
+  sprintf(iobuf, "EDITHELP%u.TXT", num);
+  fp = fopen(iobuf, "rb");
   if (!fp) {
-    printf("Can't open EDITHELP.TXT\n\n");
+    printf("Can't open help file\n\n");
     goto done;
   }
 #ifdef AUXMEM
@@ -1581,8 +1580,6 @@ void help(void) {
   } while (cont);
 done:
   fclose(fp);
-  cgetc();
-  clrscr();
 }
 
 /*
@@ -2166,7 +2163,23 @@ int edit(char *fname) {
       }
       break;
     case 0x80 + '?': // OA-? "Help"
-      help();
+help1:
+      help(1);
+      c = cgetc();
+      switch (c) {
+      case 'q':
+      case 'Q':
+        goto donehelp;
+      }
+      help(2);
+      c = cgetc();
+      switch (c) {
+      case 0x0b: // Up
+      case 'p':
+      case 'P':
+        goto help1;
+      }
+donehelp:
       draw_screen();
       break;
     case 0x0c:  // Ctrl-L "REFRESH"

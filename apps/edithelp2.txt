@@ -1,0 +1,24 @@
+--------------------------------------------------------------------------------
+ v1.10                       }}} EDIT.SYSTEM HELP }}}                  Page Two 
+--------------------------------------------------------------------------------
+ On a 128KB Apple //e (or GS), the editor uses the auxiliary memory as a 46KB   
+ editor buffer. If RamWorks-style extended aux memory is available, this is     
+ used to store multiple editor buffers of 46KB each. These buffers may be used  
+ to edit up to 128 files (with an 8MB RamWorks). A set of consecutive           
+ buffers may be used in order to allow files larger than 46KB to be edited.     
+---------------------------------------+----------------------------------------
+Buffer Management:                                                              
+  }-1 ...     Quick jump to buffer 1 ...                                        
+  }-9         ... through buffer 9                                              
+  }-B         Select any buffer from 1-128 (subject to installed memory)        
+  }-L         Buffer list                                                       
+  }-T         Truncate file here, freeing any subsequent buffers                
+  }-E         Extend file by appending a new buffer                             
+---------------------------------------+----------------------------------------
+Paragraph Formatting                   | Miscellaneous:                         
+  {-W         Word-wrap paragraph      |  {-?         The help                  
+  {-U         Unwrap paragraph         |  [CTRL]-L    Refresh screen            
+                                       |  {-Q         Quit                      
+---------------------------------------+----------------------------------------
+[Cursor Up] Previous Page              |                                  [Q]uit
+---------------------------------------+---------------------------------------
