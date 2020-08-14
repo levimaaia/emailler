@@ -4,7 +4,7 @@
 // Bobbi July-Aug 2020
 /////////////////////////////////////////////////////////////////////////////
 
-// TODO: Update help - needs two pages
+// TODO: Fix code so it doesn't crash without RamWorks!
 // TODO: File picker!!
 // TODO: Bug - cursor down at EOF succeeds when it should fail
 // TODO: Search options - ignore case, complete word.
@@ -715,6 +715,10 @@ uint8_t bank_log_to_phys(uint8_t l) {
 #ifdef AUXMEM
 #pragma code-name (push, "LC")
 void change_aux_bank(uint8_t logbank) {
+  if (logbank > banktbl[0]) {
+    show_error("Nonexistent bank");
+    return;
+  }
   l_auxbank = logbank;
   // Saves filename[], status, gapbegin, gapend (BUFINFOSZ bytes)
   __asm__("lda %v", auxbank); 
@@ -1774,7 +1778,7 @@ void init_aux_banks(void) {
   revers(1);
   cprintf("EDIT.SYSTEM                   Bobbi 2020");
   revers(0);
-  cprintf("\n\n\n%u x 64KB aux banks -> %uKB\n", banktbl[0], banktbl[0]*64);
+  cprintf("\n\n\n  %u x 64KB aux banks -> %uKB\n", banktbl[0], banktbl[0]*64);
   for (i = 1; i < banktbl[0]; ++i) {
     auxbank = bank_log_to_phys(i);
     // Saves filename[], gapbegin, gapend and modified (BUFINFOSZ bytes)
@@ -1797,7 +1801,7 @@ void buffer_list(void) {
   uint8_t o_aux = l_auxbank, row = 0;
   uint8_t i;
   cursor(0);
-  for (i = 1; i < banktbl[0]; ++i) {
+  for (i = 1; i <= banktbl[0]; ++i) {
     if (row == 0) {
       clrscr();
       cprintf(" Buf  Size   Mod  Part  Filename\r");
@@ -2248,13 +2252,18 @@ donehelp:
           draw_screen();
         } else if ((c == 'B') || (c == 'b')) { // CA-B "Buffer"
           sprintf(userentry, "Buffer # (1-%u)", banktbl[0]);
-          if (prompt_for_name(userentry, 0) == 255)
+          if (prompt_for_name(userentry, 0) == 255) {
+            update_status_line();
             break;
-          if (strlen(userentry) == 0)
+          }
+          if (strlen(userentry) == 0) {
+            update_status_line();
             break;
+          }
           tmp = atoi(userentry);
           if ((tmp < 1) || (tmp >= banktbl[0])) {
             beep();
+            update_status_line();
             break;
           }
           change_aux_bank(tmp);
