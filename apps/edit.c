@@ -1733,7 +1733,6 @@ search:
  * Final byte is $ff terminator
  */
 void avail_aux_banks(void) {
-  uint8_t i; //DEBUG
   __asm__("sta $c009"); // Store in ALTZP
   __asm__("ldy #$7f");  // Maximum valid bank
 findbanks:
@@ -1773,13 +1772,6 @@ done:
   __asm__("lda #$ff");
   __asm__("inx");
   __asm__("sta %v,x", banktbl); // Terminator
-
-  // DEBUG
-  i = 0;
-  cprintf("banktbl: ");
-  while (banktbl[i] != 0xff)
-    cprintf("%02x", banktbl[i++]);
-  cgetc();
 }
 
 /*
