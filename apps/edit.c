@@ -4,9 +4,6 @@
 // Bobbi July-Aug 2020
 /////////////////////////////////////////////////////////////////////////////
 
-// TODO: Change all sprintf() to snprintf()
-// TODO: Don't save files *without asking* on quit or save all
-// TODO: Weird file loading bug from /DATA....
 // TODO: File picker!!
 // TODO: Bug - cursor down at EOF succeeds when it should fail
 // TODO: Search options - ignore case, complete word.
@@ -447,7 +444,7 @@ void update_status_line(void) {
               (FREESPACE() + 512) / 1024);
       l = 44 - strlen(filename);
     } else {
-      sprintf(userentry, "%s Part:%u", filename, status[2]);
+      snprintf(userentry, 80, "%s Part:%u", filename, status[2]);
       cprintf("OA-? Help | [%03u] %c File:%s %2uKB free",
               l_auxbank, status[0] ? '*' : ' ', userentry,
               (FREESPACE() + 512) / 1024);
@@ -472,7 +469,7 @@ void update_status_line(void) {
               l_auxbank, status[0] ? '*' : ' ', filename, (FREESPACE() + 512) / 1024);
       l = 44 - 12 - strlen(filename);
     } else {
-      sprintf(userentry, "%s Part:%u", filename, status[2]);
+      snprintf(userentry, 80, "%s Part:%u", filename, status[2]);
       cprintf("OA-? Help | [%03u] %c File:%s %2uKB free | Not Found",
               l_auxbank, status[0] ? '*' : ' ', userentry,
               (FREESPACE() + 512) / 1024);
@@ -824,7 +821,7 @@ uint8_t load_file(char *fname, uint8_t replace) {
         if (replace && (FREESPACE() < 15000) && (banktbl[0] > 1)) {
           draw_screen();
           if (open_new_aux_bank(++partctr) == 1) {
-            sprintf(userentry,
+            snprintf(userentry, 80,
                     "Buffer [%03u] not avail. Truncating file.", l_auxbank + 1);
             show_error(userentry);
             if (partctr == 1) // If truncated to one part ...
@@ -1558,7 +1555,7 @@ void help(uint8_t num) {
   revers(0);
   cursor(0);
   clrscr();
-  sprintf(iobuf, "EDITHELP%u.TXT", num);
+  snprintf(iobuf, 80, "EDITHELP%u.TXT", num);
   fp = fopen(iobuf, "rb");
   if (!fp) {
     printf("Can't open help file\n\n");
@@ -1617,7 +1614,8 @@ void save(void) {
   FILE *fp;
   if (strlen(filename) == 0) {
     status[1] = 1; // Prompt if save will overwrite existing file
-    sprintf(userentry, "[%03u] *UNSAVED CHANGES* File to save", l_auxbank);
+    snprintf(userentry, 80,
+             "[%03u] *UNSAVED CHANGES* File to save", l_auxbank);
     if (prompt_for_name(userentry, 1) == 255)
       return; // If ESC pressed
     if (strlen(userentry) == 0)
@@ -1629,7 +1627,7 @@ void save(void) {
     fp = fopen(filename, "r");
     if (fp) {
       fclose(fp);
-      sprintf(userentry, "File '%s' exists, overwrite", filename);
+      snprintf(userentry, 80, "File '%s' exists, overwrite", filename);
       if (prompt_okay(userentry) != 0)
         return; 
     }
@@ -1646,7 +1644,7 @@ void save(void) {
     set_modified(0);
     break;
   case 1: // Save error
-    sprintf(userentry, "Can't save '%s'", filename);
+    snprintf(userentry, 80, "Can't save '%s'", filename);
     show_error(userentry);
     break;
   }
@@ -1878,6 +1876,12 @@ void save_all(void) {
   for (i = 1; i <= banktbl[0]; ++i) {
     change_aux_bank(i);
     if (status[0]) { // If buffer is modified
+      if (strlen(filename) > 0)
+        snprintf(userentry, 80, "Save '%s'", filename);
+      else
+        strcpy(userentry, "Save <scratch> buffer");
+      if (prompt_okay(userentry) != 0)
+        continue; 
       draw_screen();
       save();
     }
@@ -1910,7 +1914,7 @@ int edit(char *fname) {
     strcpy(filename, fname);
     cprintf("Loading file %s ", filename);
     if (load_file(filename, 1)) {
-      sprintf(userentry, "Can't load '%s'", filename);
+      snprintf(userentry, 80, "Can't load '%s'", filename);
       show_error(userentry);
       strcpy(filename, "");
     }
@@ -2069,7 +2073,7 @@ int edit(char *fname) {
     case 0x80 + 'F': // OA-F "Find"
     case 0x80 + 'f': // OA-F "Find"
       ++tmp;
-      sprintf(userentry, "Find (%s)", search);
+      snprintf(userentry, 80, "Find (%s)", search);
       if (prompt_for_name(userentry, 0) == 255)
         break; // ESC pressed
       if (strlen(userentry) > 0)
@@ -2078,7 +2082,7 @@ int edit(char *fname) {
         break;
       cursor_right();
       if (tmp == 0) { // Replace mode
-        sprintf(userentry, "Replace (%s)", replace);
+        snprintf(userentry, 80, "Replace (%s)", replace);
         if (prompt_for_name(userentry, 0) == 255)
           break; // ESC pressed
         if (strlen(userentry) > 0)
@@ -2118,7 +2122,7 @@ int edit(char *fname) {
       gapend = BUFSZ - 1;
       strcpy(filename, userentry);
       if (load_file(filename, 1)) {
-        sprintf(userentry, "Can't open '%s'", filename);
+        snprintf(userentry, 80, "Can't open '%s'", filename);
         show_error(userentry);
         strcpy(filename, "");
       }
@@ -2202,7 +2206,8 @@ donehelp:
           beep();
           break;
         }
-        sprintf(userentry, "Delete selection (%d chars)", abs(endsel - startsel));
+        snprintf(userentry, 80,
+                 "Delete selection (%d chars)", abs(endsel - startsel));
         if (prompt_okay(userentry) != 0)
           break;
         order_selection();
@@ -2253,7 +2258,7 @@ donehelp:
           startsel = endsel = 65535U;
           draw_screen();
         } else if ((c == 'B') || (c == 'b')) { // CA-B "Buffer"
-          sprintf(userentry, "Buffer # (1 - %u)", banktbl[0]);
+          snprintf(userentry, 80, "Buffer # (1 - %u)", banktbl[0]);
           if (prompt_for_name(userentry, 0) == 255) {
             update_status_line();
             break;
@@ -2276,7 +2281,7 @@ donehelp:
           if (i == 0) // If this was single buf file, make it part 1
             i = 1;
           if (open_new_aux_bank(i) == 1) {
-            sprintf(userentry,
+            snprintf(userentry, 80,
                     "Buffer [%03u] not avail. Can't extend.", l_auxbank + 1);
             show_error(userentry);
             break;
