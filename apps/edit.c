@@ -4,8 +4,9 @@
 // Bobbi July-Aug 2020
 /////////////////////////////////////////////////////////////////////////////
 
+// TODO: Change all sprintf() to snprintf()
 // TODO: Don't save files *without asking* on quit or save all
-// TODO: Some weird bugs on my //e with 192KB
+// TODO: Weird file loading bug from /DATA....
 // TODO: File picker!!
 // TODO: Bug - cursor down at EOF succeeds when it should fail
 // TODO: Search options - ignore case, complete word.
@@ -701,11 +702,7 @@ void copyaux(char *src, char *dst, uint16_t len, uint8_t dir) {
  * Physical banks start at 0 and may be non-contiguous.
  */
 uint8_t bank_log_to_phys(uint8_t l) {
-  uint8_t i;
-  for (i = 1; i < 1+8*16; ++i)
-    if (banktbl[i] == l - 1)
-      return i - 1;
-  show_error("Bad bank"); // Should never happen
+  return banktbl[l];
 }
 
 /*
@@ -757,13 +754,14 @@ uint8_t open_new_aux_bank(uint8_t partnum) {
 
 /*
  * Spinner while loading / saving
+ * TODO: THIS IS NOT REALLY SAFE IF FILENAME IS TOO LONG!!!!!!!
  */
 void spinner(uint32_t sz, uint8_t saving) {
   static char chars[] = "|/-\\";
-  static char buf[40] = "";
+  static char buf[80] = "";
   static uint8_t i = 0;
   gotoxy(0, PROMPT_ROW);
-  sprintf(buf, "%s '%s': %c [%lu]",
+  snprintf(buf, 80, "%s '%s': %c [%lu]",
          (saving ? "Saving" : "Opening"), filename, chars[(i++) % 4], sz);
   revers(1);
   cprintf("%s", buf);
@@ -1735,6 +1733,7 @@ search:
  * Final byte is $ff terminator
  */
 void avail_aux_banks(void) {
+  uint8_t i; //DEBUG
   __asm__("sta $c009"); // Store in ALTZP
   __asm__("ldy #$7f");  // Maximum valid bank
 findbanks:
@@ -1774,6 +1773,13 @@ done:
   __asm__("lda #$ff");
   __asm__("inx");
   __asm__("sta %v,x", banktbl); // Terminator
+
+  // DEBUG
+  i = 0;
+  cprintf("banktbl: ");
+  while (banktbl[i] != 0xff)
+    cprintf("%02x", banktbl[i++]);
+  cgetc();
 }
 
 /*
