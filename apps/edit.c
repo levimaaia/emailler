@@ -4,6 +4,8 @@
 // Bobbi July-Aug 2020
 /////////////////////////////////////////////////////////////////////////////
 
+// TODO: Bug in displaying selection *after* cursor. Seems okay until full
+//       screen redraw.
 // TODO: File picker!!
 // TODO: Bug - cursor down at EOF succeeds when it should fail
 // TODO: Search options - ignore case, complete word.
@@ -2013,8 +2015,7 @@ int edit(char *fname) {
       page_down();
       break;
     case 0x80 + ' ': // OA-SPACE start/end selection
-      tmp = (startsel == 65535U ? 0 : 1); // Prev selection active?
-      if (tmp) {
+      if (startsel != 65535U) { // Prev selection active?
         endsel = gapbegin;
         mode = SEL_NONE;
         draw_screen();
@@ -2023,6 +2024,14 @@ int edit(char *fname) {
         mode = SEL_SELECT;
         update_status_line();
       }
+      break;
+    case 0x80 + 'A': // OA-A "Select All"
+    case 0x80 + 'a': // OA-a
+      jump_pos(DATASIZE()); // WORKAROUND FOR SELECTION DISPLAY BUG
+      startsel = 0;
+      endsel = DATASIZE();
+      mode = SEL_NONE;
+      draw_screen();
       break;
     case 0x80 + 'X': // OA-X "Cut"
     case 0x80 + 'x': // OA-x

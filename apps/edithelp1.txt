@@ -13,11 +13,12 @@
   {-9          through end of file    +-----------------------------------------
 --------------------------------------+ Block Commands:                         
  File Management Commands:            |  {-[Space]   Mark start/end of selection
-  {-I          Insert file at cursor  |  {-X         Cut selected text          
-  {-O          Open file              |  {-C         Copy selected text         
-  {-N          Set file name to save  |  {-V         Paste previous cut or copy 
-  {-S          Save file              |  [Delete]    Delete selected text       
-  {-Q          Quit                   |  ESC         Clear selection            
+  {-I          Insert file at cursor  |  {-A         Select all                 
+  {-O          Open file              |  {-X         Cut selected text          
+  {-N          Set file name to save  |  {-C         Copy selected text         
+  {-S          Save file              |  {-V         Paste previous cut or copy 
+  {-Q          Quit                   |  [Delete]    Delete selected text       
+                                      |  ESC         Clear selection            
 --------------------------------------+-----------------------------------------
  [Q]uit help                          |               [Any Other Key] Next Page 
 --------------------------------------+----------------------------------------
