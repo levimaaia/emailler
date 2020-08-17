@@ -1,4 +1,4 @@
-/////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////
 // Simple text editor
 // Supports Apple //e Auxiliary memory and RamWorks style expansions
 // Bobbi July-Aug 2020
@@ -1700,6 +1700,7 @@ void do_search_replace(uint8_t r, uint8_t ask) {
 search:
   mode = SRCH1; // Searching ..
   update_status_line();
+  set_gapbuf(BUFSZ + 1, '\0'); // NULL term for search_in_gapbuf()
   if (search_in_gapbuf(gapend + 1, search, &foundpos) == 0) {
     if (wrapcount > 0) {
       mode = SEL_NONE;
@@ -1734,7 +1735,7 @@ void disconnect_ramdisk(void) {
   uint16_t *s3d2 = (uint16_t*)0xbf26; // s3d2 driver vector
   if (*s0d1 == *s3d2)
     return;               // No /RAM connected
-  for (i = *devcnt; i >= 0; --i) {
+  for (i = *devcnt; i > 0; --i) {
     if ((devlst[i] == 0xbf) || (devlst[i] == 0xbb) ||
         (devlst[i] == 0xb7) || (devlst[i] == 0xb3))
       break;
@@ -2347,8 +2348,15 @@ donehelp:
 
 void main(int argc, char *argv[]) {
 #ifdef AUXMEM
-  char *pad = (char*)0xbfff;
-  *pad = '\0'; // Null termination for strstr()
+  uint8_t *pp = (uint8_t*)0xbf98;
+  if (!(*pp & 0x02)) {
+    printf("Need 80 cols");
+    return;
+  }
+  if ((*pp & 0x30) != 0x30) {
+    printf("Need 128K");
+    return;
+  }
   disconnect_ramdisk();
   avail_aux_banks();
   init_aux_banks();
