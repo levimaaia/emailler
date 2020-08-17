@@ -4,8 +4,6 @@
 // Bobbi July-Aug 2020
 /////////////////////////////////////////////////////////////////////////////
 
-// TODO: Bug in displaying selection *after* cursor. Seems okay until full
-//       screen redraw.
 // TODO: File picker!!
 // TODO: Bug - cursor down at EOF succeeds when it should fail
 // TODO: Search options - ignore case, complete word.
@@ -69,7 +67,7 @@ uint8_t rowlen[NROWS];       // Number of chars on each row of screen
 
 // Interface to read_char_update_pos()
 uint8_t  do_print;
-uint16_t pos, startsel, endsel;
+uint16_t pos = 0, startsel = 65535U, endsel = 65535U;
 uint8_t  row, col;
 
 uint8_t cursrow, curscol; // Cursor position is kept here by draw_screen()
@@ -1020,7 +1018,12 @@ done:
  */
 uint8_t read_char_update_pos(void) {
   uint16_t delta = gapend - gapbegin;
+  uint16_t s = startsel, e = endsel;
   char c;
+  if (startsel > endsel) {
+    s = endsel;
+    e = startsel;
+  }
   if ((c = get_gapbuf(pos++)) == EOL) {
     if (do_print) {
       rowlen[row] = col + 1;
@@ -1031,8 +1034,8 @@ uint8_t read_char_update_pos(void) {
     col = 0;
     return 1;
   }
-  if (((pos > startsel) && (pos <= endsel)) || // Left of cursor 
-      ((pos - delta > endsel) && (pos - delta <= startsel + 1)))   // Right of cursor
+  if (((pos > s) && (pos <= e)) || // Left of cursor 
+      ((pos - delta > s) && (pos - delta - 1 <= e)))   // Right of cursor
     revers(1);
   else
     revers(0);
@@ -2015,7 +2018,8 @@ int edit(char *fname) {
       page_down();
       break;
     case 0x80 + ' ': // OA-SPACE start/end selection
-      if (startsel != 65535U) { // Prev selection active?
+       tmp = (startsel == 65535U ? 0 : 1); // Prev selection active?
+       if (tmp) {
         endsel = gapbegin;
         mode = SEL_NONE;
         draw_screen();
@@ -2027,7 +2031,6 @@ int edit(char *fname) {
       break;
     case 0x80 + 'A': // OA-A "Select All"
     case 0x80 + 'a': // OA-a
-      jump_pos(DATASIZE()); // WORKAROUND FOR SELECTION DISPLAY BUG
       startsel = 0;
       endsel = DATASIZE();
       mode = SEL_NONE;
