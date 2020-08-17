@@ -751,15 +751,20 @@ uint8_t open_new_aux_bank(uint8_t partnum) {
 
 /*
  * Spinner while loading / saving
- * TODO: THIS IS NOT REALLY SAFE IF FILENAME IS TOO LONG!!!!!!!
+ * saving - 1 if we are saving, 0 if we are loading
+ * copymode - 1 if this is cut/paste, 0 otherwise
  */
-void spinner(uint32_t sz, uint8_t saving) {
+void spinner(uint32_t sz, uint8_t saving, uint8_t copymode) {
   static char chars[] = "|/-\\";
   static char buf[80] = "";
   static uint8_t i = 0;
   gotoxy(0, PROMPT_ROW);
-  snprintf(buf, 80, "%s '%s': %c [%lu]",
-         (saving ? "Saving" : "Opening"), filename, chars[(i++) % 4], sz);
+  if (copymode)
+    snprintf(buf, 80, "%s clipboard: %c [%lu]",
+             (saving ? "Copying to" : "Pasting from"), chars[(i++) % 4], sz);
+  else
+    snprintf(buf, 80, "%s '%s': %c [%lu]",
+             (saving ? "Saving" : "Opening"), filename, chars[(i++) % 4], sz);
   revers(1);
   cprintf("%s", buf);
   cclear(79 - strlen(buf));
@@ -773,12 +778,12 @@ void draw_screen(void);
  * Load a file from disk into the gapbuf
  * filename - name of file to load
  * replace - if 1, replace old file.
- * initialcol - initial screen column
+ * copymode - if 1, then load from CLIPBOARD
  * Returns 0 on success
  *         1 if file can't be opened
  */
 #pragma code-name (push, "LC")
-uint8_t load_file(char *fname, uint8_t replace) {
+uint8_t load_file(char *fname, uint8_t replace, uint8_t copymode) {
   uint8_t partctr = 0;
   uint8_t col;
   char *p;
@@ -808,7 +813,7 @@ uint8_t load_file(char *fname, uint8_t replace) {
       goto done;
     }
 #endif
-    spinner(DATASIZE(), 0);
+    spinner(DATASIZE(), 0, copymode);
     s = fread(p, 1, IOSZ, fp);
     cont = (s == IOSZ ? 1 : 0);
     for (i = 0; i < s; ++i) {
@@ -842,19 +847,10 @@ uint8_t load_file(char *fname, uint8_t replace) {
         set_gapbuf(gapbegin++, p[i]);
         ++col;
       }
-#ifdef AUXMEM
-      // Will never happen in replace mode because
-      // we will have already opened a new bank
       if (FREESPACE() < IOSZ * 2) {
         show_error("File truncated");
         goto done;
       }
-#else
-      if (FREESPACE() < IOSZ * 2) {
-        show_error("File truncated");
-        goto done;
-      }
-#endif
     }
   } while (cont);
 done:
@@ -915,7 +911,7 @@ uint8_t save_file(uint8_t copymode, uint8_t append) {
   else
     sz = DATASIZE();
   for (i = 0; i < sz / IOSZ; ++i) {
-    spinner(i * IOSZ, 1);
+    spinner(i * IOSZ, 1, copymode);
 #ifdef AUXMEM
     for (j = 0; j < IOSZ; ++j)
       iobuf[j] = get_gapbuf(p++);
@@ -927,7 +923,7 @@ uint8_t save_file(uint8_t copymode, uint8_t append) {
     p += IOSZ;
 #endif
   }
-  spinner(i * IOSZ, 1);
+  spinner(i * IOSZ, 1, copymode);
 #ifdef AUXMEM
   for (j = 0; j < sz - (IOSZ * i); ++j)
     iobuf[j] = get_gapbuf(p++);
@@ -1930,6 +1926,7 @@ void order_selection(void) {
 
 /*
  * Main editor routine
+ * fname - filename to open or ""
  */
 int edit(char *fname) {
   char c; 
@@ -1939,7 +1936,7 @@ int edit(char *fname) {
   if (fname) {
     strcpy(filename, fname);
     cprintf("Loading file %s ", filename);
-    if (load_file(filename, 1)) {
+    if (load_file(filename, 1, 0)) {
       snprintf(userentry, 80, "Can't load '%s'", filename);
       show_error(userentry);
       strcpy(filename, "");
@@ -2083,7 +2080,7 @@ int edit(char *fname) {
         __asm__("sta $c073");  // Set aux bank back to 0
         gapbegin += cutbuflen;
       } else {
-        if (load_file("CLIPBOARD", 0))
+        if (load_file("CLIPBOARD", 0, 1))
           show_error("Can't open CLIPBOARD");
       }
       startsel = endsel = 65535U;
@@ -2124,7 +2121,7 @@ int edit(char *fname) {
         break; // ESC pressed
       if (strlen(userentry) == 0)
         break;
-      if (load_file(userentry, 0)) {
+      if (load_file(userentry, 0, 0)) {
         snprintf(iobuf, 80, "Can't open '%s'", userentry);
         show_error(iobuf);
       }
@@ -2139,7 +2136,7 @@ int edit(char *fname) {
       if (strlen(userentry) == 0)
         break;
       strcpy(filename, userentry);
-      if (load_file(filename, 1)) {
+      if (load_file(filename, 1, 0)) {
         snprintf(userentry, 80, "Can't open '%s'", filename);
         show_error(userentry);
         strcpy(filename, "");
