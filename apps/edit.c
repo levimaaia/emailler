@@ -39,8 +39,8 @@
 #define BUFSZ 0xb7fe             // Aux from 0x800 to 0xbfff, minus a pad byte
 char     iobuf[CUTBUFSZ];        // Buffer for disk I/O and cut/paste
 uint8_t  banktbl[1+8*16];        // Handles up to 8MB. Map of banks.
-uint8_t  auxbank;                // Currently selected aux bank (physical)
-uint8_t  l_auxbank;              // Currently selected aux bank (logical)
+uint8_t  auxbank = 0;            // Currently selected aux bank (physical)
+uint8_t  l_auxbank = 1;          // Currently selected aux bank (logical)
 uint16_t cutbuflen = 0;          // Length of data in cut buffer
 #else
 #define BUFSZ (20480 - 1024)     // 19KB
@@ -1724,6 +1724,31 @@ search:
 }
 
 /*
+ * Disconnect RAM disk /RAM
+ */
+void disconnect_ramdisk(void) {
+  uint8_t i, j;
+  uint8_t *devcnt = (uint8_t*)0xbf31; // Number of devices
+  uint8_t *devlst = (uint8_t*)0xbf32; // Disk device numbers
+  uint16_t *s0d1 = (uint16_t*)0xbf10; // s0d1 driver vector
+  uint16_t *s3d2 = (uint16_t*)0xbf26; // s3d2 driver vector
+  if (*s0d1 == *s3d2)
+    return;               // No /RAM connected
+  for (i = *devcnt; i >= 0; --i) {
+    if ((devlst[i] == 0xbf) || (devlst[i] == 0xbb) ||
+        (devlst[i] == 0xb7) || (devlst[i] == 0xb3))
+      break;
+  }
+  if (i > 0) {
+    for (j = i; j < *devcnt; ++j) {
+      devlst[j] = devlst[j + 1];
+    }
+  }
+  *s3d2 = *s0d1;
+  --(*devcnt);  
+}
+
+/*
  * Available aux banks.  Taken from RamWorks III Manual p47
  * banktbl is populated as follows:
  * First byte is number of banks
@@ -1919,10 +1944,6 @@ int edit(char *fname) {
       strcpy(filename, "");
     }
   }
-  jump_pos(0);
-  set_modified(0);
-  startsel = endsel = 65535U;
-  mode = SEL_NONE;
   draw_screen();
   while (1) {
     cursor(1);
@@ -2102,8 +2123,10 @@ int edit(char *fname) {
         break; // ESC pressed
       if (strlen(userentry) == 0)
         break;
-      if (load_file(userentry, 0))
-        show_error("Can't open");
+      if (load_file(userentry, 0)) {
+        snprintf(iobuf, 80, "Can't open '%s'", userentry);
+        show_error(iobuf);
+      }
       draw_screen();
       break;
     case 0x80 + 'O': // OA-O "Open"
@@ -2114,12 +2137,6 @@ int edit(char *fname) {
         break; // ESC pressed
       if (strlen(userentry) == 0)
         break;
-      jump_pos(0);
-      set_modified(0);
-      startsel = endsel = 65535U;
-      mode = SEL_NONE;
-      gapbegin = 0;
-      gapend = BUFSZ - 1;
       strcpy(filename, userentry);
       if (load_file(filename, 1)) {
         snprintf(userentry, 80, "Can't open '%s'", filename);
@@ -2332,6 +2349,7 @@ void main(int argc, char *argv[]) {
 #ifdef AUXMEM
   char *pad = (char*)0xbfff;
   *pad = '\0'; // Null termination for strstr()
+  disconnect_ramdisk();
   avail_aux_banks();
   init_aux_banks();
 #endif
