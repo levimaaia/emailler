@@ -856,7 +856,7 @@ void email_pager(struct emailhdrs *h) {
   const int8_t *b = b64dec - 43;
   FILE *attachfp;
   uint16_t linecount, chars;
-  uint8_t  mime_enc, mime_binary, eof, screennum, maxscreennum;
+  uint8_t mime_enc, mime_binary, mime_hasfile, eof, screennum, maxscreennum;
   char c, *readp, *writep;
   clrscr2();
   sprintf(filename, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, h->emailnum);
@@ -875,6 +875,9 @@ restart:
   readp = linebuf;
   writep = linebuf;
   attachfp = NULL;
+  mime_enc = ENC_7BIT;
+  mime_binary = 0;
+  mime_hasfile = 0;
   if (sbackfp)
     fclose(sbackfp);
   _filetype = PRODOS_T_BIN;
@@ -914,7 +917,7 @@ restart:
     if ((mime >= 1) && (!strncmp(writep, "--", 2))) {
       if (attachfp)
         fclose(attachfp);
-      if ((mime == 4) && mime_binary) {
+      if ((mime == 4) && mime_hasfile) {
         putchar(BACKSPACE); // Erase spinner
         puts("[OK]");
       }
@@ -922,6 +925,7 @@ restart:
       mime = 2;
       mime_enc = ENC_7BIT;
       mime_binary = 0;
+      mime_hasfile = 0;
       readp = writep = NULL;
     } else if ((mime < 4) && (mime >= 2)) {
       if (!strncasecmp(writep, "Content-Type: ", 14)) {
@@ -947,6 +951,7 @@ restart:
           mime = 1;
         }
       } else if (strstr(writep, "filename=")) {
+        mime_hasfile = 1;
         sprintf(filename, "%s/ATTACHMENTS/%s",
                 cfg_emaildir, strstr(writep, "filename=") + 9);
         sanitize_filename(filename);
@@ -959,9 +964,12 @@ restart:
           attachfp = NULL;
       } else if ((mime == 3) && (!strncmp(writep, "\r", 1))) {
         mime = 4;
-        if (!attachfp && mime_binary) {
+        if (!attachfp && mime_hasfile) {
+          mime_enc = ENC_SKIP; // Skip over MIME parts user chose to skip
+          printf("** Skipping      %s  ", filename);
+        } else if (!attachfp && mime_binary) {
           mime_enc = ENC_SKIP; // Skip over binary MIME parts with no filename
-          fputs("Skipping  ", stdout);
+          printf("\n");
         }
       }
       readp = writep = NULL;
@@ -989,11 +997,11 @@ restart:
         readp = writep = NULL;
         break;
       }
-      if (mime_binary && !(linecount % 10))
+      if (mime_hasfile && !(linecount % 10))
         spinner();
     }
     if (readp) {
-      if ((mime == 0) || ((mime == 4) && !mime_binary)) {
+      if ((mime == 0) || ((mime == 4) && !mime_hasfile)) {
         do {
           c = word_wrap_line(stdout, &readp, 80, 0);
           if (*cursorrow == 22)
@@ -1007,7 +1015,7 @@ restart:
         } else
           writep = NULL;
       }
-      if ((mime == 4) && mime_binary) {
+      if ((mime == 4) && mime_hasfile) {
         if (attachfp)
           fwrite(readp, 1, chars, attachfp);
         readp = writep = NULL;
