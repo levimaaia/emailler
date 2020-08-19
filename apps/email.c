@@ -4,7 +4,6 @@
 // Bobbi June, July 2020
 /////////////////////////////////////////////////////////////////
 
-// TODO: Bug handling an attachment of type text/plain.
 // TODO: Get rid of all uses of malloc(). Don't need it.
 
 #include <stdio.h>
