@@ -278,7 +278,7 @@ The message state is persisted in the `EMAIL.DB` file:
 
 ### Sending of Messages
 
-The EMAIL system currently includes a basic screen editor for message composition.  This editor is currently under development and may be a little rough.  It is also possible to use and external editor of your choice for composing emails.  The advantage to this is you can choose whichever editor you prefer, provided it can handle plain Apple II text files.  I find the editor which is built into the Proterm 3.1 communications program to be quite satisfactory for this purpose.
+The EMAIL system currently includes a basic screen editor for message composition.  This editor is currently under development and may be a little rough.  It is also possible to use an external editor of your choice for composing emails.  The advantage to this is you can choose whichever editor you prefer, provided it can handle plain Apple II text files.  I find the editor which is built into the Proterm 3.1 communications program to be quite satisfactory for this purpose.
 
 Sending of an email message is a three step process:
 
@@ -302,7 +302,7 @@ However you create your template email, take note of the filename which is displ
 
 ## `EDIT.SYSTEM`
 
-EDIT is simple full-screen editor.  It uses Apple //e auxiliary memory to store the text buffer, allowing files up to 46KB to be edited.  The command keys are similar to the popular AppleWorks word processor.
+EDIT is a simple full-screen editor.  It uses Apple //e auxiliary memory to store the text buffer, allowing files up to 46KB to be edited.  The command keys are similar to the popular AppleWorks word processor.
 
 <p align="center"><img src="img/edit-help.png" alt="Editor help page" height="400px"></p>
 
