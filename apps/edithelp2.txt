@@ -1,5 +1,5 @@
 --------------------------------------------------------------------------------
- v1.10                       }}} EDIT.SYSTEM HELP }}}                  Page Two 
+                             }}} EDIT.SYSTEM HELP }}}                  Page Two 
 --------------------------------------------------------------------------------
  On a 128KB Apple //e (or GS), the editor uses the auxiliary memory as a 46KB   
  editor buffer. If RamWorks-style extended aux memory is available, this is     
