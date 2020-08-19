@@ -304,7 +304,9 @@ However you create your template email, take note of the filename which is displ
 
 EDIT is simple full-screen editor.  It uses Apple //e auxiliary memory to store the text buffer, allowing files up to 46KB to be edited.  The command keys are similar to the popular AppleWorks word processor.
 
-<p align="center"><img src="img/edit-help.png" alt="Editor help page" height="400px"></p>
+<p align="center"><img src="img/edit-help1.png" alt="Editor help page 1" height="400px"></p>
+
+<p align="center"><img src="img/edit-help2.png" alt="Editor help page 2" height="400px"></p>
 
 ## `ATTACHER.SYSTEM`
 
