@@ -6,7 +6,7 @@
  used to store multiple editor buffers of 46KB each. These buffers may be used  
  to edit up to 128 files (with an 8MB RamWorks). A set of consecutive           
  buffers may be used in order to allow files larger than 46KB to be edited.     
----------------------------------------+----------------------------------------
+--------------------------------------------------------------------------------
 Buffer Management:                                                              
   }-1 ...     Quick jump to buffer 1 ...                                        
   }-9         ... through buffer 9                                              
