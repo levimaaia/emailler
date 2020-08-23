@@ -5,7 +5,8 @@
 /////////////////////////////////////////////////////////////////////////////
 
 // TODO: File picker!!
-// TODO: Bug - cursor down at EOF succeeds when it should fail
+// TODO: Bug - cursor down at EOF succeeds when it should fail. Seems to happen
+//       after one inserts a CR at EOF.
 // TODO: Search options - ignore case, complete word.
 
 // Note: Use my fork of cc65 to get a flashing cursor!!
@@ -2223,16 +2224,13 @@ donehelp:
       draw_screen();
       break;
     case DELETE:  // DEL "BACKSPACE"
-      if (mode == SEL_NONE) {
-        delete_char();
-        update_after_delete_char();
-        set_modified(1);
-      } else if (mode == SEL_SELECT) {
-        tmp = (startsel == 65535U ? 0 : 1); // Selection active?
-        if (!tmp) {
-          beep();
-          break;
+      if (startsel == 65535U) { // No selection
+        if (mode == SEL_NONE) {
+          delete_char();
+          update_after_delete_char();
+          set_modified(1);
         }
+      } else {
         snprintf(userentry, 80,
                  "Delete selection (%d chars)", abs(endsel - startsel));
         if (prompt_okay(userentry) != 0)
