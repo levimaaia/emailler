@@ -4,9 +4,9 @@
 // Bobbi July-Aug 2020
 /////////////////////////////////////////////////////////////////////////////
 
+// TODO: Bug - Insert a CR at eof. Cursor left then cursor right.
+//       Things are messed up now! 
 // TODO: File picker!!
-// TODO: Bug - cursor down at EOF succeeds when it should fail. Seems to happen
-//       after one inserts a CR at EOF.
 // TODO: Search options - ignore case, complete word.
 
 // Note: Use my fork of cc65 to get a flashing cursor!!
@@ -1155,10 +1155,14 @@ void update_after_delete_char_right(void) {
 
   // Print rest of line up to EOL
   pos = gapend + 1;
-  while (!eol && (pos < BUFSZ) && (row < NROWS)) {
-    i = col;
-    eol = read_char_update_pos();
-  }
+  if (pos == BUFSZ)
+    --rowlen[row];
+  else
+    while (!eol && (pos < BUFSZ) && (row < NROWS)) {
+      i = col;
+      eol = read_char_update_pos();
+    }
+
   if (is_last_line())
     clreol_wrap();
 
@@ -1223,10 +1227,14 @@ void update_after_delete_char(void) {
 
   // Print rest of line up to EOL
   pos = gapend + 1;
-  while (!eol && (pos < BUFSZ) && (row < NROWS)) {
-    i = col;
-    eol = read_char_update_pos();
-  }
+  if (pos == BUFSZ)
+    --rowlen[row];
+  else
+    while (!eol && (pos < BUFSZ) && (row < NROWS)) {
+      i = col;
+      eol = read_char_update_pos();
+    }
+
   if (is_last_line())
     clreol_wrap();
 
@@ -2268,7 +2276,7 @@ donehelp:
       cursor_down();
       break;
     case EOL:   // Return
-      if ((mode == SEL_NONE) || (mode == SEL_SELECT)) {
+      if (mode == SEL_NONE) {
         insert_char(c);
         update_after_insert_char();
         set_modified(1);
