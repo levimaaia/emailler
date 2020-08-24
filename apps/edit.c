@@ -1342,7 +1342,7 @@ void cursor_right(void) {
     goto done;
   }
   ++curscol;
-  if (gapend == BUFSZ - 1)
+  if ((gapend == BUFSZ - 1) && (get_gapbuf(gapend) != EOL))
     goto done;
   if (curscol == rowlen[cursrow]) {
     if (cursrow == NROWS - 1)
@@ -1418,6 +1418,10 @@ uint8_t cursor_down(void) {
       (rowlen[cursrow] != NCOLS))
     return 1; // Last line
 
+  if (rowlen[cursrow] == 0) {
+    beep();
+    return 1;
+  }
   for (i = 0; i < rowlen[cursrow] - curscol; ++i) {
     if (gapend < BUFSZ - 1) {
       set_gapbuf(gapbegin++, get_gapbuf(++gapend));
@@ -1433,7 +1437,7 @@ uint8_t cursor_down(void) {
   }
   ++cursrow;
   // Short line ...
-  if (rowlen[cursrow + 1] == 0)
+  if (rowlen[cursrow] == 0)
     curscol = 0;
   else if (curscol > rowlen[cursrow] - 1)
     curscol = rowlen[cursrow] - 1;
