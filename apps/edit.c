@@ -1433,7 +1433,9 @@ uint8_t cursor_down(void) {
   }
   ++cursrow;
   // Short line ...
-  if (curscol > rowlen[cursrow] - 1)
+  if (rowlen[cursrow + 1] == 0)
+    curscol = 0;
+  else if (curscol > rowlen[cursrow] - 1)
     curscol = rowlen[cursrow] - 1;
   gotoxy(0, cursrow);
   for (i = 0; i < curscol; ++i) {
