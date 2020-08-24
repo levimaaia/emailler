@@ -4,8 +4,6 @@
 // Bobbi July-Aug 2020
 /////////////////////////////////////////////////////////////////////////////
 
-// TODO: Bug - Insert a CR at eof. Cursor left then cursor right.
-//       Things are messed up now! 
 // TODO: File picker!!
 // TODO: Search options - ignore case, complete word.
 

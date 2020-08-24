@@ -537,7 +537,7 @@ void main(int argc, char *argv[]) {
   if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
     error_exit();
   }
-  expect(buf, "+OK Logged in.");
+  expect(buf, "+OK");
 
   if (!w5100_tcp_send_recv("STAT\r\n", buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
     error_exit();
