@@ -31,7 +31,15 @@ A few design principles that I have tried to apply:
 
 ### Configuration File
 
-The system configuration file is called `EMAIL.CFG`.  It is a straightforward ProDOS text file, with one parameter per line.  You may edit this file using any ProDOS text editor.  When editing the file be careful not to add or delete any lines - this file has no grammar and the lines *must* appear in the expected order.
+The system configuration file is called `EMAIL.CFG`.  It is a straightforward ProDOS text file, with one parameter per line.  You may edit this file using the provided editor, `EDIT.SYSTEM` (or any other ProDOS text editor).  When editing the file be careful not to add or delete any lines - this file has no grammar and the lines *must* appear in the expected order.
+
+To edit the file using `EDIT.SYSTEM`:
+
+  - Run `EDIT.SYSTEM` using Bitsy Bye or your usual ProDOS launcher.
+  - Press Open Apple-O to open a file, then enter `EMAIL.CFG` at the prompt, followed by return.
+  - Editing is fairly intuitive.  Use the arrow keys to move around and type to insert text.  Open Apple-Delete deletes to the right.
+  - When you are satisfied, save the file using Open Apple-S.
+  - Quit the editor using Open Apple-Q.
 
 All three of the mail programs `POP65.SYSTEM`, `EMAIL.SYSTEM` and `SMTP65.SYSTEM` share this configuration file.
 
@@ -84,6 +92,16 @@ You can create these directories in ProDOS `BASIC.SYSTEM` as follows:
 You will also want to create a couple of mailboxes such as `RECEIVED` and `SENT`.  If you do not create a `SENT` mailbox then SMTP65 will be unable to complete the sending of messages and will give an error.  To create these mailboxes, run `EMAIL.SYSTEM` and press `N` for N)ew mailbox.  At the prompt, enter the name of the mailbox to be created: `RECEIVED`, and press return.  Repeat this to create the `SENT` mailbox.
 
 These are the minimum mailboxes you need to get started.  You may create more mailboxes to organize your mail at any time.
+
+### First Run of `POP65.SYSTEM`
+
+The first time `POP65.SYSTEM` runs and downloads mail messages it will populate the `INBOX`.  However the `INBOX` directory needs to have been created already (as described above.)
+
+Note: If you try to run `EMAIL.SYSTEM` before the `POP65.SYSTEM` has initialized the INBOX, an error will be reported about a missing file.
+
+Once you have correctly configured `EMAIL.CFG` with the correct POP3 server, username and password, start `POP65.SYSTEM` using Bitsy Bye or your favourite ProDOS launcher.  It should connect to your POP3 server, download any messages in your email inbox and copy them to your `INBOX`.
+
+Once messages have been downloaded and the `INBOX` initialized, you may run `EMAIL.SYSTEM` to browse and read the new messages.
 
 ### Mailboxes
 
