@@ -198,7 +198,7 @@ ds3:
     __asm__("sta $c073"); // Set aux bank back to 0
 #endif
   } else {
-    // Start with highest addr and copy upwards
+    // Start with lowest addr and copy upwards
     *(uint16_t*)(0xfa) = n;                              // Stuff sz in ZP
     *(uint16_t*)(0xfc) = (uint16_t)0x0800 + src;         // Stuff src in ZP
     *(uint16_t*)(0xfe) = (uint16_t)0x0800 + dst;         // Stuff dst in ZP
@@ -208,29 +208,32 @@ ds3:
     __asm__("sta $c005"); // Write aux mem
     __asm__("sta $c003"); // Read aux mem
 #endif
+    __asm__("ldx #$00");
 al1:
-    __asm__("lda ($fc)"); // *src
-    __asm__("sta ($fe)"); // -> *dst
+    __asm__("cpx $fb");      // MSB of n
+    __asm__("beq %g", as1);  // No more complete 256 byte blocks
 
-    __asm__("inc $fc");   // LSB of src
-    __asm__("bne %g", as1);
-    __asm__("inc $fd");   // MSB of src
+    __asm__("ldy #$00");     // Copy one block of 256 bytes
+al2:
+    __asm__("lda ($fc),y");
+    __asm__("sta ($fe),y");
+    __asm__("iny");
+    __asm__("bne %g", al2);
+
+    __asm__("inc $fd");     // MSB of source
+    __asm__("inc $ff");     // MSB of dest
+    __asm__("inx");
+    __asm__("jmp %g", al1);
 as1:
-
-    __asm__("inc $fe");   // LSB of dst
-    __asm__("bne %g", as2);
-    __asm__("inc $ff");   // MSB of dst
+    __asm__("ldy #$00");    // Copy leftover bytes
+al3:
+    __asm__("cpy $fa");     // LSB of n
+    __asm__("beq %g", as2); // Done!
+    __asm__("lda ($fc),y");
+    __asm__("sta ($fe),y");
+    __asm__("iny");
+    __asm__("jmp %g", al3);
 as2:
-
-    __asm__("lda $fa");   // LSB of n
-    __asm__("bne %g", as3);
-    __asm__("dec $fb");   // MSB of n
-as3:
-    __asm__("dec $fa");   // LSB of n
-
-    __asm__("bne %g", al1);    // Loop
-    __asm__("lda $fb");   // MSB of n
-    __asm__("bne %g", al1);    // Loop
 #ifdef AUXMEM
     __asm__("sta $c002"); // Read main mem
     __asm__("sta $c004"); // Write main mem
