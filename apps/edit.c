@@ -150,7 +150,7 @@ void set_gapbuf(uint16_t i, char c) {
  * Must be in LC
  * dst - Destination index into gapbuf[]
  * src - Source index into gapbuf[]
- * n - Length in bytes
+* n - Length in bytes
  */
 #pragma code-name (push, "LC")
 void move_in_gapbuf(uint16_t dst, uint16_t src, size_t n) {
@@ -158,39 +158,49 @@ void move_in_gapbuf(uint16_t dst, uint16_t src, size_t n) {
   if (dst > src) {
     // Start with highest addr and copy downwards
     *(uint16_t*)(0xfa) = n;                              // Stuff sz in ZP
-    *(uint16_t*)(0xfc) = (uint16_t)0x0800 + src + n - 1; // Stuff src in ZP
-    *(uint16_t*)(0xfe) = (uint16_t)0x0800 + dst + n - 1; // Stuff dst in ZP
+    *(uint16_t*)(0xfc) = (uint16_t)0x0800 + src - 1; // Stuff src in ZP
+    *(uint16_t*)(0xfe) = (uint16_t)0x0800 + dst - 1; // Stuff dst in ZP
 #ifdef AUXMEM
     __asm__("lda %v", auxbank); 
     __asm__("sta $c073");  // Set aux bank
     __asm__("sta $c005"); // Write aux mem
     __asm__("sta $c003"); // Read aux mem
 #endif
+    __asm__("clc");          // Prepare the source pointer
+    __asm__("lda $fd");      // MSB of source
+    __asm__("adc $fb");      // MSB of n
+    __asm__("sta $fd");
+
+    __asm__("clc");          // Prepare the dest pointer
+    __asm__("lda $ff");      // MSB of dest
+    __asm__("adc $fb");      // MSB of n
+    __asm__("sta $ff");
+
+    __asm__("ldy $fa");      // LSB of n
 dl1:
-    __asm__("lda ($fc)"); // *src
-    __asm__("sta ($fe)"); // -> *dst
-
-    __asm__("lda $fc");   // LSB of src
-    __asm__("bne %g", ds1);
-    __asm__("dec $fd");   // MSB of src
+    __asm__("cpy #$00");     // Copy leftover bytes
+    __asm__("beq %g", ds1);
+    __asm__("lda ($fc),y");
+    __asm__("sta ($fe),y");
+    __asm__("dey");
+    __asm__("jmp %g", dl1);
 ds1:
-    __asm__("dec $fc");   // LSB of src
-
-    __asm__("lda $fe");   // LSB of dst
-    __asm__("bne %g", ds2);
-    __asm__("dec $ff");   // MSB of dst
+    __asm__("ldx #$00");
+dl2:
+    __asm__("cpx $fb");      // MSB of n
+    __asm__("beq %g", ds2);  // No more complete 256 byte blocks, done!
+    __asm__("dec $fd");      // MSB of source
+    __asm__("dec $ff");      // MSB of dest
+    __asm__("ldy #$00");     // Copy one block of 256 bytes
+dl3:
+    __asm__("dey");
+    __asm__("lda ($fc),y");
+    __asm__("sta ($fe),y");
+    __asm__("cpy #$00");
+    __asm__("bne %g", dl3);
+    __asm__("inx");
+    __asm__("jmp %g", dl2);
 ds2:
-    __asm__("dec $fe");   // LSB of dst
-
-    __asm__("lda $fa");   // LSB of n
-    __asm__("bne %g", ds3);
-    __asm__("dec $fb");   // MSB of n
-ds3:
-    __asm__("dec $fa");   // LSB of n
-
-    __asm__("bne %g", dl1);    // Loop
-    __asm__("lda $fb");   // MSB of n
-    __asm__("bne %g", dl1);    // Loop
 #ifdef AUXMEM
     __asm__("sta $c002"); // Read main mem
     __asm__("sta $c004"); // Write main mem
