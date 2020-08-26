@@ -178,10 +178,10 @@ void move_in_gapbuf(uint16_t dst, uint16_t src, size_t n) {
 
     __asm__("ldy $fa");      // LSB of n
 dl1:
-    __asm__("cpy #$00");     // Copy leftover bytes
-    __asm__("beq %g", ds1);
     __asm__("lda ($fc),y");
     __asm__("sta ($fe),y");
+    __asm__("cpy #$00");     // Copy leftover bytes
+    __asm__("beq %g", ds1);
     __asm__("dey");
     __asm__("jmp %g", dl1);
 ds1:
