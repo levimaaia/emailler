@@ -1078,10 +1078,10 @@ void draw_screen(void) {
 
   // First we have to scan back to work out where in the buffer to
   // start drawing on the screen at the top left. This is at most
-  // NROWS * NCOLS chars.
+  // CURSORROW * NCOLS chars.
   startpos = gapbegin;
-  if (startpos > NROWS * NCOLS)
-    startpos -= NROWS * NCOLS;
+  if (startpos > (CURSORROW + 2) * NCOLS)
+    startpos -= (CURSORROW + 2) * NCOLS;
   else
     startpos = 0;
 
