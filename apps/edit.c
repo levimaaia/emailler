@@ -2241,9 +2241,12 @@ int edit(char *fname) {
     case 0x80 + 'z': // OA-z
     case 0x1a:       // Ctrl-Z
       if (canundo) {
-        gapbegin = oldgapbegin;
-        gapend   = oldgapend;
-        canundo  = 0;
+        tmp         = gapbegin;
+        gapbegin    = oldgapbegin;
+        oldgapbegin = tmp;
+        tmp         = gapend;
+        gapend      = oldgapend;
+        oldgapend   = tmp;
         draw_screen();
       } else
         beep();
