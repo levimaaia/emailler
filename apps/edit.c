@@ -2254,10 +2254,10 @@ int edit(char *fname) {
     case 0x80 + DELETE: // OA-Backspace
     case 0x04:  // Ctrl-D "DELETE"
       if (mode == SEL_NONE) {
+        mark_undo();
         delete_char_right();
         update_after_delete_char_right();
         set_modified(1);
-        canundo = 0;
       }
       break;
     case 0x80 + '?': // OA-? "Help"
@@ -2286,10 +2286,10 @@ donehelp:
     case DELETE:  // DEL "BACKSPACE"
       if (startsel == 65535U) { // No selection
         if (mode == SEL_NONE) {
+          mark_undo();
           delete_char();
           update_after_delete_char();
           set_modified(1);
-          canundo = 0;
         }
       } else {
         snprintf(userentry, 80,
@@ -2309,13 +2309,13 @@ donehelp:
       break;
     case 0x09:  // Tab
       if (mode == SEL_NONE) {
+        mark_undo();
         c = next_tabstop(curscol) - curscol;
         for (i = 0; i < c; ++i) {
           insert_char(' ');
           update_after_insert_char();
         }
         set_modified(1);
-        canundo = 0;
       }
       break;
     case 0x08:  // Left
@@ -2332,10 +2332,10 @@ donehelp:
       break;
     case EOL:   // Return
       if (mode == SEL_NONE) {
+        mark_undo();
         insert_char(c);
         update_after_insert_char();
         set_modified(1);
-        canundo = 0;
       }
       break;
     default:
@@ -2411,10 +2411,10 @@ donehelp:
 #else
       if ((c >= 0x20) && (c < 0x80) && (mode == SEL_NONE)) {
 #endif
+        mark_undo();
         insert_char(c);
         update_after_insert_char();
         set_modified(1);
-        canundo = 0;
       }
     }
   }
