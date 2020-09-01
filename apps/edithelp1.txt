@@ -1,5 +1,5 @@
 --------------------------------------------------------------------------------
- v1.21                       }}} EDIT.SYSTEM HELP }}}                  Page One 
+ v1.22                       }}} EDIT.SYSTEM HELP }}}                  Page One 
 --------------------------------------+-----------------------------------------
  Navigation:                          | Editing:                                
   Cursor keys  Move the cursor        |  [Return]    Split line                 
@@ -19,6 +19,6 @@
   {-S          Save file              |  {-V         Paste previous cut or copy 
   {-Q          Quit                   |  [Delete]    Delete selected text       
                                       |  ESC         Clear selection            
---------------------------------------+-----------------------------------------
- [Q]uit help                          |               [Any Other Key] Next Page 
---------------------------------------+----------------------------------------
+--------------+-----------------------|  {-Z         Undo block operation       
+ [Q]uit help  | [Any Other Key] next  |                                         
+--------------+-----------------------+----------------------------------------

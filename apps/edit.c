@@ -4,12 +4,13 @@
 // Bobbi July-Aug 2020
 /////////////////////////////////////////////////////////////////////////////
 
-// TODO: File picker!!
-// TODO: Search options - ignore case, complete word.
+// TODO: See GitHub issues!!!
 
+/////////////////////////////////////////////////////////////////////////////
 // Note: Use my fork of cc65 to get a flashing cursor!!
+/////////////////////////////////////////////////////////////////////////////
 
-#define AUXMEM               // Still somewhat experimental
+#define AUXMEM
 
 #include <conio.h>
 #include <ctype.h>
@@ -49,14 +50,17 @@ char     padding = 0;            // To null terminate for strstr()
 
 // The following fields, plus the gap buffer, represent the state of
 // the current buffer.  These are stashed in each aux page from 0x200 up.
-// Total 80 + 3 + 2 + 2 = 87 bytes
-#define BUFINFOSZ 87
+// Total 80 + 3 + 2 + 2 + 1 + 2 + 2 = 92 bytes
+#define BUFINFOSZ 92
 char     filename[80]  = "";
 uint8_t  status[3] = {0, 0, 0};  // status[0] is 1 if file has been modified
                                  // status[1] is 1 if should warn for overwrite
                                  // status[2] is part # for multi-part files
 uint16_t gapbegin      = 0;
 uint16_t gapend        = BUFSZ - 1;
+uint8_t  canundo       = 0;          // For OA-Z "Undo"
+uint16_t oldgapbegin   = 0;          // ditto
+uint16_t oldgapend     = BUFSZ - 1;  // ditto
 
 char    userentry[82] = "";  // Couple extra chars so we can store 80 col line
 char    search[80]    = "";
@@ -1956,6 +1960,15 @@ void order_selection(void) {
 }
 
 /*
+ * Remember current gapbuf settings to support undo
+ */
+void mark_undo(void) {
+  oldgapbegin = gapbegin;
+  oldgapend   = gapend;
+  canundo     = 1;
+}
+
+/*
  * Main editor routine
  * fname - filename to open or ""
  */
@@ -2098,6 +2111,7 @@ int edit(char *fname) {
       }
 #endif
       if (tmp == 0) { // Cut
+        mark_undo();
         jump_pos(startsel);
         gapend += (endsel - startsel);
         set_modified(1);
@@ -2110,6 +2124,7 @@ int edit(char *fname) {
     case 0x80 + 'v': // OA-v
     case 0x16:       // ^V "Paste"
       mode = SEL_NONE;
+      mark_undo();
       if (cutbuflen > 0) {
         __asm__("lda %v", auxbank); 
         __asm__("sta $c073");  // Set aux bank
@@ -2149,6 +2164,7 @@ int edit(char *fname) {
         ask = 0;
         if (prompt_okay("Ask for each") == 0)
           ask = 1;
+        canundo = 0;
       }
       do_search_replace(tmp, ask);
       update_status_line();
@@ -2159,6 +2175,7 @@ int edit(char *fname) {
         break; // ESC pressed
       if (strlen(userentry) == 0)
         break;
+      mark_undo();
       if (load_file(userentry, 0, 0)) {
         snprintf(iobuf, 80, "Can't open '%s'", userentry);
         show_error(iobuf);
@@ -2179,6 +2196,7 @@ int edit(char *fname) {
         show_error(userentry);
         strcpy(filename, "");
       }
+      canundo = 0;
       draw_screen();
       break;
     case 0x80 + 'N': // OA-N "Name"
@@ -2204,11 +2222,13 @@ int edit(char *fname) {
       break;
     case 0x80 + 'U': // OA-U "Unwrap"
     case 0x80 + 'u': // OA-w
+      canundo = 0;
       word_wrap_para(0);
       draw_screen();
       break;
     case 0x80 + 'W': // OA-W "Wrap"
     case 0x80 + 'w': // OA-w
+      canundo = 0;
       word_wrap_para(1);
       draw_screen();
       break;
@@ -2217,12 +2237,24 @@ int edit(char *fname) {
       save();
       draw_screen();
       break;
+    case 0x80 + 'Z': // OA-Z "Undo"
+    case 0x80 + 'z': // OA-z
+    case 0x1a:       // Ctrl-Z
+      if (canundo) {
+        gapbegin = oldgapbegin;
+        gapend   = oldgapend;
+        canundo  = 0;
+        draw_screen();
+      } else
+        beep();
+      break;
     case 0x80 + DELETE: // OA-Backspace
     case 0x04:  // Ctrl-D "DELETE"
       if (mode == SEL_NONE) {
         delete_char_right();
         update_after_delete_char_right();
         set_modified(1);
+        canundo = 0;
       }
       break;
     case 0x80 + '?': // OA-? "Help"
@@ -2254,6 +2286,7 @@ donehelp:
           delete_char();
           update_after_delete_char();
           set_modified(1);
+          canundo = 0;
         }
       } else {
         snprintf(userentry, 80,
@@ -2262,6 +2295,7 @@ donehelp:
           break;
         order_selection();
         mode = SEL_NONE;
+        mark_undo();
         jump_pos(startsel);
         gapend += (endsel - startsel);
         set_modified(1);
@@ -2278,6 +2312,7 @@ donehelp:
           update_after_insert_char();
         }
         set_modified(1);
+        canundo = 0;
       }
       break;
     case 0x08:  // Left
@@ -2297,6 +2332,7 @@ donehelp:
         insert_char(c);
         update_after_insert_char();
         set_modified(1);
+        canundo = 0;
       }
       break;
     default:
@@ -2361,6 +2397,8 @@ donehelp:
               change_aux_bank(tmp);
             }
           }
+          set_modified(1);
+          canundo = 0;
         } else if ((c =='S') || (c == 's')) { // CA-S "Save all"
           save_all();
           draw_screen();
@@ -2373,6 +2411,7 @@ donehelp:
         insert_char(c);
         update_after_insert_char();
         set_modified(1);
+        canundo = 0;
       }
     }
   }
