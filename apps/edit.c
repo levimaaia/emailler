@@ -1988,7 +1988,10 @@ void file_ui_draw(uint8_t i, uint8_t first, uint8_t selected, uint8_t entries) {
   gotoxy(5, i - first + 5);
   if (i < entries) {
     entry = (struct tabent*)iobuf + i;
-    sprintf(userentry, "%02x %s                ", entry->type, entry->name);
+    sprintf(userentry, "%c%s%c                 ", 
+            (entry->type == 0x0f ? '[' : ' '),
+            entry->name,
+            (entry->type == 0x0f ? ']' : ' '));
     userentry[20] = '\0';
     if (i == selected)
       revers(1);
