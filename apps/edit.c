@@ -1979,8 +1979,9 @@ void mark_undo(void) {
 }
 
 struct tabent {
-  char    name[16];
-  uint8_t type;
+  char     name[16];
+  uint8_t  type;
+  uint32_t size;
 } *entry;
 
 #define FILELINES 16
@@ -1997,18 +1998,45 @@ void file_ui_draw(uint16_t i, uint16_t first, uint16_t selected, uint16_t entrie
   gotoxy(5, i - first + 5);
   if (i < entries) {
     entry = (struct tabent*)iobuf + i;
-    sprintf(userentry, "%c%s%c                 ", 
-            (entry->type == 0x0f ? '[' : ' '),
-            entry->name,
-            (entry->type == 0x0f ? ']' : ' '));
-    userentry[20] = '\0';
+    if (entry->type == 0x0f) {
+      sprintf(userentry, "[ %s ]                               ", entry->name);
+      userentry[34] = '\0';
+    } else {
+      sprintf(userentry, "  %s                   ", entry->name);
+      sprintf(&userentry[18], "  %8lu  ", entry->size);
+      switch (entry->type) {
+      case 0x04:
+        sprintf(&userentry[30], "TXT ");
+        break;
+      case 0x06:
+        sprintf(&userentry[30], "BIN ");
+        break;
+      case 0x19:
+        sprintf(&userentry[30], "ADB ");
+        break;
+      case 0x1a:
+        sprintf(&userentry[30], "AWP ");
+        break;
+      case 0x1b:
+        sprintf(&userentry[30], "ASP ");
+        break;
+      case 0xfc:
+        sprintf(&userentry[30], "BAS ");
+        break;
+      case 0xff:
+        sprintf(&userentry[30], "SYS ");
+        break;
+      default:
+        sprintf(&userentry[30], "$%02x ", entry->type);
+      }
+    }
     if (i == selected)
       revers(1);
     cputs(userentry);
     if (i == selected)
       revers(0);
   } else {
-    strcpy(userentry, "                    ");
+    strcpy(userentry, "                                  ");
     cputs(userentry);
   }
 }
@@ -2105,8 +2133,13 @@ restart:
         break;
       memcpy(entry->name, ent->d_name, 16);
       entry->type = ent->d_type;
+      entry->size = ent->d_size;
       ++entry;
       ++entries;
+      if ((char*)entry > (char*)iobuf + CUTBUFSZ - 100) {
+        beep();
+        break;
+      }
     }
     closedir(dp);
   }
