@@ -10,10 +10,11 @@
 // Note: Use my fork of cc65 to get a flashing cursor!!
 /////////////////////////////////////////////////////////////////////////////
 
-#define AUXMEM
+#define AUXMEM               // No longer builds without AUXMEM
 
 #include <conio.h>
 #include <ctype.h>
+#include <dirent.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1968,6 +1969,95 @@ void mark_undo(void) {
   canundo     = 1;
 }
 
+struct tabent {
+  char    name[16];
+  uint8_t type;
+} *entry;
+
+#define FILELINES 15
+
+/*
+ * File chooser UI
+ * TODO: Work in progress
+ */
+void file_ui_draw(uint16_t first, uint16_t selected, uint16_t entries) {
+  uint16_t i;
+  struct tabent *entry;
+  uint16_t last = first + FILELINES;
+  for (i = first; i < (last > entries ? entries : last); ++i) {
+    gotoxy(5, i - first + 4);
+    entry = (struct tabent*)iobuf + i;
+    sprintf(userentry, "%02x %s                ", entry->type, entry->name);
+    userentry[20] = '\0';
+    if (i == selected)
+      revers(1);
+    cputs(userentry);
+    if (i == selected)
+      revers(0);
+  }
+}
+
+/*
+ * File chooser UI
+ * TODO: Work in progress
+ */
+void file_ui(void) {
+  struct tabent *entry;
+  DIR *dp;
+  struct dirent *ent;
+  char c;
+  uint16_t entries = 0, current = 0, first = 0;
+  cutbuflen = 0;
+  entry = (struct tabent*)iobuf;
+  clrscr();
+  cursor(0);
+  dp = opendir(".");
+  while (1) {
+    ent = readdir(dp);
+    if (!ent)
+      break;
+    memcpy(entry->name, ent->d_name, 16);
+    entry->type = ent->d_type;
+    ++entry;
+    ++entries;
+  }
+  closedir(dp);
+  while (1) {
+    file_ui_draw(first, current, entries);
+    c = cgetc();
+    switch (c) {
+    case 0x0b:  // Up
+      if (current > 0)
+        --current;
+      if (current < first) {
+        if (first > FILELINES)
+          first -= FILELINES;
+        else
+          first = 0;
+        clrscr();
+      }
+      break;
+    case 0x0a:  // Down
+      if (current < entries)
+        ++current;
+      if (current >= first + FILELINES) {
+        first += FILELINES;
+        clrscr();
+      }
+      break;
+    case EOL:
+      entry = (struct tabent*)iobuf + current;
+      cprintf("*** %s ****", entry->name);
+      cgetc();
+      cursor(1);
+      return;
+    case ESC:
+      cursor(1);
+      return;
+    }
+  } 
+}
+
 /*
  * Main editor routine
  * fname - filename to open or ""
@@ -2404,6 +2494,9 @@ donehelp:
           canundo = 0;
         } else if ((c =='S') || (c == 's')) { // CA-S "Save all"
           save_all();
+          draw_screen();
+        } else if (c == '\\') { // TODO: TEMP DEBUG KEY
+          file_ui();
           draw_screen();
         }
       }
