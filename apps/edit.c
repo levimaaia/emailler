@@ -1,11 +1,11 @@
 ////////////////////////////////////////////////////////////////////////////
-// Simple text editor
+// Apple //e Enhanced text editor
 // Supports Apple //e Auxiliary memory and RamWorks style expansions
-// Bobbi July-Aug 2020
+// Bobbi July-Sept 2020
 /////////////////////////////////////////////////////////////////////////////
-
-// TODO: See GitHub issues!!!
-
+//
+// See GitHub for open issues!!!
+//
 /////////////////////////////////////////////////////////////////////////////
 // Note: Use my fork of cc65 to get a flashing cursor!!
 /////////////////////////////////////////////////////////////////////////////
@@ -1974,21 +1974,19 @@ struct tabent {
   uint8_t type;
 } *entry;
 
-#define FILELINES 15
+#define FILELINES 16
 
 /*
- * File chooser UI
- * TODO: Work in progress
+ * Draw one line in file chooser UI
+ * i - index of file to draw
+ * first - index of first file on screen
+ * selected - index of currently selected file
+ * entries - total number of file entries in directory
  */
-void file_ui_draw(uint16_t first, uint16_t selected, uint16_t entries) {
-  uint16_t i;
+void file_ui_draw(uint8_t i, uint8_t first, uint8_t selected, uint8_t entries) {
   struct tabent *entry;
-  uint16_t last = first + FILELINES;
-  gotoxy(0,0);
-  getcwd(userentry, 74);
-  cprintf("Dir: %s", userentry);
-  for (i = first; i <= (last > entries ? entries : last); ++i) {
-    gotoxy(5, i - first + 4);
+  gotoxy(5, i - first + 5);
+  if (i < entries) {
     entry = (struct tabent*)iobuf + i;
     sprintf(userentry, "%02x %s                ", entry->type, entry->name);
     userentry[20] = '\0';
@@ -1997,6 +1995,9 @@ void file_ui_draw(uint16_t first, uint16_t selected, uint16_t entries) {
     cputs(userentry);
     if (i == selected)
       revers(0);
+  } else {
+    strcpy(userentry, "                    ");
+    cputs(userentry);
   }
 }
 
@@ -2004,20 +2005,40 @@ void file_ui_draw(uint16_t first, uint16_t selected, uint16_t entries) {
  * File chooser UI
  * TODO: Work in progress
  */
-void file_ui(void) {
+void file_ui_draw_all(uint16_t first, uint16_t selected, uint16_t entries) {
+  uint16_t i;
+  uint16_t last = first + FILELINES;
+  for (i = first; i < last; ++i)
+    file_ui_draw(i, first, selected, entries);
+}
+
+/*
+ * File chooser UI
+ * Leaves file name in userentry[], or empty string if error/cancel
+ * TODO: Work in progress
+ */
+void file_ui(char *msg) {
   struct tabent *entry;
   DIR *dp;
   struct dirent *ent;
   char c;
   uint16_t entries, current, first;
 restart:
+  clrscr();
+  gotoxy(0,0);
+  revers(1);
+  cprintf("%s", msg);
+  revers(0);
+  getcwd(userentry, 74);
+  gotoxy(0,2);
+  cprintf("Dir: %s", userentry);
   entries = current = first = 0;
   cutbuflen = 0;
   entry = (struct tabent*)iobuf;
-  strcpy(entry->name, "..");
-  entry->type = 0x0f; // Directory
+  strcpy(entry->name, ".."); // Add fake '..' entry
+  entry->type = 0x0f;
   ++entry;
-  clrscr();
+  ++entries;
   cursor(0);
   dp = opendir(".");
   while (1) {
@@ -2030,8 +2051,9 @@ restart:
     ++entries;
   }
   closedir(dp);
+redraw:
+  file_ui_draw_all(first, current, entries);
   while (1) {
-    file_ui_draw(first, current, entries);
     c = cgetc();
     switch (c) {
     case 0x0b:  // Up
@@ -2042,16 +2064,20 @@ restart:
           first -= FILELINES;
         else
           first = 0;
-        clrscr();
+        goto redraw;
       }
+      file_ui_draw(current, first, current, entries);
+      file_ui_draw(current + 1, first, current, entries);
       break;
     case 0x0a:  // Down
-      if (current < entries)
+      if (current < entries - 1)
         ++current;
       if (current >= first + FILELINES) {
         first += FILELINES;
-        clrscr();
+        goto redraw;
       }
+      file_ui_draw(current - 1, first, current, entries);
+      file_ui_draw(current, first, current, entries);
       break;
     case EOL:
       entry = (struct tabent*)iobuf + current;
@@ -2075,21 +2101,37 @@ restart:
         }
         break;
       case 0x04: // ASCII text
-        cprintf("*** %s **** ASCII", entry->name);
+        strcpy(userentry, entry->name);
         goto done;
         break;
       default:
-        cprintf("*** %s **** NONASCII", entry->name);
+        if (prompt_okay("Not a text file") != 0) {
+          strcpy(userentry, "");
+          goto done;
+        }
+        strcpy(userentry, entry->name);
         goto done;
       }
-      return;
+      break;
     case ESC:
-      cursor(1);
+      strcpy(userentry, "");
+      goto done;
+      break;
+    default: // Any other key ... prompt for filename
+      if (prompt_for_name("Enter filename", 0) == 255)
+        goto restart; // ESC pressed
+      if (userentry[0] == '/')    // Absolute path
+        goto done;
+      getcwd(replace, 74);       // Otherwise relative path
+      strcat(replace, "/");
+      strcat(replace, userentry);
+      strcpy(userentry, replace);
+      strcpy(replace, "");
       goto done;
     }
   }
 done:
-  cgetc();
+  clrscr();
   cursor(1);
 }
 
@@ -2296,10 +2338,11 @@ int edit(char *fname) {
       break;
     case 0x80 + 'I': // OA-I "Insert file"
     case 0x80 + 'i':
-      if (prompt_for_name("File to insert", 1) == 255)
-        break; // ESC pressed
-      if (strlen(userentry) == 0)
+      file_ui("Insert File");
+      if (strlen(userentry) == 0) {
+        draw_screen();
         break;
+      }
       mark_undo();
       if (load_file(userentry, 0, 0)) {
         snprintf(iobuf, 80, "Can't open '%s'", userentry);
@@ -2311,10 +2354,11 @@ int edit(char *fname) {
     case 0x80 + 'o':
       if (status[0])
         save();
-      if (prompt_for_name("File to open", 1) == 255)
-        break; // ESC pressed
-      if (strlen(userentry) == 0)
+      file_ui("Open File");
+      if (strlen(userentry) == 0) {
+        draw_screen();
         break;
+      }
       strcpy(filename, userentry);
       if (load_file(filename, 1, 0)) {
         snprintf(userentry, 80, "Can't open '%s'", filename);
@@ -2529,9 +2573,6 @@ donehelp:
           canundo = 0;
         } else if ((c =='S') || (c == 's')) { // CA-S "Save all"
           save_all();
-          draw_screen();
-        } else if (c == '\\') { // TODO: TEMP DEBUG KEY
-          file_ui();
           draw_screen();
         }
       }
