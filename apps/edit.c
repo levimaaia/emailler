@@ -1991,7 +1991,7 @@ struct tabent {
  * selected - index of currently selected file
  * entries - total number of file entries in directory
  */
-void file_ui_draw(uint8_t i, uint8_t first, uint8_t selected, uint8_t entries) {
+void file_ui_draw(uint16_t i, uint16_t first, uint16_t selected, uint16_t entries) {
   struct tabent *entry;
   gotoxy(5, i - first + 5);
   if (i < entries) {
@@ -2026,6 +2026,41 @@ void file_ui_draw_all(uint16_t first, uint16_t selected, uint16_t entries) {
 }
 
 /*
+ * Perform ProDOS MLI ON_LINE call to
+ * write all online volume names into iobuf[]
+ * Return the number of entries
+ */
+uint16_t online(void) {
+  uint16_t entries = 0;
+  struct tabent *entry;
+  uint8_t i, j, len;
+  __asm__("lda #$00"); // All devices
+  __asm__("sta mliparam + 1");
+  __asm__("lda #<%v", iobuf); // iobuf LSB
+  __asm__("sta mliparam + 2");
+  __asm__("lda #>%v", iobuf); // iobuf MSB
+  __asm__("ina");             // Bump up 256 bytes into iobuf
+  __asm__("sta mliparam + 3");
+  __asm__("lda #$c5"); // ON_LINE
+  __asm__("ldx #$02"); // Two parms
+  __asm__("jsr callmli");
+  entry = (struct tabent*)iobuf;
+  for (i = 0; i < 16; ++i) {
+    len = iobuf[256 + i * 16] & 0x0f;
+    if (len > 0) {
+      entry->type = 0x0f;
+      entry->name[0] = '/';
+      for (j = 0; j < len; ++j)
+        entry->name[j + 1] = iobuf[256 + i * 16 + j + 1];
+      entry->name[j + 1] = '\0';
+      ++entry;
+      ++entries;
+    }
+  }
+  return entries;
+}
+
+/*
  * File chooser UI
  * Leaves file name in userentry[], or empty string if error/cancel
  * msg1 - Message for top line
@@ -2037,6 +2072,7 @@ void file_ui(char *msg1, char *msg2) {
   struct dirent *ent;
   char c;
   uint16_t entries, current, first;
+  uint8_t toplevel = 0;
 restart:
   clrscr();
   gotoxy(0,0);
@@ -2048,27 +2084,31 @@ restart:
   getcwd(userentry, 74);
   gotoxy(0,3);
   revers(1);
-  cprintf("%s", userentry);
+  cprintf("%s", (toplevel ? "Volumes" : userentry));
   revers(0);
   entries = current = first = 0;
   cutbuflen = 0;
-  entry = (struct tabent*)iobuf;
-  strcpy(entry->name, ".."); // Add fake '..' entry
-  entry->type = 0x0f;
-  ++entry;
-  ++entries;
-  cursor(0);
-  dp = opendir(".");
-  while (1) {
-    ent = readdir(dp);
-    if (!ent)
-      break;
-    memcpy(entry->name, ent->d_name, 16);
-    entry->type = ent->d_type;
+  if (toplevel) {
+    entries = online();
+  } else {
+    entry = (struct tabent*)iobuf;
+    strcpy(entry->name, ".."); // Add fake '..' entry
+    entry->type = 0x0f;
     ++entry;
     ++entries;
+    cursor(0);
+    dp = opendir(".");
+    while (1) {
+      ent = readdir(dp);
+      if (!ent)
+        break;
+      memcpy(entry->name, ent->d_name, 16);
+      entry->type = ent->d_type;
+      ++entry;
+      ++entries;
+    }
+    closedir(dp);
   }
-  closedir(dp);
 redraw:
   file_ui_draw_all(first, current, entries);
   while (1) {
@@ -2108,13 +2148,22 @@ redraw:
               userentry[c] = '\0';
               break;
             }
-          chdir(userentry);
+          if (c <= 1)
+            toplevel = 1;
+          else
+            chdir(userentry);
           goto restart;
         } else {
-          getcwd(userentry, 74);
-          strcat(userentry, "/");
-          strcat(userentry, entry->name);
-          chdir(userentry);
+          if (toplevel) {
+            strcpy(userentry, entry->name);
+            chdir(userentry);
+          } else {
+            getcwd(userentry, 74);
+            strcat(userentry, "/");
+            strcat(userentry, entry->name);
+            chdir(userentry);
+          }
+          toplevel = 0;
           goto restart;
         }
         break;
