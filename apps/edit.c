@@ -1890,6 +1890,8 @@ void buffer_list(void) {
 #pragma code-name (pop)
 #endif
 
+void file_ui(char *); // Forward declaration
+
 /*
  * Rename a file, taking care of multi-bank files
  */
@@ -1898,8 +1900,7 @@ void name_file(void) {
   uint8_t origbank = l_auxbank;
   uint8_t retval = 0, modified = 0, first = 1;
   uint8_t filebank;
-  if (prompt_for_name("New filename", 1) == 255)
-    return; // ESC pressed
+  file_ui("Select existing file to overwrite, or enter new filename to create");
   if (strlen(userentry) == 0)
     return;
   if (bank != origbank)
@@ -2341,7 +2342,7 @@ int edit(char *fname) {
       break;
     case 0x80 + 'I': // OA-I "Insert file"
     case 0x80 + 'i':
-      file_ui("Insert File");
+      file_ui("Insert file: Select file or enter filename");
       if (strlen(userentry) == 0) {
         draw_screen();
         break;
@@ -2357,7 +2358,7 @@ int edit(char *fname) {
     case 0x80 + 'o':
       if (status[0])
         save();
-      file_ui("Open File");
+      file_ui("Open file: Select file or enter filename");
       if (strlen(userentry) == 0) {
         draw_screen();
         break;
