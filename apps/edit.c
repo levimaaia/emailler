@@ -1984,7 +1984,10 @@ void file_ui_draw(uint16_t first, uint16_t selected, uint16_t entries) {
   uint16_t i;
   struct tabent *entry;
   uint16_t last = first + FILELINES;
-  for (i = first; i < (last > entries ? entries : last); ++i) {
+  gotoxy(0,0);
+  getcwd(userentry, 74);
+  cprintf("Dir: %s", userentry);
+  for (i = first; i <= (last > entries ? entries : last); ++i) {
     gotoxy(5, i - first + 4);
     entry = (struct tabent*)iobuf + i;
     sprintf(userentry, "%02x %s                ", entry->type, entry->name);
@@ -2006,9 +2009,14 @@ void file_ui(void) {
   DIR *dp;
   struct dirent *ent;
   char c;
-  uint16_t entries = 0, current = 0, first = 0;
+  uint16_t entries, current, first;
+restart:
+  entries = current = first = 0;
   cutbuflen = 0;
   entry = (struct tabent*)iobuf;
+  strcpy(entry->name, "..");
+  entry->type = 0x0f; // Directory
+  ++entry;
   clrscr();
   cursor(0);
   dp = opendir(".");
@@ -2047,15 +2055,42 @@ void file_ui(void) {
       break;
     case EOL:
       entry = (struct tabent*)iobuf + current;
-      cprintf("*** %s ****", entry->name);
-      cgetc();
-      cursor(1);
+      switch (entry->type) {
+      case 0x0f: // Directory
+        getcwd(userentry, 74);
+        if (strcmp(entry->name, "..") == 0) {
+          for (c = strlen(userentry); c > 0; --c)
+            if (userentry[c] == '/') {
+              userentry[c] = '\0';
+              break;
+            }
+          chdir(userentry);
+          goto restart;
+        } else {
+          getcwd(userentry, 74);
+          strcat(userentry, "/");
+          strcat(userentry, entry->name);
+          chdir(userentry);
+          goto restart;
+        }
+        break;
+      case 0x04: // ASCII text
+        cprintf("*** %s **** ASCII", entry->name);
+        goto done;
+        break;
+      default:
+        cprintf("*** %s **** NONASCII", entry->name);
+        goto done;
+      }
       return;
     case ESC:
       cursor(1);
-      return;
+      goto done;
     }
-  } 
+  }
+done:
+  cgetc();
+  cursor(1);
 }
 
 /*
