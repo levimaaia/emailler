@@ -1,5 +1,5 @@
 --------------------------------------------------------------------------------
- v1.22                       }}} EDIT.SYSTEM HELP }}}                  Page One 
+ v1.23                       }}} EDIT.SYSTEM HELP }}}                  Page One 
 --------------------------------------+-----------------------------------------
  Navigation:                          | Editing:                                
   Cursor keys  Move the cursor        |  [Return]    Split line                 
@@ -20,5 +20,5 @@
   {-Q          Quit                   |  [Delete]    Delete selected text       
                                       |  ESC         Clear selection            
 --------------+-----------------------|  {-Z         Undo block operation       
- [Q]uit help  | [Any Other Key] next  |                                         
+ [ESC] exit   | [Any Other Key] next  |                                         
 --------------+-----------------------+----------------------------------------

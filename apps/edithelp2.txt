@@ -18,7 +18,7 @@ Buffer Management:
 Paragraph Formatting                   | Miscellaneous:                         
   {-W         Word-wrap paragraph      |  {-?         This help                 
   {-U         Unwrap paragraph         |  [CTRL]-L    Refresh screen            
-                                       |                                        
+                                       |  [ESC]       Cancel operation          
 --------------+-----------+------------+----------------------------------------
- [Q]uit help  | [Cursor Up] Previous   |                                        
+ [ESC] exit   | [Cursor Up] Previous   |                                        
 --------------+------------------------+---------------------------------------

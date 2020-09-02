@@ -66,6 +66,7 @@ uint16_t oldgapend     = BUFSZ - 1;  // ditto
 char    userentry[82] = "";  // Couple extra chars so we can store 80 col line
 char    search[80]    = "";
 char    replace[80]   = "";
+char    startdir[80]  = "";
 
 uint8_t rowlen[NROWS];       // Number of chars on each row of screen
 
@@ -1587,7 +1588,7 @@ void help(uint8_t num) {
   revers(0);
   cursor(0);
   clrscr();
-  snprintf(iobuf, 80, "EDITHELP%u.TXT", num);
+  snprintf(iobuf, 80, "%s/EDITHELP%u.TXT", startdir, num);
   fp = fopen(iobuf, "rb");
   if (!fp) {
     printf("Can't open help file\n\n");
@@ -2081,7 +2082,7 @@ restart:
   revers(0);
   gotoxy(0,1);
   cprintf("%s", msg2);
-  getcwd(userentry, 74);
+  getcwd(userentry, 80);
   gotoxy(0,3);
   revers(1);
   cprintf("%s", (toplevel ? "Volumes" : userentry));
@@ -2141,7 +2142,7 @@ redraw:
       entry = (struct tabent*)iobuf + current;
       switch (entry->type) {
       case 0x0f: // Directory
-        getcwd(userentry, 74);
+        getcwd(userentry, 80);
         if (strcmp(entry->name, "..") == 0) {
           for (c = strlen(userentry); c > 0; --c)
             if (userentry[c] == '/') {
@@ -2158,7 +2159,7 @@ redraw:
             strcpy(userentry, entry->name);
             chdir(userentry);
           } else {
-            getcwd(userentry, 74);
+            getcwd(userentry, 80);
             strcat(userentry, "/");
             strcat(userentry, entry->name);
             chdir(userentry);
@@ -2172,7 +2173,7 @@ redraw:
         goto done;
         break;
       default:
-        if (prompt_okay("Not a text file") != 0) {
+        if (prompt_okay("Not a text file, open anyhow") != 0) {
           strcpy(userentry, "");
           goto done;
         }
@@ -2189,7 +2190,7 @@ redraw:
         goto restart; // ESC pressed
       if (userentry[0] == '/')    // Absolute path
         goto done;
-      getcwd(replace, 74);       // Otherwise relative path
+      getcwd(replace, 80);       // Otherwise relative path
       strcat(replace, "/");
       strcat(replace, userentry);
       strcpy(userentry, replace);
@@ -2502,6 +2503,7 @@ help1:
       help(1);
       c = cgetc();
       switch (c) {
+      case ESC:
       case 'q':
       case 'Q':
         goto donehelp;
@@ -2681,6 +2683,7 @@ void main(int argc, char *argv[]) {
   disconnect_ramdisk();
   avail_aux_banks();
   init_aux_banks();
+  getcwd(startdir, 80);
 #endif
   if (argc == 2) {
     quit_to_email = 1;
