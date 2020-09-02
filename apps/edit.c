@@ -1638,6 +1638,9 @@ void load_attacher(void) {
   exec("ATTACHER.SYSTEM", filename); // Assume it is in current directory
 }
 
+void file_ui(char *, char *); // Forward declaration
+void name_file(void);         // Forward declaration
+
 /*
  * Save file to disk, handle user interface
  */
@@ -1646,19 +1649,16 @@ void save(void) {
   FILE *fp;
   if (strlen(filename) == 0) {
     status[1] = 1; // Prompt if save will overwrite existing file
-    snprintf(userentry, 80,
-             "[%03u] *UNSAVED CHANGES* File to save", l_auxbank);
-    if (prompt_for_name(userentry, 1) == 255)
-      return; // If ESC pressed
-    if (strlen(userentry) == 0)
+    name_file();
+    if (strlen(filename) == 0)
       return;
-    strcpy(filename, userentry);
   }
   // If status[1] is set, check for overwrite
   if (status[1]) {
     fp = fopen(filename, "r");
     if (fp) {
       fclose(fp);
+      beep();
       snprintf(userentry, 80, "File '%s' exists, overwrite", filename);
       if (prompt_okay(userentry) != 0)
         return; 
@@ -1867,6 +1867,10 @@ void buffer_list(void) {
   for (i = 1; i <= banktbl[0]; ++i) {
     if (row == 0) {
       clrscr();
+      revers(1);
+      cprintf("Active Buffer List (Total number of buffers: %u)", banktbl[0]);
+      revers(0);
+      gotoxy(0, ++row);
       cprintf(" Buf  Size   Mod  Part  Filename\r");
       gotoxy(0, ++row);
     }
@@ -1890,8 +1894,6 @@ void buffer_list(void) {
 #pragma code-name (pop)
 #endif
 
-void file_ui(char *); // Forward declaration
-
 /*
  * Rename a file, taking care of multi-bank files
  */
@@ -1900,17 +1902,22 @@ void name_file(void) {
   uint8_t origbank = l_auxbank;
   uint8_t retval = 0, modified = 0, first = 1;
   uint8_t filebank;
-  file_ui("Select existing file to overwrite, or enter new filename to create");
-  if (strlen(userentry) == 0)
+  file_ui("Set Filename",
+          "Select existing file to overwrite, or enter new filename to create");
+  if (strlen(userentry) == 0) {
+    draw_screen();
     return;
+  }
   if (bank != origbank)
     change_aux_bank(bank);
   if (status[2] == 0) { // Oh, it's actually just a single bank file
     strcpy(filename, userentry);
     status[1] = 1; // Should prompt if overwriting file on save
+    draw_screen();
     return;
   }
   if (status[2] != 1) {
+    draw_screen();
     show_error("SBF error"); // Should never happen
     return;
   }
@@ -1921,7 +1928,7 @@ void name_file(void) {
     change_aux_bank(++l_auxbank);
   } while (status[2] == filebank + 1);
   change_aux_bank(origbank);
-  update_status_line();
+  draw_screen();
 }
 
 /*
@@ -2007,7 +2014,9 @@ void file_ui_draw(uint8_t i, uint8_t first, uint8_t selected, uint8_t entries) {
 
 /*
  * File chooser UI
- * TODO: Work in progress
+ * first - index of first file on screen
+ * selected - index of currently selected file
+ * entries - total number of file entries in directory
  */
 void file_ui_draw_all(uint16_t first, uint16_t selected, uint16_t entries) {
   uint16_t i;
@@ -2019,9 +2028,10 @@ void file_ui_draw_all(uint16_t first, uint16_t selected, uint16_t entries) {
 /*
  * File chooser UI
  * Leaves file name in userentry[], or empty string if error/cancel
- * TODO: Work in progress
+ * msg1 - Message for top line
+ * msg2 - Message for second line
  */
-void file_ui(char *msg) {
+void file_ui(char *msg1, char *msg2) {
   struct tabent *entry;
   DIR *dp;
   struct dirent *ent;
@@ -2031,11 +2041,15 @@ restart:
   clrscr();
   gotoxy(0,0);
   revers(1);
-  cprintf("%s", msg);
+  cprintf("%s", msg1);
   revers(0);
+  gotoxy(0,1);
+  cprintf("%s", msg2);
   getcwd(userentry, 74);
-  gotoxy(0,2);
-  cprintf("Dir: %s", userentry);
+  gotoxy(0,3);
+  revers(1);
+  cprintf("%s", userentry);
+  revers(0);
   entries = current = first = 0;
   cutbuflen = 0;
   entry = (struct tabent*)iobuf;
@@ -2342,7 +2356,8 @@ int edit(char *fname) {
       break;
     case 0x80 + 'I': // OA-I "Insert file"
     case 0x80 + 'i':
-      file_ui("Insert file: Select file or enter filename");
+      file_ui("Insert File at Cursor",
+              "Select file or enter filename");
       if (strlen(userentry) == 0) {
         draw_screen();
         break;
@@ -2358,7 +2373,8 @@ int edit(char *fname) {
     case 0x80 + 'o':
       if (status[0])
         save();
-      file_ui("Open file: Select file or enter filename");
+      file_ui("Open File",
+              "Select file or enter filename");
       if (strlen(userentry) == 0) {
         draw_screen();
         break;
@@ -2375,7 +2391,6 @@ int edit(char *fname) {
     case 0x80 + 'N': // OA-N "Name"
     case 0x80 + 'n': // OA-n
       name_file();
-      update_status_line();
       break;
     case 0x80 + 'Q': // OA-Q "Quit"
     case 0x80 + 'q': // OA-q
@@ -2536,6 +2551,16 @@ donehelp:
             break;
           }
           change_aux_bank(tmp);
+          startsel = endsel = 65535U;
+          draw_screen();
+        } else if (c == 0x0a) { // CA-Down
+          tmp = (l_auxbank - 1) % banktbl[0];
+          change_aux_bank(tmp);
+          startsel = endsel = 65535U;
+          draw_screen();
+        } else if (c == 0x0b) { // CA-Up
+          tmp = (l_auxbank + 1) % banktbl[0];
+          change_aux_bank(l_auxbank + 1);
           startsel = endsel = 65535U;
           draw_screen();
         } else if ((c == 'E') || (c == 'e')) { // CA-E "Extend file"
