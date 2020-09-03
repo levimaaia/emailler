@@ -28,7 +28,7 @@
 #define IOSZ       1024      // Size of chunks to use when loading/saving file
 #define CUTBUFSZ   8192      // Size of cut buffer. Must be >IOSZ.
 
-#define EOL       '\r'       // For ProDOS
+#define EOL       '\r'       // ProDOS uses CR line endings
 
 #define BELL       0x07
 #define BACKSPACE  0x08
@@ -77,7 +77,10 @@ uint8_t  row, col;
 
 uint8_t cursrow, curscol; // Cursor position is kept here by draw_screen()
 
-uint8_t  quit_to_email;   // If 1, launch EMAIL.SYSTEM on quit
+uint8_t  email_mode;   // If 0 quit to ProDOS
+                       // If 1 quit to EMAIL.SYSTEM
+                       // If 2 ask about attachments and quit to either
+                       //      ATTACHER.SYSTEM (if y) or EMAIL.SYSTEM (if n)
 
 enum editmode {SEL_NONE, SEL_SELECT, SRCH1, SRCH2, SRCH3};
 enum editmode mode;
@@ -2486,12 +2489,16 @@ int edit(char *fname) {
     case 0x80 + 'Q': // OA-Q "Quit"
     case 0x80 + 'q': // OA-q
       save_all();
-      if (quit_to_email) {
+      switch (email_mode) {
+      case 2:
         if (prompt_okay("Add attachments") == 0)
           load_attacher();
+        // Fall through
+      case 1:
         if (prompt_okay("Quit to EMAIL") == 0)
           load_email();
-      } else {
+        break;
+      default:
         if (prompt_okay("Quit to ProDOS") == 0) {
           revers(0);
           clrscr();
@@ -2706,7 +2713,17 @@ donehelp:
   }
 }
 
+/*
+ * Usage message
+ */
+void usage(void) {
+  printf("Usage: -EDIT.SYSTEM [filename.txt]");
+  printf("   or  -EDIT.SYSTEM [-reademail|-compose] filename.txt");
+  exit(1);
+}
+
 void main(int argc, char *argv[]) {
+  uint8_t i;
 #ifdef AUXMEM
   uint8_t *pp = (uint8_t*)0xbf98;
   if (!(*pp & 0x02)) {
@@ -2722,12 +2739,27 @@ void main(int argc, char *argv[]) {
   init_aux_banks();
   getcwd(startdir, 80);
 #endif
-  if (argc == 2) {
-    quit_to_email = 1;
+  email_mode = 0;
+  switch (argc) {
+  case 3:
+    if (strcmp(argv[1], "-reademail") == 0)
+      email_mode = 1;
+    else if (strcmp(argv[1], "-compose") == 0)
+      email_mode = 2;
+    else
+      usage();
+    edit(argv[2]);
+    break;
+  case 2:
+    if (argv[1][0] == '-')
+      usage();
     edit(argv[1]);
-  } else {
-    quit_to_email = 0;
+    break;
+  case 1:
     edit(NULL);
+    break;
+  default:
+    usage();
   }
 }
 

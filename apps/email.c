@@ -78,11 +78,11 @@ static unsigned char  buf[READSZ];
 #define ERR_NONFATAL 0
 #define ERR_FATAL    1
 
-// Shove this up in the Language Card out of an abundance of caution
 #pragma code-name (push, "LC")
-void load_editor(void) {
-  sprintf(userentry, "%s/EDIT.SYSTEM", cfg_instdir);
-  exec(userentry, filename);
+void load_editor(uint8_t compose) {
+  sprintf(userentry, "%s %s", (compose ? "-compose" : "-reademail"), filename);
+  sprintf(filename, "%s/EDIT.SYSTEM", cfg_instdir);
+  exec(filename, userentry);
 }
 #pragma code-name (pop)
 
@@ -1714,7 +1714,7 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
     error(ERR_NONFATAL, filename);
     if (prompt_okay("Open in editor - ")) {
       sprintf(filename, "%s/OUTBOX/EMAIL.%u", cfg_emaildir, num);
-      load_editor();
+      load_editor(1);
     }
   }
 }
@@ -1834,7 +1834,7 @@ void create_blank_outgoing() {
   sprintf(filename, "Open %s/OUTBOX/EMAIL.%u in editor - ", cfg_emaildir, num);
   if (prompt_okay(filename)) {
     sprintf(filename, "%s/OUTBOX/EMAIL.%u", cfg_emaildir, num);
-    load_editor();
+    load_editor(1);
   }
 done:
   fclose(fp);
@@ -1996,7 +1996,7 @@ void keyboard_hdlr(void) {
     case 0x80 + 'e': // OA-E "Open message in editor"
     case 0x80 + 'E':
       sprintf(filename, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, h->emailnum);
-      load_editor();
+      load_editor(0);
       break;
     case 0x80 + 'r': // OA-R "Retrieve messages from server"
     case 0x80 + 'R':
