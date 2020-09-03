@@ -18,7 +18,7 @@
   {-N          Set file name to save  |  {-C         Copy selected text         
   {-S          Save file              |  {-V         Paste previous cut or copy 
   {-Q          Quit                   |  [Delete]    Delete selected text       
-                                      |  ESC         Clear selection            
+                                      |  [ESC]       Clear selection            
 --------------+-----------------------|  {-Z         Undo block operation       
  [ESC] exit   | [Any Other Key] next  |                                         
 --------------+-----------------------+----------------------------------------
