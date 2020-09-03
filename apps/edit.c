@@ -1633,7 +1633,8 @@ done:
 void load_email(void) {
   revers(0);
   clrscr();
-  exec("EMAIL.SYSTEM", NULL); // Assume it is in current directory
+  sprintf(userentry, "%s/EMAIL.SYSTEM", startdir);
+  exec(userentry, NULL);
 }
 
 /*
@@ -1642,7 +1643,8 @@ void load_email(void) {
 void load_attacher(void) {
   revers(0);
   clrscr();
-  exec("ATTACHER.SYSTEM", filename); // Assume it is in current directory
+  sprintf(userentry, "%s/ATTACHER.SYSTEM", startdir);
+  exec(userentry, filename);
 }
 
 void file_ui(char *, char *, char *); // Forward declaration
