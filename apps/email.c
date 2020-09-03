@@ -1432,20 +1432,22 @@ uint8_t write_email_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h,
 
 /*
  * Prompt ok?
+ * Returns 1 for yes
+ *         0 for no or ESC
  */
 char prompt_okay(char *msg) {
   char c;
   goto_prompt_row();
-  printf("%sSure? (y/n)", msg);
+  printf("%sSure? (y/n/ESC)", msg);
   while (1) {
     c = cgetc();
-    if ((c == 'y') || (c == 'Y') || (c == 'n') || (c == 'N'))
+    if ((c == 'y') || (c == 'Y') || (c == 'n') || (c == 'N') || (c == ESC))
       break;
     putchar(BELL);
   } 
   if ((c == 'y') || (c == 'Y'))
     c = 1;
-  else
+  else 
     c = 0;
   putchar(CLRLINE);
   return c;
