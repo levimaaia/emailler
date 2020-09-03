@@ -38,6 +38,7 @@
 #define CURDOWN       0x0a
 #define HOME          0x19
 #define CLRLINE       0x1a
+#define ESC           0x1b
 #define CURUP         0x1f
 #define DELETE        0x7f
 
@@ -1332,7 +1333,7 @@ uint8_t parse_from_addr(char *p, char *q) {
  * Returns number of chars read.
  * prompt - Message to display before > prompt
  * is_file - if 1, restrict chars to those allowed in ProDOS filename
- * Returns number of chars read
+ * Returns number of chars read, or 255 if ESC pressed
  */
 uint8_t prompt_for_name(char *prompt, uint8_t is_file) {
   uint16_t i;
@@ -1342,8 +1343,8 @@ uint8_t prompt_for_name(char *prompt, uint8_t is_file) {
   i = 0;
   while (1) {
     c = cgetc();
-    if (is_file && !isalnum(c) &&
-        (c != RETURN) && (c != BACKSPACE) && (c != DELETE) && (c != '.')) {
+    if (is_file && !isalnum(c) && (c != RETURN) && (c != BACKSPACE) &&
+        (c != DELETE) && (c != ESC) && (c != '.')) {
       putchar(BELL);
       continue;
     }
@@ -1360,6 +1361,10 @@ uint8_t prompt_for_name(char *prompt, uint8_t is_file) {
       } else
         putchar(BELL);
       break;
+    case ESC:
+      userentry[0] = '\0';
+      i = 255;
+      goto esc_pressed;
     default:
       putchar(c);
       userentry[i++] = c;
@@ -1369,6 +1374,7 @@ uint8_t prompt_for_name(char *prompt, uint8_t is_file) {
   }
 done:
   userentry[i] = '\0';
+esc_pressed:
   putchar(CLRLINE);
   goto_prompt_row();
   return i;
@@ -1381,7 +1387,7 @@ done:
  * h    - headers of the message being replied/forwarded
  * mode - 'R' for reply, 'F' for forward
  * fwd_to - Recipient (used for mode=='F' only)
- * Returns 0 if okay, 1 on error
+ * Returns 0 if okay, 1 on error, 255 if ESC pressed
  */
 uint8_t write_email_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h,
                             char mode, char *fwd_to) {
@@ -1399,7 +1405,8 @@ uint8_t write_email_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h,
     fprintf(fp2, "To: %s\r", buf);
   } else
     fprintf(fp2, "To: %s\r", fwd_to);
-  prompt_for_name("cc", 0);
+  if (prompt_for_name("cc", 0) == 255)
+    return 255; // ESC pressed
   if (strlen(userentry) > 0)
     fprintf(fp2, "cc: %s\r", userentry);
   fprintf(fp2, "X-Mailer: %s - Apple II Forever!\r\r", PROGNAME);
@@ -1594,7 +1601,8 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
   FILE *fp2;
 
   if (mode == 'F') {
-    prompt_for_name("Fwd to", 0);
+    if (prompt_for_name("Fwd to", 0) == 255)
+      return; // ESC pressed
     if (strlen(userentry) == 0)
       return;
   }
@@ -1623,8 +1631,10 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
   }
 
   if (mode != ' ')
-    if (write_email_headers(fp, fp2, h, mode, userentry)) {
+    l = write_email_headers(fp, fp2, h, mode, userentry);
+    if (l == 1)
       error(ERR_NONFATAL, "Invalid email header");
+    if ((l == 1) || (l == 255)) {
       fclose(fp);
       fclose(fp2);
       return;
@@ -1797,16 +1807,19 @@ void create_blank_outgoing() {
   }
 
   fprintf(fp, "From: %s\r", cfg_emailaddr);
-  prompt_for_name("To", 0);
+  if (prompt_for_name("To", 0) == 255)
+    goto done; // ESC pressed
   if (strlen(userentry) == 0)
-    return;
+    goto done;
   fprintf(fp, "To: %s\r", userentry);
-  prompt_for_name("Subject", 0);
+  if (prompt_for_name("Subject", 0) == 255)
+    goto done; // ESC pressed
   fprintf(fp, "Subject: %s\r", userentry);
   readdatetime((unsigned char*)(SYSTEMTIME), &dt);
   datetimelong(&dt, userentry);
   fprintf(fp, "Date: %s\r", userentry);
-  prompt_for_name("cc", 0);
+  if (prompt_for_name("cc", 0) == 255)
+    goto done; // ESC pressed
   if (strlen(userentry) > 0)
     fprintf(fp, "cc: %s\r", userentry);
   fprintf(fp, "X-Mailer: %s - Apple II Forever!\r\r", PROGNAME);
@@ -1821,6 +1834,8 @@ void create_blank_outgoing() {
     sprintf(filename, "%s/OUTBOX/EMAIL.%u", cfg_emaildir, num);
     load_editor();
   }
+done:
+  fclose(fp);
 }
 
 /*
@@ -1905,15 +1920,19 @@ void keyboard_hdlr(void) {
       break;
     case 'c':
     case 'C':
-      if (h)
-        if (prompt_for_name("Copy to mbox", 1))
+      if (h) {
+        c = prompt_for_name("Copy to mbox", 1);
+        if ((c != 0) && (c != 255))
           copy_to_mailbox_tagged(userentry, 0);
+      }
       break;
     case 'm':
     case 'M':
-      if (h)
-        if (prompt_for_name("Move to mbox", 1))
+      if (h) {
+        c = prompt_for_name("Move to mbox", 1);
+        if ((c != 0) && (c != 255))
           copy_to_mailbox_tagged(userentry, 1);
+      }
       break;
     case 'a':
     case 'A':
@@ -1948,12 +1967,14 @@ void keyboard_hdlr(void) {
     // Everything below here does NOT need a selected message
     case 'n':
     case 'N':
-      if (prompt_for_name("New mbox", 1))
+      c = prompt_for_name("New mbox", 1);
+      if ((c != 0) && (c != 255))
         new_mailbox(userentry);
       break;
     case 's':
     case 'S':
-      if (prompt_for_name("Switch mbox", 1))
+      c = prompt_for_name("Switch mbox", 1);
+      if ((c != 0) && (c != 255))
         switch_mailbox(userentry);
       break;
     case 'w':
