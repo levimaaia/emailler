@@ -88,6 +88,12 @@ char openapple[] = "\x0f\x1b""A\x18\x0e";
 // Mousetext Closed-Apple
 char closedapple[] = "\x0f\x1b""@\x18\x0e";
 
+char openfilemsg[] = 
+" Select file from tree browser, or [Tab] to enter filename. [Esc] cancels.";
+
+char namefilemsg[] = 
+" Enter a new filename to create file. Select an existing file to overwrite it.";
+
 /*
  * Return number of bytes of freespace in gapbuf
  */
@@ -1639,8 +1645,8 @@ void load_attacher(void) {
   exec("ATTACHER.SYSTEM", filename); // Assume it is in current directory
 }
 
-void file_ui(char *, char *); // Forward declaration
-void name_file(void);         // Forward declaration
+void file_ui(char *, char *, char *); // Forward declaration
+void name_file(void);                 // Forward declaration
 
 /*
  * Save file to disk, handle user interface
@@ -1903,8 +1909,7 @@ void name_file(void) {
   uint8_t origbank = l_auxbank;
   uint8_t retval = 0, modified = 0, first = 1;
   uint8_t filebank;
-  file_ui("Set Filename",
-          "Select existing file to overwrite, or enter new filename to create");
+  file_ui("Set Filename", openfilemsg, namefilemsg);
   if (strlen(userentry) == 0) {
     draw_screen();
     return;
@@ -1995,7 +2000,7 @@ struct tabent {
  */
 void file_ui_draw(uint16_t i, uint16_t first, uint16_t selected, uint16_t entries) {
   struct tabent *entry;
-  gotoxy(5, i - first + 5);
+  gotoxy(5, i - first + 6);
   if (i < entries) {
     entry = (struct tabent*)iobuf + i;
     if (entry->type == 0x0f) {
@@ -2094,8 +2099,9 @@ uint16_t online(void) {
  * Leaves file name in userentry[], or empty string if error/cancel
  * msg1 - Message for top line
  * msg2 - Message for second line
+ * msg3 - Message for third line
  */
-void file_ui(char *msg1, char *msg2) {
+void file_ui(char *msg1, char *msg2, char *msg3) {
   struct tabent *entry;
   DIR *dp;
   struct dirent *ent;
@@ -2110,8 +2116,10 @@ restart:
   revers(0);
   gotoxy(0,1);
   cprintf("%s", msg2);
+  gotoxy(0,2);
+  cprintf("%s", msg3);
   getcwd(userentry, 80);
-  gotoxy(0,3);
+  gotoxy(0,4);
   revers(1);
   cprintf("%s", (toplevel ? "Volumes" : userentry));
   revers(0);
@@ -2218,7 +2226,7 @@ redraw:
       strcpy(userentry, "");
       goto done;
       break;
-    default: // Any other key ... prompt for filename
+    case 0x09: // Tab
       if (prompt_for_name("Enter filename", 0) == 255)
         goto restart; // ESC pressed
       if (userentry[0] == '/')    // Absolute path
@@ -2439,8 +2447,7 @@ int edit(char *fname) {
       break;
     case 0x80 + 'I': // OA-I "Insert file"
     case 0x80 + 'i':
-      file_ui("Insert File at Cursor",
-              "Select file or enter filename");
+      file_ui("Insert File at Cursor", "", openfilemsg);
       if (strlen(userentry) == 0) {
         draw_screen();
         break;
@@ -2456,8 +2463,7 @@ int edit(char *fname) {
     case 0x80 + 'o':
       if (status[0])
         save();
-      file_ui("Open File",
-              "Select file or enter filename");
+      file_ui("Open File", "", openfilemsg);
       if (strlen(userentry) == 0) {
         draw_screen();
         break;
