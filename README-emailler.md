@@ -46,11 +46,11 @@ All three of the mail programs `POP65.SYSTEM`, `EMAIL.SYSTEM` and `SMTP65.SYSTEM
 Here is an example config file (with passwords replaced with `****` for obvious reasons):
 
 ```
-192.168.10.2
+192.168.10.2:110
 pi
 ******
 NODELETE
-192.168.10.2
+192.168.10.2:25
 apple2.local
 /IP65
 /H1/EMAIL
@@ -59,11 +59,11 @@ bobbi.8bit@gmail.com
 
 The lines are as follows, in order:
 
- 1) IP address of the POP3 server for receiving new mail.
+ 1) IP address of the POP3 server for receiving new mail, optionally followed by a colon and then the TCP port number.  If the colon and port number are omitted, port 110 is the default.
  2) Username to use when connecting to POP3.
  3) Password for POP3 connection (in plaintext).
  4) If this string is exactly `DELETE` then messages will be deleted from the POP3 server after downloading.  Otherwise they are left on the server.  `DELETE` is the normal setting, but `NODELETE` (or any other nonsense value) can be helpful for debugging, allowing the same messages to be downloaded from the POP3 server again and again.
- 5) IP address of the SMTP server for sending outgoing mail.
+ 5) IP address of the SMTP server for sending outgoing mail, optionally followed by a colon and then the TCP portnumber.  If the colon and port number are omitted, port 25 is the default.
  6) Domain name that is passed to the SMTP server on connection.  The way my SMTP server (Postfix) is configured, it doesn't seem to care about this.
  7) ProDOS path of the directory where the email executables are installed.
  8) ProDOS path to the root of the email folder tree.  Mailboxes will be created and managed under this root path.
