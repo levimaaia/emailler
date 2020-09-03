@@ -42,6 +42,7 @@ char     filename[80];
 int      len;
 FILE     *fp;
 uint32_t filesize;
+uint16_t smtp_port;
 
 /*
  * Keypress before quit
@@ -329,21 +330,28 @@ uint8_t expect(char *buf, char *s) {
  * Read parms from EMAIL.CFG
  */
 void readconfigfile(void) {
-    fp = fopen("EMAIL.CFG", "r");
-    if (!fp) {
-      puts("Can't open config file EMAIL.CFG");
-      error_exit();
-    }
-    fscanf(fp, "%s", cfg_server);
-    fscanf(fp, "%s", cfg_user);
-    fscanf(fp, "%s", cfg_pass);
-    fscanf(fp, "%s", cfg_pop_delete);
-    fscanf(fp, "%s", cfg_smtp_server);
-    fscanf(fp, "%s", cfg_smtp_domain);
-    fscanf(fp, "%s", cfg_instdir);
-    fscanf(fp, "%s", cfg_emaildir);
-    fscanf(fp, "%s", cfg_emailaddr);
-    fclose(fp);
+  char *colon;
+  fp = fopen("EMAIL.CFG", "r");
+  if (!fp) {
+    puts("Can't open config file EMAIL.CFG");
+    error_exit();
+  }
+  fscanf(fp, "%s", cfg_server);
+  fscanf(fp, "%s", cfg_user);
+  fscanf(fp, "%s", cfg_pass);
+  fscanf(fp, "%s", cfg_pop_delete);
+  fscanf(fp, "%s", cfg_smtp_server);
+  fscanf(fp, "%s", cfg_smtp_domain);
+  fscanf(fp, "%s", cfg_instdir);
+  fscanf(fp, "%s", cfg_emaildir);
+  fscanf(fp, "%s", cfg_emailaddr);
+  fclose(fp);
+
+  colon = strchr(cfg_smtp_server, ':');
+  if (!colon)
+    smtp_port = 25;
+  else
+    smtp_port = atoi(colon + 1);
 }
 
 /*
@@ -521,7 +529,7 @@ void main(int argc, char *argv[]) {
 
   printf("Ok\nConnecting to %s   - ", cfg_smtp_server);
 
-  if (!w5100_connect(parse_dotted_quad(cfg_smtp_server), 25)) {
+  if (!w5100_connect(parse_dotted_quad(cfg_smtp_server), smtp_port)) {
     printf("Fail\n");
     error_exit();
   }
