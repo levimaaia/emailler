@@ -1871,7 +1871,7 @@ void buffer_list(void) {
       revers(1);
       cprintf("Active Buffer List (Total number of buffers: %u)", banktbl[0]);
       revers(0);
-      gotoxy(0, ++row);
+      gotoxy(0, row += 2);
       cprintf(" Buf  Size   Mod  Part  Filename\r");
       gotoxy(0, ++row);
     }
@@ -2535,12 +2535,8 @@ int edit(char *fname) {
 help1:
       help(1);
       c = cgetc();
-      switch (c) {
-      case ESC:
-      case 'q':
-      case 'Q':
+      if (c == ESC)
         goto donehelp;
-      }
       help(2);
       c = cgetc();
       switch (c) {
@@ -2637,14 +2633,14 @@ donehelp:
           change_aux_bank(tmp);
           startsel = endsel = 65535U;
           draw_screen();
-        } else if (c == 0x0a) { // CA-Down
-          tmp = (l_auxbank - 1) % banktbl[0];
+        } else if ((c == '-') || (c == '_')) { // CA-minus
+          tmp = (l_auxbank - 2) % banktbl[0] + 1;
           change_aux_bank(tmp);
           startsel = endsel = 65535U;
           draw_screen();
-        } else if (c == 0x0b) { // CA-Up
-          tmp = (l_auxbank + 1) % banktbl[0];
-          change_aux_bank(l_auxbank + 1);
+        } else if ((c == '+') || (c == '=')) { // CA-plus
+          tmp = l_auxbank % banktbl[0] + 1;
+          change_aux_bank(tmp);
           startsel = endsel = 65535U;
           draw_screen();
         } else if ((c == 'E') || (c == 'e')) { // CA-E "Extend file"

@@ -8,8 +8,8 @@
  buffers may be used in order to allow files larger than 46KB to be edited.     
 --------------------------------------------------------------------------------
 Buffer Management:                                                              
-  }-1 ... Quick jump to buffer 1 ...      }-Up        Next buffer               
-  }-9     ... through buffer 9            }-Down      Previous buffer           
+  }-1 ... Quick jump to buffer 1 ...      }-[+]       Next buffer               
+  }-9     ... through buffer 9            }-[-]       Previous buffer           
   }-B     Select buffer by number         }-L         List active buffers       
   }-T     Truncate file here, freeing any subsequent buffers                    
   }-E     Extend file by appending a new buffer                                 
