@@ -4,7 +4,7 @@
 // Bobbi June 2020
 /////////////////////////////////////////////////////////////////
 
-#define PROGNAME "emai//er v1.00"
+#define PROGNAME "emai//er v1.01"
 
 // Configuration params from POP65.CFG
 char cfg_server[40];         // IP of POP3 server
