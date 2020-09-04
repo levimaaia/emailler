@@ -1708,14 +1708,8 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
   email_summary_for(selection);
 
   if (mode != ' ') {
-    // Not really an error but useful to have an alert
-    sprintf(filename, "Created %s %s/OUTBOX/EMAIL.%u",
-            (mode == 'R' ? "reply" : "fwded msg"), cfg_emaildir, num);
-    error(ERR_NONFATAL, filename);
-    if (prompt_okay("Open in editor - ")) {
-      sprintf(filename, "%s/OUTBOX/EMAIL.%u", cfg_emaildir, num);
-      load_editor(1);
-    }
+    sprintf(filename, "%s/OUTBOX/EMAIL.%u", cfg_emaildir, num);
+    load_editor(1);
   }
 }
 
@@ -1831,11 +1825,8 @@ void create_blank_outgoing() {
   if (update_next_email("OUTBOX", num + 1))
     return;
 
-  sprintf(filename, "Open %s/OUTBOX/EMAIL.%u in editor - ", cfg_emaildir, num);
-  if (prompt_okay(filename)) {
-    sprintf(filename, "%s/OUTBOX/EMAIL.%u", cfg_emaildir, num);
-    load_editor(1);
-  }
+  sprintf(filename, "%s/OUTBOX/EMAIL.%u", cfg_emaildir, num);
+  load_editor(1);
 done:
   fclose(fp);
 }
