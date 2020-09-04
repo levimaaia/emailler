@@ -13,7 +13,7 @@
 #include <unistd.h>
 #include "email_common.h"
 
-#define PROMPT_ROW 21
+#define PROMPT_ROW 23
 
 #define EOL       '\r'
 
@@ -36,6 +36,14 @@ char          userentry[80];
 uint8_t       quit_to_email;   // If 1, launch EMAIL.SYSTEM on quit
 char          filename[80];
 char          iobuf[IOBUFSZ];
+
+struct attachinfo {
+  char     filename[16];
+  uint32_t size;
+  struct attachinfo *next;
+};
+
+struct attachinfo *attachments = NULL;
 
 #define ERR_NONFATAL 0
 #define ERR_FATAL    1
@@ -564,6 +572,8 @@ void attach(char *fname) {
   uint16_t chars, i;
   uint32_t size;
   char *s, c;
+  struct attachinfo *a;
+  struct attachinfo *latest = NULL;
   uint8_t attachcount = 0;
   videomode(VIDEOMODE_80COL);
   printf("%c%s ATTACHER%c\n\n", 0x0f, PROGNAME, 0x0e);
@@ -603,9 +613,20 @@ void attach(char *fname) {
       printf("\n  There is currently 1 attachment.\n\n", attachcount);
     else
       printf("\n  There are currently %u attachments.\n\n", attachcount);
-    goto_prompt_row();
+    a = attachments;
+    i = 1;
+    if (attachcount > 0)
+      printf("  #   Bytes  Filename\n");
+    while (a) {
+      if (i == 13) {
+        printf(" < ... More Attachments, Not Shown ... >\n");
+        break;
+      }
+      printf("%3d %7lu  %s\n", i++, a->size, a->filename);
+      a = a->next;
+    }
+    gotoxy(0, 21);
     printf("%c A)dd attachment | D)one with attachments |                                     %c", INVERSE, NORMAL);
-    printf("%c                 |                        |                                     %c", INVERSE, NORMAL);
 ask:
     c = cgetc();
     if ((c == 'D') || (c == 'd'))
@@ -614,14 +635,14 @@ ask:
       beep();
       goto ask;
     }
-    sprintf(userentry, "Attachment #%u : Select a File to Attach", ++attachcount);
+    sprintf(userentry, "Attachment #%u : Select a File to Attach", attachcount);
     file_ui(userentry,
             "",
             " Select file from tree browser, or [Tab] to enter filename. [Esc] cancels.");
     printf("%c%s ATTACHER%c\n\n", 0x0f, PROGNAME, 0x0e);
     if (strlen(userentry) == 0) {
       beep();
-      printf("No file was selected!\n"); 
+      printf("  ** No file was selected!\n"); 
       continue;
     }
     s = strrchr(userentry, '/');
@@ -631,14 +652,15 @@ ask:
       s = s + 1; // Character after the slash
     if (strlen(s) == 0) {
       beep();
-      printf("Illegal trailing slash!\n");
+      sprintf(linebuf, "  ** Illegal trailing slash '%s'!\n", userentry);
+      printf(linebuf);
       continue;
     }
     fp2 = fopen(userentry, "rb");
     if (!fp2) {
       beep();
-      sprintf(userentry, "Can't open %s!\n", userentry);
-      printf(userentry);
+      sprintf(linebuf, "  ** Can't open '%s'!\n", userentry);
+      printf(linebuf);
       continue;
     }
     fprintf(destfp, "\r--a2forever\r");
@@ -658,6 +680,16 @@ ask:
     } while (!feof(fp2));
     fclose(fp2);
     spinner(size, 1);
+    ++attachcount;
+    if (!attachments)
+      attachments = latest = malloc(sizeof(struct attachinfo));
+    else {
+      latest->next = malloc(sizeof(struct attachinfo));
+      latest = latest->next;
+    }
+    strcpy(latest->filename, userentry);
+    latest->size = size;
+    latest->next = NULL;
   }
 done:
   fprintf(destfp, "\r--a2forever--\r");
