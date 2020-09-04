@@ -2466,8 +2466,14 @@ int edit(char *fname) {
       break;
     case 0x80 + 'O': // OA-O "Open"
     case 0x80 + 'o':
-      if (status[0])
-        save();
+      if (status[0]) { // Buffer is modified
+        if (strlen(filename) == 0)
+          strcpy(userentry, "Save <scratch> buffer");
+        else
+          snprintf(userentry, 80, "Save '%s'", filename);
+        if (prompt_okay(userentry) == 0)
+          save();
+      }
       file_ui("Open File", "", openfilemsg);
       if (strlen(userentry) == 0) {
         draw_screen();
