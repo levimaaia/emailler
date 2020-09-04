@@ -10,8 +10,6 @@
 // Note: Use my fork of cc65 to get a flashing cursor!!
 /////////////////////////////////////////////////////////////////////////////
 
-#define AUXMEM               // No longer builds without AUXMEM
-
 #include <conio.h>
 #include <ctype.h>
 #include <dirent.h>
@@ -36,18 +34,12 @@
 #define ESC        0x1b
 #define DELETE     0x7f
 
-#ifdef AUXMEM
 #define BUFSZ 0xb7fe             // Aux from 0x800 to 0xbfff, minus a pad byte
 char     iobuf[CUTBUFSZ];        // Buffer for disk I/O and cut/paste
 uint8_t  banktbl[1+8*16];        // Handles up to 8MB. Map of banks.
 uint8_t  auxbank = 0;            // Currently selected aux bank (physical)
 uint8_t  l_auxbank = 1;          // Currently selected aux bank (logical)
 uint16_t cutbuflen = 0;          // Length of data in cut buffer
-#else
-#define BUFSZ (20480 - 1024)     // 19KB
-char     gapbuf[BUFSZ];
-char     padding = 0;            // To null terminate for strstr()
-#endif
 
 // The following fields, plus the gap buffer, represent the state of
 // the current buffer.  These are stashed in each aux page from 0x200 up.
@@ -121,7 +113,6 @@ char namefilemsg[] =
  */
 #pragma code-name (push, "LC")
 char get_gapbuf(uint16_t i) {
-#ifdef AUXMEM
   *(uint16_t*)(0xfe) = (uint16_t)0x0800 + i; // Stuff address in Zero Page
   __asm__("lda %v", auxbank); 
   __asm__("sta $c073");  // Set aux bank
@@ -132,9 +123,6 @@ char get_gapbuf(uint16_t i) {
   __asm__("lda #$00");
   __asm__("sta $c073");  // Set aux bank back to 0
   return *(uint8_t*)(0xff);
-#else
-  return gapbuf[i];
-#endif
 }
 #pragma code-name (pop)
 
@@ -146,7 +134,6 @@ char get_gapbuf(uint16_t i) {
  */
 #pragma code-name (push, "LC")
 void set_gapbuf(uint16_t i, char c) {
-#ifdef AUXMEM
   __asm__("lda %v", auxbank); 
   __asm__("sta $c073");  // Set aux bank
   __asm__("sta $c005"); // Write aux mem
@@ -154,9 +141,6 @@ void set_gapbuf(uint16_t i, char c) {
   __asm__("sta $c004"); // Write main mem
   __asm__("lda #$00");
   __asm__("sta $c073");  // Set aux bank back to 0
-#else
-  gapbuf[i] = c;
-#endif
 }
 #pragma code-name (pop)
 
@@ -169,18 +153,15 @@ void set_gapbuf(uint16_t i, char c) {
  */
 #pragma code-name (push, "LC")
 void move_in_gapbuf(uint16_t dst, uint16_t src, size_t n) {
-#ifdef AUXMEM
   if (dst > src) {
     // Start with highest addr and copy downwards
     *(uint16_t*)(0xfa) = n;                              // Stuff sz in ZP
     *(uint16_t*)(0xfc) = (uint16_t)0x0800 + src - 1; // Stuff src in ZP
     *(uint16_t*)(0xfe) = (uint16_t)0x0800 + dst - 1; // Stuff dst in ZP
-#ifdef AUXMEM
     __asm__("lda %v", auxbank); 
     __asm__("sta $c073");  // Set aux bank
     __asm__("sta $c005"); // Write aux mem
     __asm__("sta $c003"); // Read aux mem
-#endif
     __asm__("clc");          // Prepare the source pointer
     __asm__("lda $fd");      // MSB of source
     __asm__("adc $fb");      // MSB of n
@@ -216,23 +197,19 @@ dl3:
     __asm__("inx");
     __asm__("jmp %g", dl2);
 ds2:
-#ifdef AUXMEM
     __asm__("sta $c002"); // Read main mem
     __asm__("sta $c004"); // Write main mem
     __asm__("lda #$00");
     __asm__("sta $c073"); // Set aux bank back to 0
-#endif
   } else {
     // Start with lowest addr and copy upwards
     *(uint16_t*)(0xfa) = n;                              // Stuff sz in ZP
     *(uint16_t*)(0xfc) = (uint16_t)0x0800 + src;         // Stuff src in ZP
     *(uint16_t*)(0xfe) = (uint16_t)0x0800 + dst;         // Stuff dst in ZP
-#ifdef AUXMEM
     __asm__("lda %v", auxbank); 
     __asm__("sta $c073");  // Set aux bank
     __asm__("sta $c005"); // Write aux mem
     __asm__("sta $c003"); // Read aux mem
-#endif
     __asm__("ldx #$00");
 al1:
     __asm__("cpx $fb");      // MSB of n
@@ -259,21 +236,16 @@ al3:
     __asm__("iny");
     __asm__("jmp %g", al3);
 as2:
-#ifdef AUXMEM
     __asm__("sta $c002"); // Read main mem
     __asm__("sta $c004"); // Write main mem
     __asm__("lda #$00");
     __asm__("sta $c073"); // Set aux bank back to 0
-#endif
   }
-#else
-  memmove(gapbuf + dst, gapbuf + src, n);
-#endif
 }
 #pragma code-name (pop)
 
 #pragma data-name (push, "LC")
-char needle[80] = "";               // Must be in LC memory if using AUXMEM
+char needle[80] = "";               // Must be in LC memory
 #pragma data-name (pop)
 
 /*
@@ -301,15 +273,11 @@ uint8_t search_in_gapbuf(uint16_t i, char *srch, uint16_t *loc) {
   *(uint16_t*)(0xfc) = (uint16_t)needle;
   *(uint16_t*)(0xf8) = (uint16_t)needle; // Another copy of needle ptr
 
-#ifdef AUXMEM
   *(uint16_t*)(0xfa) = (uint16_t)0x0800 + i; // Haystack pointer
   __asm__("lda %v", auxbank); 
   __asm__("sta $c073"); // Set aux bank
   __asm__("sta $c005"); // Write aux mem
   __asm__("sta $c003"); // Read aux mem
-#else
-  *(uint16_t*)(0xfa) = (uint16_t)gapbuf + i; // Haystack pointer
-#endif
 
   __asm__("ldy #$00");
   __asm__("lda ($fc),y");      // Get first byte of needle
@@ -365,25 +333,19 @@ l5:
 
 // We found the needle
 found:
-#ifdef AUXMEM
   __asm__("sta $c002"); // Read main mem
   __asm__("sta $c004"); // Write main mem
   __asm__("lda #$00");
   __asm__("sta $c073"); // Set aux bank back to 0
   *loc = *(uint16_t*)0xfa - 0x0800;
-#else
-  *loc = *(uint16_t*)0xfa - (uint16_t)gapbuf;
-#endif
   return 1;
 
 // We reached end of haystack without finding needle
 notfound:
-#ifdef AUXMEM
   __asm__("sta $c002"); // Read main mem
   __asm__("sta $c004"); // Write main mem
   __asm__("lda #$00");
   __asm__("sta $c073"); // Set aux bank back to 0
-#endif
   return 0;
 
 //#else
@@ -696,7 +658,6 @@ uint8_t next_tabstop(uint8_t col) {
   return (col / 8) * 8 + 8;
 }
 
-#ifdef AUXMEM
 #define FROMAUX 0
 #define TOAUX   1
 /*
@@ -717,7 +678,6 @@ void copyaux(char *src, char *dst, uint16_t len, uint8_t dir) {
         __asm__("jsr $c311"); // AUXMOVE
     }
 }
-#endif
 
 /*
  * Translate logic aux bank number to physical.
@@ -734,7 +694,6 @@ uint8_t bank_log_to_phys(uint8_t l) {
  * Current physical bank is in auxbank
  * logbank - desired logical bank
  */
-#ifdef AUXMEM
 #pragma code-name (push, "LC")
 void change_aux_bank(uint8_t logbank) {
   if (logbank > banktbl[0]) {
@@ -755,7 +714,6 @@ void change_aux_bank(uint8_t logbank) {
   __asm__("sta $c073");  // Set aux bank back to 0
 }
 #pragma code-name (pop)
-#endif
 
 /*
  * Used by load_file() when opening a new bank for a large file
@@ -827,19 +785,9 @@ uint8_t load_file(char *fname, uint8_t replace, uint8_t copymode) {
     gapend = BUFSZ - 1;
     col = 0;
   }
-#ifdef AUXMEM
   cutbuflen = 0;
   p = iobuf;
-#else
-  p = gapbuf + gapend - IOSZ; // Read to mem just before gapend
-#endif
   do {
-#ifndef AUXMEM
-    if (FREESPACE() < IOSZ * 2) {
-      show_error("File truncated");
-      goto done;
-    }
-#endif
     spinner(DATASIZE(), 0, copymode);
     s = fread(p, 1, IOSZ, fp);
     cont = (s == IOSZ ? 1 : 0);
@@ -849,7 +797,6 @@ uint8_t load_file(char *fname, uint8_t replace, uint8_t copymode) {
       case '\n': // UNIX files
         set_gapbuf(gapbegin++, '\r');
         col = 0;
-#ifdef AUXMEM
         if (replace && (FREESPACE() < 15000) && (banktbl[0] > 1)) {
           draw_screen();
           if (open_new_aux_bank(++partctr) == 1) {
@@ -862,7 +809,6 @@ uint8_t load_file(char *fname, uint8_t replace, uint8_t copymode) {
             goto done;
           }
         }
-#endif
         break;
       case '\t':
         c = next_tabstop(col) - col;
@@ -883,10 +829,8 @@ uint8_t load_file(char *fname, uint8_t replace, uint8_t copymode) {
 done:
   fclose(fp);
   if (replace) {
-#ifdef AUXMEM
     if (partctr > 0)
       status[2] = ++partctr;
-#endif
     jump_pos(0);
     pos = 0;
     set_modified(0);
@@ -906,19 +850,12 @@ done:
  * Returns 0 on success
  *         1 if file can't be opened
  */
-#ifndef AUXMEM
-#pragma code-name (push, "LC")
-#endif
 uint8_t save_file(uint8_t copymode, uint8_t append) {
   uint16_t pos = gapbegin;
   uint16_t sz;
   uint8_t retval = 1;
   uint8_t i;
-#ifdef AUXMEM
   uint16_t p, j;
-#else
-  char *p;
-#endif
   FILE *fp;
   _filetype = PRODOS_T_TXT;
   _auxtype = 0;
@@ -927,39 +864,24 @@ uint8_t save_file(uint8_t copymode, uint8_t append) {
     goto done;
   jump_pos(copymode == 1 ? startsel : 0);
   goto_prompt_row();
-#ifdef AUXMEM
   cutbuflen = 0;
   p = gapend + 1;
-#else
-  p = gapbuf + gapend + 1;
-#endif
   if (copymode)
     sz = endsel - startsel;
   else
     sz = DATASIZE();
   for (i = 0; i < sz / IOSZ; ++i) {
     spinner(i * IOSZ, 1, copymode);
-#ifdef AUXMEM
     for (j = 0; j < IOSZ; ++j)
       iobuf[j] = get_gapbuf(p++);
     if (fwrite(iobuf, IOSZ, 1, fp) != 1)
       goto done;
-#else
-    if (fwrite(p, IOSZ, 1, fp) != 1)
-      goto done;
-    p += IOSZ;
-#endif
   }
   spinner(i * IOSZ, 1, copymode);
-#ifdef AUXMEM
   for (j = 0; j < sz - (IOSZ * i); ++j)
     iobuf[j] = get_gapbuf(p++);
   if (fwrite(iobuf, sz - (IOSZ * i), 1, fp) != 1)
     goto done;
-#else
-  if (fwrite(p, sz - (IOSZ * i), 1, fp) != 1)
-    goto done;
-#endif
   retval = 0;
   status[0] = 0; // No longer marked modified
 done:
@@ -967,14 +889,10 @@ done:
   jump_pos(pos);
   return retval;
 }
-#ifndef AUXMEM
-#pragma code-name (pop)
-#endif
 
 /*
  * Obtain the first bank number for the current file
  */
-#ifdef AUXMEM
 uint8_t find_first_bank(void) {
   if (status[2] == 0) // Not a multi-bank file
     return l_auxbank;
@@ -982,12 +900,10 @@ uint8_t find_first_bank(void) {
     return l_auxbank;
   return l_auxbank - status[2] + 1; // Assumes banks allocated in order
 }
-#endif
 
 /*
  * Save a large file that spans multiple banks
  */
-#ifdef AUXMEM
 uint8_t save_multibank_file(void) {
   uint8_t bank = find_first_bank();
   uint8_t origbank = l_auxbank;
@@ -1031,7 +947,6 @@ done:
   }
   return retval;
 }
-#endif
 
 /*
  * Read next char from gapbuf[] and update state.
@@ -1603,12 +1518,8 @@ void help(uint8_t num) {
     printf("Can't open help file\n\n");
     goto done;
   }
-#ifdef AUXMEM
   cutbuflen = 0;
   p = iobuf;
-#else
-  p = gapbuf + gapend - IOSZ; // Read to just before gapend
-#endif
   do {
     if (FREESPACE() < IOSZ) {
       beep();
@@ -1677,11 +1588,7 @@ void save(void) {
     }
     fclose(fp);
   }
-#ifdef AUXMEM
   rc = save_multibank_file();
-#else
-  rc = save_file(0, 0);
-#endif
   switch (rc) {
   case 0: // Success
     status[1] = 0; // No need to prompt for overwrite next time
@@ -1870,7 +1777,6 @@ void init_aux_banks(void) {
 /*
  * Generate buffer list
  */
-#ifdef AUXMEM
 #pragma code-name (push, "LC")
 void buffer_list(void) {
   uint8_t o_aux = l_auxbank, row = 0;
@@ -1904,7 +1810,6 @@ void buffer_list(void) {
   cgetc();
 }
 #pragma code-name (pop)
-#endif
 
 /*
  * Rename a file, taking care of multi-bank files
@@ -1945,7 +1850,6 @@ void name_file(void) {
 /*
  * Save all modified buffers
  */
-#ifdef AUXMEM
 void save_all(void) {
   uint8_t o_aux = l_auxbank;
   uint8_t i;
@@ -1965,7 +1869,6 @@ void save_all(void) {
   }
   change_aux_bank(o_aux);
 }
-#endif
 
 /*
  * Sort startsel / endsel in ascending order to allow backwards selection
@@ -2371,7 +2274,6 @@ int edit(char *fname) {
       }
       order_selection();
       position = gapbegin;
-#ifdef AUXMEM
       if (endsel - startsel <= CUTBUFSZ) {
         cutbuflen = endsel - startsel;
         jump_pos(startsel);
@@ -2382,15 +2284,12 @@ int edit(char *fname) {
         __asm__("sta $c073");  // Set aux bank back to 0
       } else {
         cutbuflen = 0;
-#endif
         if (save_file(1, 0) == 1) {
           show_error("Can't save CLIPBOARD");
           draw_screen();
           break;
         }
-#ifdef AUXMEM
       }
-#endif
       if (tmp == 0) { // Cut
         mark_undo();
         jump_pos(startsel);
@@ -2628,7 +2527,6 @@ donehelp:
       }
       break;
     default:
-#ifdef AUXMEM
       if (*(uint8_t*)0xc062 & 0x80) { // Closed Apple depressed
         // CA-number (1-9) - quick jump to first 9 buffers
         if ((c >= '1') && (c <= '9')) {
@@ -2707,9 +2605,6 @@ donehelp:
         }
       }
       else if ((c >= 0x20) && (c < 0x80) && (mode == SEL_NONE)) {
-#else
-      if ((c >= 0x20) && (c < 0x80) && (mode == SEL_NONE)) {
-#endif
         mark_undo();
         insert_char(c);
         update_after_insert_char();
@@ -2730,7 +2625,6 @@ void usage(void) {
 
 void main(int argc, char *argv[]) {
   uint8_t i;
-#ifdef AUXMEM
   uint8_t *pp = (uint8_t*)0xbf98;
   if (!(*pp & 0x02)) {
     printf("Need 80 cols");
@@ -2744,7 +2638,6 @@ void main(int argc, char *argv[]) {
   avail_aux_banks();
   init_aux_banks();
   getcwd(startdir, 80);
-#endif
   email_mode = 0;
   switch (argc) {
   case 3:
