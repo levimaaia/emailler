@@ -1,5 +1,5 @@
 --------------------------------------------------------------------------------
- v1.23                       }}} EDIT.SYSTEM HELP }}}                  Page One 
+ v1.24                       }}} EDIT.SYSTEM HELP }}}                  Page One 
 --------------------------------------+-----------------------------------------
  Navigation:                          | Editing:                                
   Cursor keys  Move the cursor        |  [Return]    Split line                 

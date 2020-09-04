@@ -1631,7 +1631,7 @@ done:
 }
 
 /*
- * Load EMAIL.SYSTEM to $2000 and jump to it
+ * Chain EMAIL.SYSTEM
  */
 void load_email(void) {
   revers(0);
@@ -1641,7 +1641,7 @@ void load_email(void) {
 }
 
 /*
- * Load ATTACHER.SYSTEM to $2000 and jump to it
+ * Chain ATTACHER.SYSTEM
  */
 void load_attacher(void) {
   revers(0);
