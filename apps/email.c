@@ -166,6 +166,32 @@ void pr_spc(uint8_t n) {
 #pragma code-name (pop)
 
 /*
+ * Save preferences
+ */
+void save_prefs(void) {
+  _filetype = PRODOS_T_TXT;
+  _auxtype = 0;
+  fp = fopen("EMAIL.PREFS", "wb");
+  if (!fp)
+    return;
+  fprintf(fp, "order:%s", (reverse ? "<" : ">"));
+  fclose(fp);
+}
+
+/*
+ * Load preferences
+ */
+void load_prefs(void) {
+  char order = 'a';
+  fp = fopen("EMAIL.PREFS", "rb");
+  if (!fp)
+    return;
+  fscanf(fp, "order:%s", &order);
+  fclose(fp);
+  reverse = (order == '<' ? 1 : 0);
+}
+
+/*
  * Print ASCII-art envelope
  */
 #pragma code-name (push, "LC")
@@ -1984,11 +2010,13 @@ void keyboard_hdlr(void) {
     case ',':
     case '<':
       reverse = 1;
+      save_prefs();
       switch_mailbox(curr_mbox);
       break;
     case '.':
     case '>':
       reverse = 0;
+      save_prefs();
       switch_mailbox(curr_mbox);
       break;
     case 0x80 + 'd': // OA-D "Update date using NTP"
@@ -2060,6 +2088,7 @@ void main(void) {
   first_msg = 1;
   read_email_db(first_msg, 1, 0);
   selection = 1;
+  load_prefs();
   email_summary();
   keyboard_hdlr();
 }

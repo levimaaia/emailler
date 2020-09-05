@@ -6,7 +6,7 @@
 
 #include <stdint.h>
 
-#define PROGNAME "emai//er v1.02"
+#define PROGNAME "emai//er v1.03"
 
 // Configuration params from POP65.CFG
 char cfg_server[40];         // IP of POP3 server
