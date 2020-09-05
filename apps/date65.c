@@ -444,11 +444,10 @@ int main(int argc, char *argv[])
 
   strcpy(datestr, ctime(&time.tv_sec));
   datestr[24] = 0; // Remove carriage return
-  printf("%s", datestr);
-  if (dst) {
+  printf("%s (%s)", datestr, _tz.tzname);
+
+  if (dst)
       add_hour(&dt); // Spring forward!
-      printf(" (%s)", dst ? dst_tz_code : nondst_tz_code);
-  }
 
   p = (unsigned char*)0xbf98;
   if (*p & 0x01) {
