@@ -48,7 +48,7 @@ uint16_t smtp_port;
  * Keypress before quit
  */
 void confirm_exit(void) {
-  printf("\nPress any key ");
+  printf("\n[Press Any Key]");
   cgetc();
   if (exec_email_on_exit) {
     sprintf(filename, "%s/EMAIL.SYSTEM", cfg_instdir);

@@ -31,7 +31,7 @@ static char filename[255];
  * Keypress before quit
  */
 void confirm_exit(void) {
-  printf("\nPress any key ");
+  printf("\n[Press Any Key]");
   cgetc();
   exit(0);
 }

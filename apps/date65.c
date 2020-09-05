@@ -15,6 +15,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <ctype.h>
+#include "email_common.h"
 
 #include "../inc/ip65.h"
 
@@ -37,6 +38,7 @@ char nondst_tz_code[4];
 int  nondst_tz_secs;
 char dst_tz_code[4];
 int  dst_tz_secs;
+uint8_t exec_email_on_exit = 0;
 
 /*
  * Is year a leap year?
@@ -222,8 +224,11 @@ void error_exit(void)
 
 void confirm_exit(void)
 {
-  printf("\nPress any key ");
+  printf("\n[Press Any Key]");
   cgetc();
+  if (exec_email_on_exit) {
+    exec("EMAIL.SYSTEM", NULL); // Assuming it is in current working dir
+  }
 }
 
 void printsystemdate(void)
@@ -259,7 +264,7 @@ void readtimezonefile(void) {
     fclose(fp); 
 }
 
-int main(void)
+int main(int argc, char *argv[])
 {
   uint8_t eth_init = ETH_INIT_DEFAULT;
   uint32_t server;
@@ -269,6 +274,14 @@ int main(void)
   char datestr[30]; // Should be long enough
   unsigned char *p;
   unsigned char dow, dst;
+
+  if ((argc == 2) && (strcmp(argv[1], "EMAIL") == 0))
+    exec_email_on_exit = 1;
+
+  if (exec_email_on_exit) {
+    videomode(VIDEOMODE_80COL);
+    printf("%c%s NTP%c\n\n", 0x0f, PROGNAME, 0x0e);
+  }
 
   printsystemdate();
 
@@ -372,7 +385,7 @@ int main(void)
     dt.month = 12;
   else {
     printf("\nWhat kind of month is %s?\n", datestr+4);
-    exit(1);
+    error_exit();
   }
 
   datestr[3] = 0;

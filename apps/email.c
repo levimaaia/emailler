@@ -100,6 +100,13 @@ void load_smtp65(void) {
 }
 #pragma code-name (pop)
 
+#pragma code-name (push, "LC")
+void load_date65(void) {
+  sprintf(filename, "%s/DATE65.SYSTEM", cfg_instdir);
+  exec(filename, "EMAIL");
+}
+#pragma code-name (pop)
+
 /*
  * Put cursor at beginning of PROMPT_ROW
  */
@@ -1983,6 +1990,10 @@ void keyboard_hdlr(void) {
     case '>':
       reverse = 0;
       switch_mailbox(curr_mbox);
+      break;
+    case 0x80 + 'd': // OA-D "Update date using NTP"
+    case 0x80 + 'D':
+      load_date65();
       break;
     case 0x80 + 'e': // OA-E "Open message in editor"
     case 0x80 + 'E':
