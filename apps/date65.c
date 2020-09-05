@@ -41,6 +41,25 @@ int  dst_tz_secs;
 uint8_t exec_email_on_exit = 0;
 
 /*
+ * Add an hour
+ */
+void add_hour(struct datetime *dt) {
+    ++dt->hour;
+    if (dt->hour == 24) {
+        dt->hour = 0;
+        ++dt->day;
+        if (dt->day > months[dt->month]) {
+            dt->day = 1;
+            ++dt->month;
+            if (dt->month == 13) {
+                dt->month = 1;
+                ++dt->year;
+            }
+        }
+    }
+}
+
+/*
  * Is year a leap year?
  */
 unsigned char isleap(unsigned int year) {
@@ -427,7 +446,7 @@ int main(int argc, char *argv[])
   datestr[24] = 0; // Remove carriage return
   printf("%s", datestr);
   if (dst) {
-      ++dt.hour; // Spring forward!
+      add_hour(&dt); // Spring forward!
       printf(" (%s)", dst ? dst_tz_code : nondst_tz_code);
   }
 
