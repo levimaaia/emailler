@@ -1756,9 +1756,16 @@ s3d1:
   --(*devcnt);  
 }
 
+/*
+ * Stub to invoke the slot 3 drive 1 device driver
+ */
 void s3d1driver(void) {
   __asm__("jmp (%v)", s3d1vec);
 }
+
+/*
+ * Stub to invoke the slot 3 drive 2 device driver
+ */
 
 void s3d2driver(void) {
   __asm__("jmp (%v)", s3d2vec);
