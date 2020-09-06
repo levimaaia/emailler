@@ -4,8 +4,6 @@
 // Bobbi June, July 2020
 /////////////////////////////////////////////////////////////////
 
-// TODO: Get rid of all uses of malloc(). Don't need it.
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -333,6 +331,7 @@ void printsystemdate(void) {
 /*
  * Free linked list rooted at headers
  */
+#pragma code-name (push, "LC")
 void free_headers_list(void) {
   struct emailhdrs *h = headers;
   while (h) {
@@ -341,6 +340,7 @@ void free_headers_list(void) {
   }
   headers = NULL;
 }
+#pragma code-name (pop)
 
 /*
  * Read EMAIL.DB and populate linked list rooted at headers
@@ -349,6 +349,7 @@ void free_headers_list(void) {
  * switchmbox - if 1, then errors are treated as non-fatal (for S)witch command)
  * Returns 0 if okay, 1 on non-fatal error.
  */
+#pragma code-name (push, "LC")
 uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox) {
   struct emailhdrs *curr = NULL, *prev = NULL;
   uint16_t count = 0;
@@ -441,6 +442,7 @@ uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox)
   fclose(fp);
   return 0;
 }
+#pragma code-name (pop)
 
 /*
  * Print a header field from char postion start to end,
@@ -2093,6 +2095,7 @@ void keyboard_hdlr(void) {
 /*
  * Disconnect RAM disk /RAM
  */
+#if 0
 void disconnect_ramdisk(void) {
   uint8_t i, j;
   uint8_t *devcnt = (uint8_t*)0xbf31; // Number of devices
@@ -2114,6 +2117,7 @@ void disconnect_ramdisk(void) {
   *s3d2 = *s0d1;
   --(*devcnt);
 }
+#endif
 
 void main(void) {
   uint8_t *pp;
@@ -2123,7 +2127,9 @@ void main(void) {
   if ((*pp & 0x30) != 0x30)
     error(ERR_FATAL, "Need 128K");
   videomode(VIDEOMODE_80COL);
+#if 0
   disconnect_ramdisk();
+#endif
   readconfigfile();
   reverse = 0;
   first_msg = 1;
