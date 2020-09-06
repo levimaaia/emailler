@@ -22,8 +22,7 @@
 #include "email_common.h"
 
 // Program constants
-#define MSGS_PER_PAGE 18     // Number of messages shown on summary screen
-#define MENU_ROW      22     // Row that the menu appears on
+#define MSGS_PER_PAGE 19     // Number of messages shown on summary screen
 #define PROMPT_ROW    24     // Row that data entry prompt appears on
 #define READSZ        1024   // Size of buffer for copying files
 
@@ -45,6 +44,8 @@
 // Addresses
 #define CURSORROW     0x0025
 #define SYSTEMTIME    0xbf90
+
+char openapple[] = "\x0f\x1b""A\x18\x0e";
 
 /*
  * Represents a date and time
@@ -465,14 +466,12 @@ void print_one_email_summary(struct emailhdrs *h, uint8_t inverse) {
     putchar('D'); // Deleted
     break;
   }
-  //printf("%02d|", h->emailnum);
   putchar('|');
   printfield(h->date, 0, 16);
   putchar('|');
   printfield(h->from, 0, 20);
   putchar('|');
   printfield(h->subject, 0, 39);
-  //putchar('\r');
   putchar(NORMAL);
 }
 
@@ -524,10 +523,9 @@ void email_summary(void) {
     h = h->next;
   }
   putchar(HOME);
-  for (i = 0; i < MENU_ROW - 1; ++i) 
+  for (i = 0; i < PROMPT_ROW - 2; ++i) 
     putchar(CURDOWN);
-  printf("%cUp/K Prev | SPC/RET Read | A)rchive | C)opy | M)ove  | D)el   | U)ndel | P)urge %c", INVERSE, NORMAL);
-  printf("%cDn/J Next | S)witch mbox | N)ew mbox| T)ag  | W)rite | R)eply | F)wd   | Q)uit  %c", INVERSE, NORMAL);
+  printf("%cOA-? Help                                                                       %c", INVERSE, NORMAL);
 }
 
 /*
@@ -1865,6 +1863,38 @@ done:
 }
 
 /*
+ * Display help screen
+ */
+void help(void) {
+  clrscr2();
+  printf("%c%s HELP%c\n", INVERSE, PROGNAME, NORMAL);
+  puts("------------------------------------------+------------------------------------");
+  puts("Email Summary Screen                      | Email Pager");
+  puts("  [Up]   / K        Previous message      |   [Space]   Page forward");
+  puts("  [Down] / J        Next message          |   B         Page back");
+  puts("  [Space] / [Ret]   Read current message  |   T         Go to top");
+  puts("  Q                 Quit to ProDOS        |   M         MIME mode");
+  puts("------------------------------------------+   H         Show email headers");
+  puts("Message Management                        |   Q         Return to summary");     
+  puts("  S   Switch mailbox                      +------------------------------------");
+  puts("  N   Create new mailbox");
+  puts("  T   Tag current message for group Archive/Move/Copy");
+  puts("  A   Archive current/tagged message to 'received' mailbox");
+  puts("  C   Copy current/tagged message to another mailbox");
+  puts("  M   Move current/tagged message to another mailbox");
+  puts("  D   Mark current message deleted");
+  puts("  U   Undelete current message if marked deleted");
+  puts("  P   Purge messages marked as deleted");
+  puts("------------------------------------------+------------------------------------");
+  puts("Message Composition                       | Invoke Helper Programs");
+  printf("  W   Write an email message              |   %s-R     Retrieve messages\n", openapple);
+  printf("  R   Reply to current message            |   %s-S     Send outbox\n", openapple);
+  printf("  F   Forward current message             |   %s-D     Set date using NTP\n", openapple);
+  fputs("------------------------------------------+------------------------------------", stdout);
+  cgetc();
+}
+
+/*
  * Keyboard handler
  */
 void keyboard_hdlr(void) {
@@ -2035,6 +2065,10 @@ void keyboard_hdlr(void) {
     case 0x80 + 's': // OA-S "Send messages in Outbox to server"
     case 0x80 + 'S':
       load_smtp65();
+      break;
+    case 0x80 + '?': // OA-? "Help"
+      help();
+      email_summary();
       break;
     case 'q':
     case 'Q':
