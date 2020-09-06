@@ -1241,6 +1241,7 @@ void purge_deleted(void) {
   _auxtype = 0;
   fp2 = fopen(filename, "wb");
   if (!fp2) {
+    fclose(fp);
     error(ERR_NONFATAL, "Can't open %s", filename);
     return;
   }
@@ -1865,6 +1866,7 @@ done:
 /*
  * Display help screen
  */
+#pragma code-name (push, "LC")
 void help(void) {
   clrscr2();
   printf("%c%s HELP%c\n", INVERSE, PROGNAME, NORMAL);
@@ -1893,6 +1895,7 @@ void help(void) {
   fputs("------------------------------------------+------------------------------------", stdout);
   cgetc();
 }
+#pragma code-name (pop)
 
 /*
  * Keyboard handler
