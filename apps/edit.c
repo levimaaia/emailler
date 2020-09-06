@@ -27,6 +27,9 @@
 #define IOSZ       1024      // Size of chunks to use when loading/saving file
 #define CUTBUFSZ   8192      // Size of cut buffer. Must be >IOSZ.
 
+#define INFOADDR   0x0800    // Aux mem address for info about buffer
+#define GAPBUFADDR 0x0880    // Aux mem address for gapbuffer itself
+
 #define EOL       '\r'       // ProDOS uses CR line endings
 
 #define BELL       0x07
@@ -90,6 +93,12 @@ char openfilemsg[] =
 char namefilemsg[] = 
 " Enter a new filename to create file. Select an existing file to overwrite it.";
 
+// The following are used for reconnecting /RAM and /RAM3 on exit
+uint16_t s3d1vec;
+uint16_t s3d2vec;
+uint8_t  s3d1dev;
+uint8_t  s3d2dev;
+
 /*
  * Return number of bytes of freespace in gapbuf
  */
@@ -114,7 +123,7 @@ char namefilemsg[] =
  */
 #pragma code-name (push, "LC")
 char get_gapbuf(uint16_t i) {
-  *(uint16_t*)(0xfe) = (uint16_t)0x0800 + i; // Stuff address in Zero Page
+  *(uint16_t*)(0xfe) = (uint16_t)GAPBUFADDR + i; // Stuff address in Zero Page
   __asm__("lda %v", auxbank); 
   __asm__("sta $c073");  // Set aux bank
   __asm__("sta $c003");  // Read aux mem
@@ -138,7 +147,7 @@ void set_gapbuf(uint16_t i, char c) {
   __asm__("lda %v", auxbank); 
   __asm__("sta $c073");  // Set aux bank
   __asm__("sta $c005"); // Write aux mem
-  (*(char*)((char*)0x0800 + i)) = c;
+  (*(char*)((char*)GAPBUFADDR + i)) = c;
   __asm__("sta $c004"); // Write main mem
   __asm__("lda #$00");
   __asm__("sta $c073");  // Set aux bank back to 0
@@ -157,8 +166,8 @@ void move_in_gapbuf(uint16_t dst, uint16_t src, size_t n) {
   if (dst > src) {
     // Start with highest addr and copy downwards
     *(uint16_t*)(0xfa) = n;                              // Stuff sz in ZP
-    *(uint16_t*)(0xfc) = (uint16_t)0x0800 + src - 1; // Stuff src in ZP
-    *(uint16_t*)(0xfe) = (uint16_t)0x0800 + dst - 1; // Stuff dst in ZP
+    *(uint16_t*)(0xfc) = (uint16_t)GAPBUFADDR + src - 1; // Stuff src in ZP
+    *(uint16_t*)(0xfe) = (uint16_t)GAPBUFADDR + dst - 1; // Stuff dst in ZP
     __asm__("lda %v", auxbank); 
     __asm__("sta $c073");  // Set aux bank
     __asm__("sta $c005"); // Write aux mem
@@ -205,8 +214,8 @@ ds2:
   } else {
     // Start with lowest addr and copy upwards
     *(uint16_t*)(0xfa) = n;                              // Stuff sz in ZP
-    *(uint16_t*)(0xfc) = (uint16_t)0x0800 + src;         // Stuff src in ZP
-    *(uint16_t*)(0xfe) = (uint16_t)0x0800 + dst;         // Stuff dst in ZP
+    *(uint16_t*)(0xfc) = (uint16_t)GAPBUFADDR + src;         // Stuff src in ZP
+    *(uint16_t*)(0xfe) = (uint16_t)GAPBUFADDR + dst;         // Stuff dst in ZP
     __asm__("lda %v", auxbank); 
     __asm__("sta $c073");  // Set aux bank
     __asm__("sta $c005"); // Write aux mem
@@ -274,7 +283,7 @@ uint8_t search_in_gapbuf(uint16_t i, char *srch, uint16_t *loc) {
   *(uint16_t*)(0xfc) = (uint16_t)needle;
   *(uint16_t*)(0xf8) = (uint16_t)needle; // Another copy of needle ptr
 
-  *(uint16_t*)(0xfa) = (uint16_t)0x0800 + i; // Haystack pointer
+  *(uint16_t*)(0xfa) = (uint16_t)GAPBUFADDR + i; // Haystack pointer
   __asm__("lda %v", auxbank); 
   __asm__("sta $c073"); // Set aux bank
   __asm__("sta $c005"); // Write aux mem
@@ -338,7 +347,7 @@ found:
   __asm__("sta $c004"); // Write main mem
   __asm__("lda #$00");
   __asm__("sta $c073"); // Set aux bank back to 0
-  *loc = *(uint16_t*)0xfa - 0x0800;
+  *loc = *(uint16_t*)0xfa - GAPBUFADDR;
   return 1;
 
 // We reached end of haystack without finding needle
@@ -705,12 +714,12 @@ void change_aux_bank(uint8_t logbank) {
   // Saves filename[], status, gapbegin, gapend (BUFINFOSZ bytes)
   __asm__("lda %v", auxbank); 
   __asm__("sta $c073");  // Set aux bank
-  copyaux(filename, (void*)0x0200, BUFINFOSZ, TOAUX);
+  copyaux(filename, (void*)INFOADDR, BUFINFOSZ, TOAUX);
   // Load new filename[], status, gapbegin, gapend (BUFINFOSZ bytes)
   auxbank = bank_log_to_phys(l_auxbank);
   __asm__("lda %v", auxbank); 
   __asm__("sta $c073");  // Set aux bank
-  copyaux((void*)0x0200, filename, BUFINFOSZ, FROMAUX);
+  copyaux((void*)INFOADDR, filename, BUFINFOSZ, FROMAUX);
   __asm__("lda #$00");
   __asm__("sta $c073");  // Set aux bank back to 0
 }
@@ -1711,30 +1720,99 @@ void disconnect_ramdisk(void) {
   uint16_t *s0d1 = (uint16_t*)0xbf10; // s0d1 driver vector
   uint16_t *s3d1 = (uint16_t*)0xbf16; // s3d1 driver vector
   uint16_t *s3d2 = (uint16_t*)0xbf26; // s3d2 driver vector
-  if (*s0d1 == *s3d2)
+  if (*s0d1 == *s3d2) {
+    s3d2dev = 0;
     goto s3d1;                        // No /RAM
+  }
   check_ramdisk(3 + (2 - 1) * 8);     // s3d2
-  for (i = 0; i < *devcnt; ++i)
-    if ((devlst[i] & 0xf0) == 0xb0)
+  for (i = 0; i <= *devcnt; ++i)
+    if ((devlst[i] & 0xf0) == 0xb0) {
+      s3d2dev = devlst[i];
+      for (j = i; j <= *devcnt; ++j)
+        devlst[j] = devlst[j + 1];
       break;
-  if (i > 0)
-    for (j = i; j < *devcnt; ++j)
-      devlst[j] = devlst[j + 1];
+    }
+  s3d2vec = *s3d2;
   *s3d2 = *s0d1;
   --(*devcnt);  
 s3d1:
-  if (*s0d1 == *s3d1)
+  if (*s0d1 == *s3d1) {
+    s3d1dev = 0;
     return;                           // No /RAM3
+  }
   check_ramdisk(3 + (1 - 1) * 8);     // s3d1
-  for (i = 0; i < *devcnt; ++i)
-    if ((devlst[i] & 0xf0) == 0x30)
+  for (i = 0; i <= *devcnt; ++i)
+    if ((devlst[i] & 0xf0) == 0x30) {
+      s3d1dev = devlst[i];
+      for (j = i; j <= *devcnt; ++j)
+        devlst[j] = devlst[j + 1];
       break;
-  if (i > 0)
-    for (j = i; j < *devcnt; ++j)
-      devlst[j] = devlst[j + 1];
+    }
+  s3d1vec = *s3d1;
   *s3d1 = *s0d1;
   --(*devcnt);  
 }
+
+void s3d1driver(void) {
+  __asm__("jmp (%v)", s3d1vec);
+}
+
+void s3d2driver(void) {
+  __asm__("jmp (%v)", s3d2vec);
+}
+
+/*
+ * Reconnect RAMdisk on exit
+ */
+#pragma optimize (off)
+void reconnect_ramdisk(void) {
+  uint8_t *devcnt = (uint8_t*)0xbf31; // Number of devices
+  uint8_t *devlst = (uint8_t*)0xbf32; // Disk device numbers
+  uint16_t *s3d1 = (uint16_t*)0xbf16; // s3d1 driver vector
+  uint16_t *s3d2 = (uint16_t*)0xbf26; // s3d2 driver vector
+  if (s3d2dev) {
+    *s3d2 = s3d2vec;
+    ++(*devcnt);
+    devlst[*devcnt] = s3d2dev;
+    __asm__("lda #$03");        // FORMAT request
+    __asm__("sta $42");
+    __asm__("lda #$b0");        // Unit number (s3d2)
+    __asm__("sta $43");
+    __asm__("lda #$00");        // LSB of buffer pointer
+    __asm__("sta $44");
+    __asm__("lda #$20");        // MSB of buffer pointer
+    __asm__("sta $45");
+    __asm__("lda $c08b");       // R/W enable LC, bank 1 on
+    __asm__("lda $c08b");
+    __asm__("jsr %v", s3d2driver); // Call driver
+    __asm__("bit $c082");       // ROM back online
+    __asm__("bcc %g", s3d1);    // If no error ...
+    beep();
+    printf("Unable to reconnect S3D2");
+  }
+s3d1:
+  if (s3d1dev) {
+    *s3d1 = s3d1vec;
+    ++(*devcnt);
+    devlst[*devcnt] = s3d1dev;
+    __asm__("lda #$03");        // FORMAT request
+    __asm__("sta $42");
+    __asm__("lda #$30");        // Unit number (s3d1)
+    __asm__("sta $43");
+    __asm__("lda #$00");        // LSB of buffer pointer
+    __asm__("sta $44");
+    __asm__("lda #$20");        // MSB of buffer pointer
+    __asm__("sta $45");
+    __asm__("lda $c08b");       // R/W enable LC, bank 1 on
+    __asm__("lda $c08b");
+    __asm__("jsr %v", s3d1driver); // Call driver
+    __asm__("bit $c082");       // ROM back online
+    __asm__("bcc %g", s3d1);    // If no error ...
+    beep();
+    printf("Unable to reconnect S3D1");
+  }
+}
+#pragma optimize (on)
 
 /*
  * Available aux banks.  Taken from RamWorks III Manual p47
@@ -1801,13 +1879,13 @@ void init_aux_banks(void) {
     // Saves filename[], gapbegin, gapend and modified (BUFINFOSZ bytes)
     __asm__("lda %v", auxbank); 
     __asm__("sta $c073");  // Set aux bank
-    copyaux(filename, (void*)0x0200, BUFINFOSZ, TOAUX);
+    copyaux(filename, (void*)INFOADDR, BUFINFOSZ, TOAUX);
   }
   auxbank = 0;
   l_auxbank = 1;
   __asm__("lda #$00");
   __asm__("sta $c073");  // Set aux bank back to 0
-  for (count = 0; count < 10000; ++count); // Delay so user can read message
+  for (count = 0; count < 50000; ++count); // Delay so user can read message
 }
 
 /*
@@ -2315,7 +2393,7 @@ int edit(char *fname) {
         jump_pos(startsel);
         __asm__("lda %v", auxbank); 
         __asm__("sta $c073");  // Set aux bank
-        copyaux((char*)0x0800 + gapend + 1, iobuf, cutbuflen, FROMAUX);
+        copyaux((char*)GAPBUFADDR + gapend + 1, iobuf, cutbuflen, FROMAUX);
         __asm__("lda #$00");
         __asm__("sta $c073");  // Set aux bank back to 0
       } else {
@@ -2344,7 +2422,7 @@ int edit(char *fname) {
       if (cutbuflen > 0) {
         __asm__("lda %v", auxbank); 
         __asm__("sta $c073");  // Set aux bank
-        copyaux(iobuf, (char*)0x0800 + gapbegin, cutbuflen, TOAUX);
+        copyaux(iobuf, (char*)GAPBUFADDR + gapbegin, cutbuflen, TOAUX);
         __asm__("lda #$00");
         __asm__("sta $c073");  // Set aux bank back to 0
         gapbegin += cutbuflen;
@@ -2443,6 +2521,7 @@ int edit(char *fname) {
         if (prompt_okay("Quit to ProDOS") == 0) {
           revers(0);
           clrscr();
+          reconnect_ramdisk();
           exit(0);
         }
       }
@@ -2656,11 +2735,11 @@ donehelp:
 void usage(void) {
   printf("Usage: -EDIT.SYSTEM [filename.txt]");
   printf("   or  -EDIT.SYSTEM [-reademail|-compose] filename.txt");
+  reconnect_ramdisk();
   exit(1);
 }
 
 void main(int argc, char *argv[]) {
-  uint8_t i;
   uint8_t *pp = (uint8_t*)0xbf98;
   if (!(*pp & 0x02)) {
     printf("Need 80 cols");
