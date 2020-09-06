@@ -12,6 +12,7 @@
 
 #include <conio.h>
 #include <ctype.h>
+#include <dio.h>
 #include <dirent.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -1676,27 +1677,62 @@ search:
 }
 
 /*
- * Disconnect RAM disk /RAM
+ * Check if there are files on a RAM disk
+ * dev - Device number of RAM disk
+ */
+void check_ramdisk(uint8_t dev) {
+  dhandle_t dio_hdl;
+  uint8_t c;
+  dio_hdl = dio_open(dev);
+  dio_read(dio_hdl, 2, iobuf);
+  dio_close(dio_hdl);
+  c = iobuf[0x25] + 256 * iobuf[0x26]; // File count
+  if (c > 0) {
+    fputs("/",stdout);
+    for (c = 0; c < (iobuf[0x04] & 0x0f); ++c)
+      putchar(iobuf[0x05 + c]);
+    printf(" is not empty.\n");
+    printf("[Q] to quit, and preserve RAMDisk\n");
+    beep();
+    c = cgetc();
+    if ((c == 'Q') || (c == 'q'))
+      exit(0);
+  }
+}
+
+/*
+ * Disconnect RAM disks /RAM and/or /RAM3
+ * Note that both /RAM and /RAM3 may be active at the same time!!
  */
 void disconnect_ramdisk(void) {
   uint8_t i, j;
   uint8_t *devcnt = (uint8_t*)0xbf31; // Number of devices
   uint8_t *devlst = (uint8_t*)0xbf32; // Disk device numbers
   uint16_t *s0d1 = (uint16_t*)0xbf10; // s0d1 driver vector
+  uint16_t *s3d1 = (uint16_t*)0xbf16; // s3d1 driver vector
   uint16_t *s3d2 = (uint16_t*)0xbf26; // s3d2 driver vector
   if (*s0d1 == *s3d2)
-    return;               // No /RAM connected
-  for (i = *devcnt; i > 0; --i) {
-    if ((devlst[i] == 0xbf) || (devlst[i] == 0xbb) ||
-        (devlst[i] == 0xb7) || (devlst[i] == 0xb3))
+    goto s3d1;                        // No /RAM
+  check_ramdisk(3 + (2 - 1) * 8);     // s3d2
+  for (i = 0; i < *devcnt; ++i)
+    if ((devlst[i] & 0xf0) == 0xb0)
       break;
-  }
-  if (i > 0) {
-    for (j = i; j < *devcnt; ++j) {
+  if (i > 0)
+    for (j = i; j < *devcnt; ++j)
       devlst[j] = devlst[j + 1];
-    }
-  }
   *s3d2 = *s0d1;
+  --(*devcnt);  
+s3d1:
+  if (*s0d1 == *s3d1)
+    return;                           // No /RAM3
+  check_ramdisk(3 + (1 - 1) * 8);     // s3d1
+  for (i = 0; i < *devcnt; ++i)
+    if ((devlst[i] & 0xf0) == 0x30)
+      break;
+  if (i > 0)
+    for (j = i; j < *devcnt; ++j)
+      devlst[j] = devlst[j + 1];
+  *s3d1 = *s0d1;
   --(*devcnt);  
 }
 
