@@ -2092,33 +2092,6 @@ void keyboard_hdlr(void) {
   }
 }
 
-/*
- * Disconnect RAM disk /RAM
- */
-#if 0
-void disconnect_ramdisk(void) {
-  uint8_t i, j;
-  uint8_t *devcnt = (uint8_t*)0xbf31; // Number of devices
-  uint8_t *devlst = (uint8_t*)0xbf32; // Disk device numbers
-  uint16_t *s0d1 = (uint16_t*)0xbf10; // s0d1 driver vector
-  uint16_t *s3d2 = (uint16_t*)0xbf26; // s3d2 driver vector
-  if (*s0d1 == *s3d2)
-    return;               // No /RAM connected
-  for (i = *devcnt; i > 0; --i) {
-    if ((devlst[i] == 0xbf) || (devlst[i] == 0xbb) ||
-        (devlst[i] == 0xb7) || (devlst[i] == 0xb3))
-      break;
-  }
-  if (i > 0) {
-    for (j = i; j < *devcnt; ++j) {
-      devlst[j] = devlst[j + 1];
-    }
-  }
-  *s3d2 = *s0d1;
-  --(*devcnt);
-}
-#endif
-
 void main(void) {
   uint8_t *pp;
   pp = (uint8_t*)0xbf98;
@@ -2127,9 +2100,6 @@ void main(void) {
   if ((*pp & 0x30) != 0x30)
     error(ERR_FATAL, "Need 128K");
   videomode(VIDEOMODE_80COL);
-#if 0
-  disconnect_ramdisk();
-#endif
   readconfigfile();
   reverse = 0;
   first_msg = 1;
