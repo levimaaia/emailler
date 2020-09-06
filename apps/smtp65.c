@@ -483,11 +483,11 @@ void update_sent_mbox(char *name) {
 
 void main(int argc, char *argv[]) {
   static char sendbuf[80], recipients[160];
-  uint8_t eth_init = ETH_INIT_DEFAULT;
   uint8_t linecount;
   DIR *dp;
   struct dirent *d;
   char *p, *q;
+  uint8_t eth_init = ETH_INIT_DEFAULT, connected = 0;
 
   if ((argc == 2) && (strcmp(argv[1], "EMAIL") == 0))
     exec_email_on_exit = 1;
@@ -523,31 +523,10 @@ void main(int argc, char *argv[]) {
   if (dhcp_init()) {
     ip65_error_exit();
   }
+  printf("Ok\n");
 
   // Copy IP config from IP65 to W5100
   w5100_config(eth_init);
-
-  printf("Ok\nConnecting to %s   - ", cfg_smtp_server);
-
-  if (!w5100_connect(parse_dotted_quad(cfg_smtp_server), smtp_port)) {
-    printf("Fail\n");
-    error_exit();
-  }
-
-  printf("Ok\n\n");
-
-  if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DONT_SEND, CMD_MODE)) {
-    error_exit();
-  }
-  if (expect(buf, "220 "))
-    error_exit();
-
-  sprintf(sendbuf, "HELO %s\r\n", cfg_smtp_domain);
-  if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
-    error_exit();
-  }
-  if (expect(buf, "250 "))
-    error_exit();
 
   sprintf(filename, "%s/OUTBOX", cfg_emaildir);
   dp = opendir(filename);
@@ -593,6 +572,32 @@ void main(int argc, char *argv[]) {
           strcat(recipients, linebuf + 4);
         }
       }
+    }
+
+    if (!connected) {
+      printf("Connecting to %s   - ", cfg_smtp_server);
+
+      if (!w5100_connect(parse_dotted_quad(cfg_smtp_server), smtp_port)) {
+        printf("Fail\n");
+        error_exit();
+      }
+
+      printf("Ok\n\n");
+
+      if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DONT_SEND, CMD_MODE)) {
+        error_exit();
+      }
+      if (expect(buf, "220 "))
+        error_exit();
+
+      sprintf(sendbuf, "HELO %s\r\n", cfg_smtp_domain);
+      if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
+        error_exit();
+      }
+      if (expect(buf, "250 "))
+        error_exit();
+
+      connected = 1;
     }
 
     sprintf(sendbuf, "MAIL FROM:<%s>\r\n", cfg_emailaddr);
@@ -665,7 +670,8 @@ skiptonext:
 
   // Ignore any error - can be a race condition where other side
   // disconnects too fast and we get an error
-  w5100_tcp_send_recv("QUIT\r\n", buf, NETBUFSZ, DO_SEND, CMD_MODE);
+  if (connected)
+    w5100_tcp_send_recv("QUIT\r\n", buf, NETBUFSZ, DO_SEND, CMD_MODE);
 
   printf("Disconnecting\n");
   w5100_disconnect();
