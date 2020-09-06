@@ -1721,11 +1721,14 @@ void disconnect_ramdisk(void) {
   uint16_t *s0d1 = (uint16_t*)0xbf10; // s0d1 driver vector
   uint16_t *s3d1 = (uint16_t*)0xbf16; // s3d1 driver vector
   uint16_t *s3d2 = (uint16_t*)0xbf26; // s3d2 driver vector
+  if (*s0d1 != *s3d2)
+    check_ramdisk(3 + (2 - 1) * 8);     // s3d2
+  if (*s0d1 != *s3d1)
+    check_ramdisk(3 + (1 - 1) * 8);     // s3d1
   if (*s0d1 == *s3d2) {
     s3d2dev = 0;
     goto s3d1;                        // No /RAM
   }
-  check_ramdisk(3 + (2 - 1) * 8);     // s3d2
   for (i = 0; i <= *devcnt; ++i)
     if ((devlst[i] & 0xf0) == 0xb0) {
       s3d2dev = devlst[i];
@@ -1741,7 +1744,6 @@ s3d1:
     s3d1dev = 0;
     return;                           // No /RAM3
   }
-  check_ramdisk(3 + (1 - 1) * 8);     // s3d1
   for (i = 0; i <= *devcnt; ++i)
     if ((devlst[i] & 0xf0) == 0x30) {
       s3d1dev = devlst[i];
