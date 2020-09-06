@@ -38,7 +38,8 @@
 #define ESC        0x1b
 #define DELETE     0x7f
 
-#define BUFSZ 0xb7fe             // Aux from 0x800 to 0xbfff, minus a pad byte
+// Aux memory from GAPBUFADDR to 0xbffe (0xbfff is zero pad byte)
+#define BUFSZ (0xbffe - GAPBUFADDR)
 char     iobuf[CUTBUFSZ];        // Buffer for disk I/O and cut/paste
 uint8_t  banktbl[1+8*16];        // Handles up to 8MB. Map of banks.
 uint8_t  auxbank = 0;            // Currently selected aux bank (physical)
@@ -1697,7 +1698,7 @@ void check_ramdisk(uint8_t dev) {
   dio_close(dio_hdl);
   c = iobuf[0x25] + 256 * iobuf[0x26]; // File count
   if (c > 0) {
-    fputs("/",stdout);
+    fputs("\n/",stdout);
     for (c = 0; c < (iobuf[0x04] & 0x0f); ++c)
       putchar(iobuf[0x05 + c]);
     printf(" is not empty.\n");
@@ -1807,10 +1808,12 @@ s3d1:
     __asm__("lda $c08b");
     __asm__("jsr %v", s3d1driver); // Call driver
     __asm__("bit $c082");       // ROM back online
-    __asm__("bcc %g", s3d1);    // If no error ...
+    __asm__("bcc %g", done);    // If no error ...
     beep();
     printf("Unable to reconnect S3D1");
   }
+done:
+  return;
 }
 #pragma optimize (on)
 
@@ -1870,6 +1873,7 @@ done:
 void init_aux_banks(void) {
   uint8_t i;
   uint16_t count;
+  clrscr();
   revers(1);
   cprintf("EDIT.SYSTEM                   Bobbi 2020");
   revers(0);
