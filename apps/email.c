@@ -169,6 +169,7 @@ void pr_spc(uint8_t n) {
 /*
  * Save preferences
  */
+#pragma code-name (push, "LC")
 void save_prefs(void) {
   _filetype = PRODOS_T_TXT;
   _auxtype = 0;
@@ -178,10 +179,12 @@ void save_prefs(void) {
   fprintf(fp, "order:%s", (reverse ? "<" : ">"));
   fclose(fp);
 }
+#pragma code-name (pop)
 
 /*
  * Load preferences
  */
+#pragma code-name (push, "LC")
 void load_prefs(void) {
   char order = 'a';
   fp = fopen("EMAIL.PREFS", "rb");
@@ -191,6 +194,7 @@ void load_prefs(void) {
   fclose(fp);
   reverse = (order == '<' ? 1 : 0);
 }
+#pragma code-name (pop)
 
 /*
  * Print ASCII-art envelope
