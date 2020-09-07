@@ -331,11 +331,11 @@ void file_ui_draw(uint16_t i, uint16_t first, uint16_t selected, uint16_t entrie
   if (i < entries) {
     entry = (struct tabent*)iobuf + i;
     if (entry->type == 0x0f) {
-      sprintf(userentry, "[ %s ]                               ", entry->name);
+      snprintf(userentry, 80, "[ %s ]                               ", entry->name);
       userentry[34] = '\0';
     } else {
-      sprintf(userentry, "  %s                   ", entry->name);
-      sprintf(&userentry[18], "  %8lu  ", entry->size);
+      snprintf(userentry, 80, "  %s                   ", entry->name);
+      snprintf(&userentry[18], 60, "  %8lu  ", entry->size);
       switch (entry->type) {
       case 0x04:
         sprintf(&userentry[30], "TXT ");
@@ -580,7 +580,7 @@ void attach(char *fname) {
   fp = fopen(fname, "rb+");
   if (!fp)
     error(ERR_FATAL, "Can't open %s", fname);
-  sprintf(filename, "%s/OUTBOX/TMPFILE", cfg_emaildir);
+  snprintf(filename, 80, "%s/OUTBOX/TMPFILE", cfg_emaildir);
   destfp = fopen(filename, "wb");
   if (!destfp)
     error(ERR_FATAL, "Can't open TMPFILE");
@@ -635,7 +635,7 @@ ask:
       beep();
       goto ask;
     }
-    sprintf(userentry, "Attachment #%u : Select a File to Attach", attachcount);
+    snprintf(userentry, 80, "Attachment #%u : Select a File to Attach", attachcount);
     file_ui(userentry,
             "",
             " Select file from tree browser, or [Tab] to enter filename. [Esc] cancels.");
