@@ -756,24 +756,45 @@ uint8_t word_wrap_line(FILE *fp, char **s, uint8_t cols, char mode) {
   return (*s ? 1 : 0);             // Caller should invoke again
 }
 
+uint8_t prompt_for_name(char *, uint8_t); // Forward declaration
+
 /*
  * OK to d/l attachment?
  */
 char prompt_okay_attachment(char *filename) {
   char c;
-  printf("Okay to download %s? (y/n) >", filename);
   while (1) {
+    printf("ProDOS filename:  %s\n", filename);
+    printf("%c                                                      A)ccept | S)kip | R)ename%c\n", INVERSE, NORMAL);
     c = cgetc();
-    if ((c == 'y') || (c == 'Y') || (c == 'n') || (c == 'N'))
+    switch (c) {
+    case 'A':
+    case 'a':
+      return 1;
       break;
-    putchar(BELL);
+    case 'S':
+    case 's':
+      return 0;
+      break;
+    case 'R':
+    case 'r':
+      c = wherey();
+      if (prompt_for_name("Save As", 2) == 255) {
+        gotoxy(0, c);
+        break; // ESC pressed
+      }
+      if (strlen(userentry) > 0) {
+        if (userentry[0] == '/')
+          strcpy(filename, userentry);
+        else
+          snprintf(filename, 80, "%s/ATTACHMENTS/%s", cfg_emaildir, userentry);
+      }
+      gotoxy(0, c);
+      break;
+    default:
+      putchar(BELL);
+    }
   } 
-  putchar(RETURN); // Go to col 0
-  putchar(CURUP);
-  putchar(CLRLINE);
-  if ((c == 'y') || (c == 'Y'))
-    return 1;
-  else
     return 0;
 }
 
@@ -792,6 +813,10 @@ void sanitize_filename(char *s) {
     }
     if (isalnum(c) || c == '.' || c == '/')
       s[j++] = c;
+    if (j == 15) {
+      s[j] = '\0';
+      break;
+    }
   }
 }
 
@@ -890,8 +915,9 @@ void email_pager(struct emailhdrs *h) {
   FILE *sbackfp = NULL;
   const int8_t *b = b64dec - 43;
   FILE *attachfp;
-  uint16_t linecount, chars;
-  uint8_t mime_enc, mime_binary, mime_hasfile, eof, screennum, maxscreennum;
+  uint16_t linecount, chars, skipbytes;
+  uint8_t mime_enc, mime_binary, mime_hasfile, eof,
+          screennum, maxscreennum, attnum;
   char c, *readp, *writep;
   clrscr2();
   snprintf(filename, 80, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, h->emailnum);
@@ -913,6 +939,7 @@ restart:
   mime_enc = ENC_7BIT;
   mime_binary = 0;
   mime_hasfile = 0;
+  attnum = 0;
   if (sbackfp)
     fclose(sbackfp);
   _filetype = PRODOS_T_BIN;
@@ -938,6 +965,13 @@ restart:
   fputs("\nSubject: ", stdout);
   printfield(h->subject, 0, 70);
   fputs("\n\n", stdout);
+
+  // We do not need all the email headers for the summary screen right now.
+  // Freeing them can release up to nearly 8KB. The caller rebuilds the
+  // summary info by calling read_email_db().
+  skipbytes = h->skipbytes;
+  free_headers_list();
+
   get_line(fp, 1, linebuf, &pos); // Reset buffer
   while (1) {
     if (!readp)
@@ -987,21 +1021,29 @@ restart:
         }
       } else if (strstr(writep, "filename=")) {
         mime_hasfile = 1;
-        snprintf(filename, 80, "%s/ATTACHMENTS/%s",
-                cfg_emaildir, strstr(writep, "filename=") + 9);
+        snprintf(filename, 80, "%s", strstr(writep, "filename=") + 9);
+        printf("%cAttachment %u                                                                   %c\n",
+               INVERSE, ++attnum, NORMAL); 
+        printf("  MIME filename:  %s", filename);
         sanitize_filename(filename);
+        snprintf(userentry, 80, "%s/ATTACHMENTS/%s",
+                cfg_emaildir, filename);
+        strcpy(filename, userentry);
+prompt_dl:
         if (prompt_okay_attachment(filename)) {
-          printf("** Attachment -> %s  ", filename);
+          printf("*** Attachment -> %s  ", filename);
           attachfp = fopen(filename, "wb");
-          if (!attachfp)
-            printf("\n** Can't open %s  ", filename);
+          if (!attachfp) {
+            printf("\n*** Can't open %s %d\n", filename, errno);
+            goto prompt_dl;
+          }
         } else
           attachfp = NULL;
       } else if ((mime == 3) && (!strncmp(writep, "\r", 1))) {
         mime = 4;
         if (!attachfp && mime_hasfile) {
           mime_enc = ENC_SKIP; // Skip over MIME parts user chose to skip
-          printf("** Skipping      %s  ", filename);
+          printf("*** Skipping      %s  ", filename);
         } else if (!attachfp && mime_binary) {
           mime_enc = ENC_SKIP; // Skip over binary MIME parts with no filename
           printf("\n");
@@ -1060,7 +1102,7 @@ restart:
       }
     }
 endscreen:
-    if ((*cursorrow == 22) || eof) {
+    if (!mime_hasfile && ((*cursorrow == 22) || eof)) {
       printf("\n%c[%07lu] %s         | B)ack | T)op | H)drs | M)IME | Q)uit%c",
              INVERSE,
              pos,
@@ -1098,7 +1140,7 @@ retry:
       case 'T':
       case 't':
         mime = 0;
-        pos = h->skipbytes;
+        pos = skipbytes;
         fseek(fp, pos, SEEK_SET);
         goto restart;
         break;
@@ -1132,7 +1174,7 @@ retry:
             break;
           }
         } while (linebuf[0] != '\r');
-        pos = h->skipbytes;
+        pos = skipbytes;
         fseek(fp, pos, SEEK_SET);
         goto restart;
       case 'Q':
@@ -1369,6 +1411,7 @@ uint8_t parse_from_addr(char *p, char *q) {
  * Returns number of chars read.
  * prompt - Message to display before > prompt
  * is_file - if 1, restrict chars to those allowed in ProDOS filename
+ *           if 2, restrict chars to those allowed in ProDOS path
  * Returns number of chars read, or 255 if ESC pressed
  */
 uint8_t prompt_for_name(char *prompt, uint8_t is_file) {
@@ -1379,8 +1422,12 @@ uint8_t prompt_for_name(char *prompt, uint8_t is_file) {
   i = 0;
   while (1) {
     c = cgetc();
-    if (is_file && !isalnum(c) && (c != RETURN) && (c != BACKSPACE) &&
-        (c != DELETE) && (c != ESC) && (c != '.')) {
+    if ((is_file > 0) && !isalnum(c) && (c != RETURN) && (c != BACKSPACE) &&
+        (c != DELETE) && (c != ESC) && (c != '.') && (c != '/')) {
+      putchar(BELL);
+      continue;
+    }
+    if ((is_file == 1) && (c == '/')) {
       putchar(BELL);
       continue;
     }
@@ -1962,6 +2009,7 @@ void keyboard_hdlr(void) {
         h->status = 'R'; // Mark email read
         write_updated_headers(h, get_db_index());
         email_pager(h);
+        read_email_db(first_msg, 0, 0); // email_pager() deletes the headers
         email_summary();
       }
       break;
@@ -2097,6 +2145,11 @@ void main(void) {
     error(ERR_FATAL, "Need 80 cols");
   if ((*pp & 0x30) != 0x30)
     error(ERR_FATAL, "Need 128K");
+
+// Clear system bit map
+for (pp = (uint8_t*)0xbf58; pp <= (uint8_t*)0xbf6f; ++pp)
+  *pp = 0;
+
   videomode(VIDEOMODE_80COL);
   readconfigfile();
   reverse = 0;
