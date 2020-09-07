@@ -1558,7 +1558,7 @@ done:
 void load_email(void) {
   revers(0);
   clrscr();
-  sprintf(userentry, "%s/EMAIL.SYSTEM", startdir);
+  snprintf(userentry, 80, "%s/EMAIL.SYSTEM", startdir);
   exec(userentry, NULL);
 }
 
@@ -1568,7 +1568,7 @@ void load_email(void) {
 void load_attacher(void) {
   revers(0);
   clrscr();
-  sprintf(userentry, "%s/ATTACHER.SYSTEM", startdir);
+  snprintf(userentry, 80, "%s/ATTACHER.SYSTEM", startdir);
   exec(userentry, filename);
 }
 
@@ -2039,11 +2039,11 @@ void file_ui_draw(uint16_t i, uint16_t first, uint16_t selected, uint16_t entrie
   if (i < entries) {
     entry = (struct tabent*)iobuf + i;
     if (entry->type == 0x0f) {
-      sprintf(userentry, "[ %s ]                               ", entry->name);
+      snprintf(userentry, 80, "[ %s ]                               ", entry->name);
       userentry[34] = '\0';
     } else {
-      sprintf(userentry, "  %s                   ", entry->name);
-      sprintf(&userentry[18], "  %8lu  ", entry->size);
+      snprintf(userentry, 80, "  %s                   ", entry->name);
+      snprintf(&userentry[18], 60, "  %8lu  ", entry->size);
       switch (entry->type) {
       case 0x04:
         sprintf(&userentry[30], "TXT ");
