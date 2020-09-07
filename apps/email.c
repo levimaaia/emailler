@@ -79,29 +79,29 @@ static unsigned char  buf[READSZ];
 
 #pragma code-name (push, "LC")
 void load_editor(uint8_t compose) {
-  sprintf(userentry, "%s %s", (compose ? "-compose" : "-reademail"), filename);
-  sprintf(filename, "%s/EDIT.SYSTEM", cfg_instdir);
+  snprintf(userentry, 80, "%s %s", (compose ? "-compose" : "-reademail"), filename);
+  snprintf(filename, 80, "%s/EDIT.SYSTEM", cfg_instdir);
   exec(filename, userentry);
 }
 #pragma code-name (pop)
 
 #pragma code-name (push, "LC")
 void load_pop65(void) {
-  sprintf(filename, "%s/POP65.SYSTEM", cfg_instdir);
+  snprintf(filename, 80, "%s/POP65.SYSTEM", cfg_instdir);
   exec(filename, "EMAIL");
 }
 #pragma code-name (pop)
 
 #pragma code-name (push, "LC")
 void load_smtp65(void) {
-  sprintf(filename, "%s/SMTP65.SYSTEM", cfg_instdir);
+  snprintf(filename, 80, "%s/SMTP65.SYSTEM", cfg_instdir);
   exec(filename, "EMAIL");
 }
 #pragma code-name (pop)
 
 #pragma code-name (push, "LC")
 void load_date65(void) {
-  sprintf(filename, "%s/DATE65.SYSTEM", cfg_instdir);
+  snprintf(filename, 80, "%s/DATE65.SYSTEM", cfg_instdir);
   exec(filename, "EMAIL");
 }
 #pragma code-name (pop)
@@ -331,7 +331,6 @@ void printsystemdate(void) {
 /*
  * Free linked list rooted at headers
  */
-#pragma code-name (push, "LC")
 void free_headers_list(void) {
   struct emailhdrs *h = headers;
   while (h) {
@@ -340,7 +339,6 @@ void free_headers_list(void) {
   }
   headers = NULL;
 }
-#pragma code-name (pop)
 
 /*
  * Read EMAIL.DB and populate linked list rooted at headers
@@ -360,7 +358,7 @@ uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox)
     total_new = total_msgs = total_tag = 0;
   }
   free_headers_list();
-  sprintf(filename, "%s/%s/EMAIL.DB", cfg_emaildir, curr_mbox);
+  snprintf(filename, 80, "%s/%s/EMAIL.DB", cfg_emaildir, curr_mbox);
   fp = fopen(filename, "rb");
   if (!fp) {
     error(switchmbox ? ERR_NONFATAL : ERR_FATAL, "Can't open %s", filename);
@@ -896,7 +894,7 @@ void email_pager(struct emailhdrs *h) {
   uint8_t mime_enc, mime_binary, mime_hasfile, eof, screennum, maxscreennum;
   char c, *readp, *writep;
   clrscr2();
-  sprintf(filename, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, h->emailnum);
+  snprintf(filename, 80, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, h->emailnum);
   fp = fopen(filename, "rb");
   if (!fp) {
     if (sbackfp)
@@ -919,7 +917,7 @@ restart:
     fclose(sbackfp);
   _filetype = PRODOS_T_BIN;
   _auxtype = 0;
-  sprintf(filename, "%s/SCROLLBACK", cfg_emaildir);
+  snprintf(filename, 80, "%s/SCROLLBACK", cfg_emaildir);
   unlink(filename);
   sbackfp = fopen(filename, "wb+");
   if (!sbackfp) {
@@ -989,7 +987,7 @@ restart:
         }
       } else if (strstr(writep, "filename=")) {
         mime_hasfile = 1;
-        sprintf(filename, "%s/ATTACHMENTS/%s",
+        snprintf(filename, 80, "%s/ATTACHMENTS/%s",
                 cfg_emaildir, strstr(writep, "filename=") + 9);
         sanitize_filename(filename);
         if (prompt_okay_attachment(filename)) {
@@ -1159,7 +1157,7 @@ retry:
  */
 void write_updated_headers(struct emailhdrs *h, uint16_t pos) {
   uint16_t l;
-  sprintf(filename, "%s/%s/EMAIL.DB", cfg_emaildir, curr_mbox);
+  snprintf(filename, 80, "%s/%s/EMAIL.DB", cfg_emaildir, curr_mbox);
   _filetype = PRODOS_T_BIN;
   _auxtype = 0;
   fp = fopen(filename, "rb+");
@@ -1178,12 +1176,12 @@ void write_updated_headers(struct emailhdrs *h, uint16_t pos) {
  * Create directory, EMAIL.DB and NEXT.EMAIL files
  */
 void new_mailbox(char *mbox) {
-  sprintf(filename, "%s/%s", cfg_emaildir, mbox);
+  snprintf(filename, 80, "%s/%s", cfg_emaildir, mbox);
   if (mkdir(filename)) {
     error(ERR_NONFATAL, "Can't create dir %s", filename);
     return;
   }
-  sprintf(filename, "%s/%s/EMAIL.DB", cfg_emaildir, mbox);
+  snprintf(filename, 80, "%s/%s/EMAIL.DB", cfg_emaildir, mbox);
   _filetype = PRODOS_T_BIN;
   _auxtype = 0;
   fp = fopen(filename, "wb");
@@ -1192,7 +1190,7 @@ void new_mailbox(char *mbox) {
     return;
   }
   fclose(fp);
-  sprintf(filename, "%s/%s/NEXT.EMAIL", cfg_emaildir, mbox);
+  snprintf(filename, 80, "%s/%s/NEXT.EMAIL", cfg_emaildir, mbox);
   _filetype = PRODOS_T_TXT;
   _auxtype = 0;
   fp = fopen(filename, "wb");
@@ -1236,13 +1234,13 @@ void purge_deleted(void) {
   h = (struct emailhdrs*)malloc(sizeof(struct emailhdrs));
   if (!h)
     error(ERR_FATAL, "Can't malloc()");
-  sprintf(filename, "%s/%s/EMAIL.DB", cfg_emaildir, curr_mbox);
+  snprintf(filename, 80, "%s/%s/EMAIL.DB", cfg_emaildir, curr_mbox);
   fp = fopen(filename, "rb");
   if (!fp) {
     error(ERR_NONFATAL, "Can't open %s", filename);
     return;
   }
-  sprintf(filename, "%s/%s/EMAIL.DB.NEW", cfg_emaildir, curr_mbox);
+  snprintf(filename, 80, "%s/%s/EMAIL.DB.NEW", cfg_emaildir, curr_mbox);
   _filetype = PRODOS_T_BIN;
   _auxtype = 0;
   fp2 = fopen(filename, "wb");
@@ -1257,7 +1255,7 @@ void purge_deleted(void) {
     if (l != EMAILHDRS_SZ_ON_DISK)
       goto done;
     if (h->status == 'D') {
-      sprintf(filename, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, h->emailnum);
+      snprintf(filename, 80, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, h->emailnum);
       if (unlink(filename)) {
         error(ERR_NONFATAL, "Can't delete %s", filename);
       }
@@ -1279,12 +1277,12 @@ done:
   free(h);
   fclose(fp);
   fclose(fp2);
-  sprintf(filename, "%s/%s/EMAIL.DB", cfg_emaildir, curr_mbox);
+  snprintf(filename, 80, "%s/%s/EMAIL.DB", cfg_emaildir, curr_mbox);
   if (unlink(filename)) {
     error(ERR_NONFATAL, "Can't delete %s", filename);
     return;
   }
-  sprintf(userentry, "%s/%s/EMAIL.DB.NEW", cfg_emaildir, curr_mbox);
+  snprintf(userentry, 80, "%s/%s/EMAIL.DB.NEW", cfg_emaildir, curr_mbox);
   if (rename(userentry, filename)) {
     error(ERR_NONFATAL, "Can't rename %s", userentry);
     return;
@@ -1296,7 +1294,7 @@ done:
  * Returns 1 on error, 0 if all is good
  */
 uint8_t get_next_email(char *mbox, uint16_t *num) {
-  sprintf(filename, "%s/%s/NEXT.EMAIL", cfg_emaildir, mbox);
+  snprintf(filename, 80, "%s/%s/NEXT.EMAIL", cfg_emaildir, mbox);
   fp = fopen(filename, "rb");
   if (!fp) {
     error(ERR_NONFATAL, "Can't open %s/NEXT.EMAIL", mbox);
@@ -1311,7 +1309,7 @@ uint8_t get_next_email(char *mbox, uint16_t *num) {
  * Update NEXT.EMAIL file
  */
 uint8_t update_next_email(char *mbox, uint16_t num) {
-  sprintf(filename, "%s/%s/NEXT.EMAIL", cfg_emaildir, mbox);
+  snprintf(filename, 80, "%s/%s/NEXT.EMAIL", cfg_emaildir, mbox);
   _filetype = PRODOS_T_TXT;
   _auxtype = 0;
   fp = fopen(filename, "wb");
@@ -1652,7 +1650,7 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
     return;
 
   // Open source email file
-  sprintf(filename, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, h->emailnum);
+  snprintf(filename, 80, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, h->emailnum);
   fp = fopen(filename, "rb");
   if (!fp) {
     error(ERR_NONFATAL, "Can't open %s", filename);
@@ -1660,7 +1658,7 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
   }
 
   // Open destination email file
-  sprintf(filename, "%s/%s/EMAIL.%u", cfg_emaildir, mbox, num);
+  snprintf(filename, 80, "%s/%s/EMAIL.%u", cfg_emaildir, mbox, num);
   _filetype = PRODOS_T_TXT;
   _auxtype = 0;
   fp2 = fopen(filename, "wb");
@@ -1716,7 +1714,7 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
   // Update dest/EMAIL.DB unless this is R)eply or F)orward
   // The upshot of this is we never create EMAIL.DB in OUTBOX
   if (mode == ' ') {
-    sprintf(filename, "%s/%s/EMAIL.DB", cfg_emaildir, mbox);
+    snprintf(filename, 80, "%s/%s/EMAIL.DB", cfg_emaildir, mbox);
     _filetype = PRODOS_T_BIN;
     _auxtype = 0;
     fp = fopen(filename, "ab");
@@ -1746,7 +1744,7 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
   email_summary_for(selection);
 
   if (mode != ' ') {
-    sprintf(filename, "%s/OUTBOX/EMAIL.%u", cfg_emaildir, num);
+    snprintf(filename, 80, "%s/OUTBOX/EMAIL.%u", cfg_emaildir, num);
     load_editor(1);
   }
 }
@@ -1775,14 +1773,14 @@ uint8_t copy_to_mailbox_tagged(char *mbox, uint8_t delete) {
     copy_to_mailbox(h, get_db_index(), mbox, delete, ' ');
     return 0;
   }
-  sprintf(filename, "%u tagged - ", total_tag);
+  snprintf(filename, 80, "%u tagged - ", total_tag);
   if (!prompt_okay(filename))
     return 0;
   h = (struct emailhdrs*)malloc(sizeof(struct emailhdrs));
   if (!h)
     error(ERR_FATAL, "Can't malloc()");
   while (1) {
-    sprintf(filename, "%s/%s/EMAIL.DB", cfg_emaildir, curr_mbox);
+    snprintf(filename, 80, "%s/%s/EMAIL.DB", cfg_emaildir, curr_mbox);
     _filetype = PRODOS_T_BIN;
     _auxtype = 0;
     fp = fopen(filename, "rb+");
@@ -1831,7 +1829,7 @@ void create_blank_outgoing() {
     return;
 
   // Open destination email file
-  sprintf(filename, "%s/OUTBOX/EMAIL.%u", cfg_emaildir, num);
+  snprintf(filename, 80, "%s/OUTBOX/EMAIL.%u", cfg_emaildir, num);
   _filetype = PRODOS_T_TXT;
   _auxtype = 0;
   fp = fopen(filename, "wb");
@@ -1863,7 +1861,7 @@ void create_blank_outgoing() {
   if (update_next_email("OUTBOX", num + 1))
     return;
 
-  sprintf(filename, "%s/OUTBOX/EMAIL.%u", cfg_emaildir, num);
+  snprintf(filename, 80, "%s/OUTBOX/EMAIL.%u", cfg_emaildir, num);
   load_editor(1);
 done:
   fclose(fp);
@@ -2064,7 +2062,7 @@ void keyboard_hdlr(void) {
       break;
     case 0x80 + 'e': // OA-E "Open message in editor"
     case 0x80 + 'E':
-      sprintf(filename, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, h->emailnum);
+      snprintf(filename, 80, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, h->emailnum);
       load_editor(0);
       break;
     case 0x80 + 'r': // OA-R "Retrieve messages from server"
