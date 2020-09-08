@@ -1884,7 +1884,7 @@ void init_aux_banks(void) {
   uint16_t count;
   clrscr();
   revers(1);
-  cprintf("EDIT.SYSTEM                   Bobbi 2020");
+  cprintf("EDIT.SYSTEM v1.26             Bobbi 2020");
   revers(0);
   cprintf("\n\n\n  %u x 64KB aux banks -> %uKB\n", banktbl[0], banktbl[0]*64);
   for (i = 1; i <= banktbl[0]; ++i) {
@@ -1898,7 +1898,7 @@ void init_aux_banks(void) {
   l_auxbank = 1;
   __asm__("lda #$00");
   __asm__("sta $c073");  // Set aux bank back to 0
-  for (count = 0; count < 50000; ++count); // Delay so user can read message
+  for (count = 0; count < 25000; ++count); // Delay so user can read message
 }
 
 /*
@@ -2245,7 +2245,9 @@ redraw:
         }
         break;
       case 0x04: // ASCII text
-        strcpy(userentry, entry->name);
+        getcwd(userentry, 80);
+        strcat(userentry, "/");
+        strcat(userentry, entry->name);
         goto done;
         break;
       default:
@@ -2253,7 +2255,9 @@ redraw:
           strcpy(userentry, "");
           goto done;
         }
-        strcpy(userentry, entry->name);
+        getcwd(userentry, 80);
+        strcat(userentry, "/");
+        strcat(userentry, entry->name);
         goto done;
       }
       break;
