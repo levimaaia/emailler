@@ -2146,17 +2146,12 @@ void main(void) {
   if ((*pp & 0x30) != 0x30)
     error(ERR_FATAL, "Need 128K");
 
-// Clear system bit map
-for (pp = (uint8_t*)0xbf58; pp <= (uint8_t*)0xbf6f; ++pp)
-  *pp = 0;
-
   videomode(VIDEOMODE_80COL);
   readconfigfile();
-  reverse = 0;
+  load_prefs();
   first_msg = 1;
   read_email_db(first_msg, 1, 0);
   selection = 1;
-  load_prefs();
   email_summary();
   keyboard_hdlr();
 }
