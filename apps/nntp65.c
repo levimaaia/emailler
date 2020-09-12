@@ -22,6 +22,7 @@
 
 #include "email_common.h"
 
+#define BELL      7
 #define BACKSPACE 8
 
 // Both pragmas are obligatory to have cc65 generate code
@@ -36,11 +37,12 @@
 static unsigned char buf[NETBUFSZ+1];    // One extra byte for null terminator
 static char          linebuf_pad[1];     // One byte of padding make it easier
 static char          linebuf[LINEBUFSZ];
+static char          newsgroup[80];
 
 uint8_t  exec_email_on_exit = 0;
 char     filename[80];
 int      len;
-FILE     *fp;
+FILE     *fp, *newsgroupsfp;
 uint32_t filesize;
 uint16_t nntp_port;
 
@@ -48,6 +50,8 @@ uint16_t nntp_port;
  * Keypress before quit
  */
 void confirm_exit(void) {
+  fclose(fp);
+  fclose(newsgroupsfp);
   printf("\n[Press Any Key]");
   cgetc();
   if (exec_email_on_exit) {
@@ -124,8 +128,8 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
     uint16_t pos = 0;
     uint16_t len = strlen(sendbuf);
 
-    if (strncmp(sendbuf, "PASS", 4) == 0)
-      printf(">PASS ****\n");
+    if (strncmp(sendbuf, "AUTHINFO PASS", 13) == 0)
+      printf(">AUTHINFO PASS ****\n");
     else {
       putchar('>');
       print_strip_crlf(sendbuf);
@@ -478,10 +482,9 @@ void update_inbox(uint16_t nummsgs) {
 }
 
 void main(int argc, char *argv[]) {
-  uint32_t nummsgs, lownum, highnum;
+  uint32_t nummsgs, lownum, highnum, msgnum, msg;
   char sendbuf[80];
   uint8_t eth_init = ETH_INIT_DEFAULT;
-  uint16_t msg = 0;
 
   if ((argc == 2) && (strcmp(argv[1], "EMAIL") == 0))
     exec_email_on_exit = 1;
@@ -495,9 +498,16 @@ void main(int argc, char *argv[]) {
   readconfigfile();
   printf(" Ok");
 
+  printf("\nReading NEWSGROUPS.CFG       -");
+  sprintf(filename, "%s/NEWSGROUPS.CFG", cfg_emaildir);
+  newsgroupsfp = fopen(filename, "r");
+  if (!newsgroupsfp) {
+    printf("\nCan't read %s\n", filename);
+    error_exit();
+  }
+
   {
     int file;
-
     printf("\nSetting slot                 - ");
     file = open("ethernet.slot", O_RDONLY);
     if (file != -1) {
@@ -550,31 +560,64 @@ void main(int argc, char *argv[]) {
   }
   expect(buf, "281"); // Authentication successful
 
-  if (!w5100_tcp_send_recv("GROUP comp.sys.apple2\r\n", buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
-    error_exit();
-  }
-  sscanf(buf, "211 %lu %lu %lu", &nummsgs, &lownum, &highnum);
-  printf(" %lu message .. %lu - %lu\n", nummsgs, lownum, highnum);
-
   while (1) {
-    if (!w5100_tcp_send_recv("NEXT\r\n", buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
+    msg = fscanf(newsgroupsfp, "%s %ld", newsgroup, &msgnum);
+    if (strcmp(newsgroup, "0") == 0)
+      break;
+    if ((msg == 0) || (msg == EOF))
+      break;
+    printf("-------------------------------------------------------------\n");
+    printf("Newsgroup: %s\n", newsgroup);
+    printf("Start Msg: %ld\n", msgnum);
+    printf("-------------------------------------------------------------\n");
+
+    sprintf(sendbuf, "GROUP %s\r\n", newsgroup);
+    if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
       error_exit();
     }
-    if (strncmp(buf, "223", 3) != 0)
-      break; // No more messages in group
-    sprintf(filename, "%s/NEWSSPOOL/NEWS.%u", cfg_emaildir, ++msg);
-    _filetype = PRODOS_T_TXT;
-    _auxtype = 0;
-    fp = fopen(filename, "wb"); 
-    if (!fp) {
-      printf("Can't create %s\n", filename);
-      error_exit();
+    if (strncmp(buf, "411", 3) == 0) {
+      putchar(BELL);
+      printf("** Non-existent newsgroup %s\n", newsgroup);
+      continue;
     }
-    if (!w5100_tcp_send_recv("ARTICLE\r\n", buf, NETBUFSZ, DO_SEND, DATA_MODE)) {
-      error_exit();
+
+    sscanf(buf, "211 %lu %lu %lu", &nummsgs, &lownum, &highnum);
+    printf(" %lu messages, numbered from %lu to %lu\n", nummsgs, lownum, highnum);
+
+    if (msgnum == 0)
+      msgnum = highnum - 5; // TODO Set to five for now!!!!!! 50 is more reasonable
+
+    for (msg = msgnum; msg <= highnum; ++msg) {
+      sprintf(sendbuf, "STAT %ld\r\n", msgnum);
+      if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
+        error_exit();
+      }
+      if (strncmp(buf, "220", 3)) // Message number exists
+        break;
     }
-    spinner(filesize, 1); // Cleanup spinner
-    fclose(fp);
+
+    msg = 0;
+    while (1) {
+      if (!w5100_tcp_send_recv("NEXT\r\n", buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
+        error_exit();
+      }
+      if (strncmp(buf, "223", 3) != 0)
+        break; // No more messages in group
+      sprintf(filename, "%s/NEWSSPOOL/NEWS.%u", cfg_emaildir, ++msg);
+      _filetype = PRODOS_T_TXT;
+      _auxtype = 0;
+      fp = fopen(filename, "wb"); 
+      if (!fp) {
+        printf("Can't create %s\n", filename);
+        error_exit();
+      }
+      printf("** Retrieving article %ld/%ld from %s\n", msg, nummsgs, newsgroup);
+      if (!w5100_tcp_send_recv("ARTICLE\r\n", buf, NETBUFSZ, DO_SEND, DATA_MODE)) {
+        error_exit();
+      }
+      spinner(filesize, 1); // Cleanup spinner
+      fclose(fp);
+    }
   }
 
   // Ignore any error - can be a race condition where other side
