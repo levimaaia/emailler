@@ -320,7 +320,7 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
  */
 uint8_t expect(char *buf, char *s) {
   if (strncmp(buf, s, strlen(s)) != 0) {
-    printf("\nExpected '%s' got '%s\n", s, buf);
+    printf("\nExpected '%s' got '%s'\n", s, buf);
     return 1;
   }
   return 0;

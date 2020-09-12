@@ -231,6 +231,7 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
       if (written != len) {
         printf("Write error");
         fclose(fp);
+        w5100_disconnect();
         error_exit();
       }
 
@@ -243,12 +244,14 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
     }
   } else {
     //
-    // Handle short single packet ASCII text responses
+    // Handle short single line ASCII text responses
+    // Must fit in recvbuf[]
     //
     uint16_t rcv;
     uint16_t len = 0;
+    uint8_t cont = 1;
 
-    while (1) {
+    while (cont) {
       if (input_check_for_abort_key()) {
         printf("User abort\n");
         w5100_disconnect();
@@ -256,26 +259,34 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
       }
     
       rcv = w5100_receive_request();
-      if (rcv)
-        break;
-      if (!w5100_connected()) {
-        printf("Connection lost\n");
-        return false;
+      if (!rcv) {
+        cont = w5100_connected();
+        if (cont)
+          continue;
       }
-    }
 
-    if (rcv > length - len)
-      rcv = length - len;
+      if (rcv > length - len)
+        rcv = length - len;
 
-    {
-      // One less to allow for faster pre-increment below
-      char *dataptr = recvbuf + len - 1;
-      uint16_t i;
-      for (i = 0; i < rcv; ++i) {
-        // The variable is necessary to have cc65 generate code
-        // suitable to access the W5100 auto-increment register.
-        char data = *w5100_data;
-        *++dataptr = data;
+      if (rcv == 0) {
+        printf("Buffer overflow\n"); // Should never happen
+        w5100_disconnect();
+        error_exit();
+      }
+
+      {
+        // One less to allow for faster pre-increment below
+        // 4 bytes of overlap between blocks
+        char *dataptr = recvbuf + len - 1;
+        uint16_t i;
+        for (i = 0; i < rcv; ++i) {
+          // The variable is necessary to have cc65 generate code
+          // suitable to access the W5100 auto-increment register.
+          char data = *w5100_data;
+          *++dataptr = data;
+          if (!memcmp(dataptr - 1, "\r\n", 2))
+            cont = 0;
+        }
       }
       w5100_receive_commit(rcv);
       len += rcv;
@@ -291,7 +302,7 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
  */
 void expect(char *buf, char *s) {
   if (strncmp(buf, s, strlen(s)) != 0) {
-    printf("\nExpected '%s' got '%s\n", s, buf);
+    printf("\nExpected '%s' got '%s'\n", s, buf);
     error_exit();
   }
 }
@@ -331,8 +342,9 @@ void readconfigfile(void) {
  * Expects CRLF line endings (CRLF) and converts to Apple II (CR) convention
  * fp - file to read from
  * writep - Pointer to buffer into which line will be written
+ * n - length of buffer. Longer lines will be truncated and terminated with CR.
  */
-int16_t get_line(FILE *fp, char *writep) {
+int16_t get_line(FILE *fp, char *writep, uint16_t n) {
   static uint16_t rd = 0; // Read
   static uint16_t end = 0; // End of valid data in buf
   uint16_t i = 0;
@@ -343,6 +355,10 @@ int16_t get_line(FILE *fp, char *writep) {
     }
     if (end == 0)
       return -1; // EOF
+    if (i == n - 2) {
+      writep[i] = '\r';
+      writep[i + 1] = '\0';
+    }
     writep[i++] = buf[rd++];
     // The following line is safe because of linebuf_pad[]
     if ((writep[i - 1] == '\n') && (writep[i - 2] == '\r')) {
@@ -441,7 +457,7 @@ void update_mailbox(char *mbox) {
     hdrs.skipbytes = 0; // Just in case it doesn't get set
     hdrs.status = 'N';
     hdrs.tag = ' ';
-    while ((chars = get_line(fp, linebuf)) != -1) {
+    while ((chars = get_line(fp, linebuf, LINEBUFSZ)) != -1) {
       if (headers) {
         headerchars += chars;
         if (!strncmp(linebuf, "Date: ", 6)) {
@@ -571,6 +587,7 @@ void main(int argc, char *argv[]) {
       break;
     printf("*************************************************************\n");
     printf("* NEWSGROUP: %s\n", newsgroup);
+    printf("* MAILBOX:   %s\n", mailbox);
     printf("* START MSG: %ld\n", msgnum);
     printf("*************************************************************\n");
 
@@ -585,10 +602,13 @@ void main(int argc, char *argv[]) {
     }
 
     sscanf(buf, "211 %lu %lu %lu", &nummsgs, &lownum, &highnum);
-    printf(" %lu messages, numbered from %lu to %lu\n", nummsgs, lownum, highnum);
+    printf(" Approx. %lu messages, numbered from %lu to %lu\n", nummsgs, lownum, highnum);
 
     if (msgnum == 0)
-      msgnum = highnum - 50;
+      msgnum = highnum - 200; // If 0 is specified grab 200 messages to start
+
+    if (msgnum < lownum)
+      msgnum = lownum;
 
     for (msg = msgnum; msg <= highnum; ++msg) {
       sprintf(sendbuf, "STAT %ld\r\n", msgnum);
