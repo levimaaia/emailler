@@ -9,6 +9,7 @@
 #include <cc65.h>
 #include <errno.h>
 #include <ctype.h>
+#include <dirent.h>
 #include <fcntl.h>
 #include <conio.h>
 #include <stdio.h>
@@ -31,13 +32,14 @@
 #pragma static-locals (on)
 
 #define NETBUFSZ  1500+4       // 4 extra bytes for overlap between packets
-#define LINEBUFSZ 1000         // According to RFC2822 Section 2.1.1 (998+CRLF)
+#define LINEBUFSZ 2000 /*1000*/         // According to RFC2822 Section 2.1.1 (998+CRLF)
 #define READSZ    1024         // Must be less than NETBUFSZ to fit in buf[]
 
 static unsigned char buf[NETBUFSZ+1];    // One extra byte for null terminator
 static char          linebuf_pad[1];     // One byte of padding make it easier
 static char          linebuf[LINEBUFSZ];
 static char          newsgroup[80];
+static char          mailbox[80];
 
 uint8_t  exec_email_on_exit = 0;
 char     filename[80];
@@ -353,9 +355,9 @@ int16_t get_line(FILE *fp, char *writep) {
 /*
  * Update EMAIL.DB - quick access database for header info
  */
-void update_email_db(struct emailhdrs *h) {
+void update_email_db(char *mbox, struct emailhdrs *h) {
   FILE *fp;
-  sprintf(filename, "%s/INBOX/EMAIL.DB", cfg_emaildir);
+  sprintf(filename, "%s/%s/EMAIL.DB", cfg_emaildir, mbox);
   _filetype = PRODOS_T_BIN;
   _auxtype = 0;
   fp = fopen(filename, "ab");
@@ -383,6 +385,7 @@ void copyheader(char *dest, char *source, uint16_t len) {
 /*
  * Write NEXT.EMAIL file with number of next EMAIL.n file to be created
  */
+#if 0
 void write_next_email(uint16_t num) {
   sprintf(filename, "%s/INBOX/NEXT.EMAIL", cfg_emaildir);
   _filetype = PRODOS_T_TXT;
@@ -396,42 +399,40 @@ void write_next_email(uint16_t num) {
   fprintf(fp, "%u", num);
   fclose(fp);
 }
+#endif
 
 /*
- * Update INBOX
- * Copy messages from spool dir to inbox and find headers of interest
- * (Date, From, To, BCC, Subject)
+ * Update mailbox
+ * Copy messages from spool dir to mailbox and find headers of interest
+ * (Date, From, Subject)
  */
-void update_inbox(uint16_t nummsgs) {
+void update_mailbox(char *mbox) {
   static struct emailhdrs hdrs;
-  uint16_t nextemail, msg, chars, headerchars;
+  struct dirent *d;
+  uint16_t msg, chars, headerchars;
   uint8_t headers;
   FILE *destfp;
-  sprintf(filename, "%s/INBOX/NEXT.EMAIL", cfg_emaildir);
-  fp = fopen(filename, "r");
-  if (!fp) {
-    nextemail = 1;
-    write_next_email(nextemail);
-  } else {
-    fscanf(fp, "%u", &nextemail);
-    fclose(fp);
-  }
-  for (msg = 1; msg <= nummsgs; ++msg) {
+  DIR *dp;
+  sprintf(filename, "%s/NEWSSPOOL", cfg_emaildir);
+  dp = opendir(filename);
+  while (d = readdir(dp)) {
     strcpy(linebuf, "");
-    sprintf(filename, "%s/SPOOL/EMAIL.%u", cfg_emaildir, msg);
+    sprintf(filename, "%s/NEWSSPOOL/%s", cfg_emaildir, d->d_name);
     fp = fopen(filename, "r");
     if (!fp) {
       printf("Can't open %s\n", filename);
+      closedir(dp);
       error_exit();
     }
-    hdrs.emailnum = nextemail;
-    sprintf(filename, "%s/INBOX/EMAIL.%u", cfg_emaildir, nextemail++);
+    hdrs.emailnum = msg = atoi(&(d->d_name[5]));
+    sprintf(filename, "%s/%s/EMAIL.%u", cfg_emaildir, mbox, msg);
     puts(filename);
     _filetype = PRODOS_T_TXT;
     _auxtype = 0;
     destfp = fopen(filename, "wb");
     if (!destfp) {
       printf("Can't open %s\n", filename);
+      closedir(dp);
       fclose(fp);
       error_exit();
     }
@@ -451,14 +452,16 @@ void update_inbox(uint16_t nummsgs) {
           copyheader(hdrs.from, linebuf + 6, 79);
           hdrs.from[79] = '\0';
         }
-        if (!strncmp(linebuf, "To: ", 4)) {
-          copyheader(hdrs.to, linebuf + 4, 79);
-          hdrs.to[79] = '\0';
-        }
-        if (!strncmp(linebuf, "Cc: ", 4)) {
-          copyheader(hdrs.cc, linebuf + 4, 79);
-          hdrs.cc[79] = '\0';
-        }
+        hdrs.to[0] = '\0';
+        hdrs.cc[0] = '\0';
+//        if (!strncmp(linebuf, "To: ", 4)) {
+//          copyheader(hdrs.to, linebuf + 4, 79);
+//          hdrs.to[79] = '\0';
+//        }
+//        if (!strncmp(linebuf, "Cc: ", 4)) {
+//          copyheader(hdrs.cc, linebuf + 4, 79);
+//          hdrs.cc[79] = '\0';
+//        }
         if (!strncmp(linebuf, "Subject: ", 9)) {
           copyheader(hdrs.subject, linebuf + 9, 79);
           hdrs.subject[79] = '\0';
@@ -472,13 +475,13 @@ void update_inbox(uint16_t nummsgs) {
     }
     fclose(fp);
     fclose(destfp);
-    update_email_db(&hdrs);
+    update_email_db(mbox, &hdrs);
 
-    sprintf(filename, "%s/SPOOL/EMAIL.%u", cfg_emaildir, msg);
+    sprintf(filename, "%s/NEWSSPOOL/NEWS.%u", cfg_emaildir, msg);
     if (unlink(filename))
       printf("Can't delete %s\n", filename);
   }
-  write_next_email(nextemail);
+  closedir(dp);
 }
 
 void main(int argc, char *argv[]) {
@@ -561,15 +564,15 @@ void main(int argc, char *argv[]) {
   expect(buf, "281"); // Authentication successful
 
   while (1) {
-    msg = fscanf(newsgroupsfp, "%s %ld", newsgroup, &msgnum);
+    msg = fscanf(newsgroupsfp, "%s %s %ld", newsgroup, mailbox, &msgnum);
     if (strcmp(newsgroup, "0") == 0)
       break;
     if ((msg == 0) || (msg == EOF))
       break;
-    printf("-------------------------------------------------------------\n");
-    printf("Newsgroup: %s\n", newsgroup);
-    printf("Start Msg: %ld\n", msgnum);
-    printf("-------------------------------------------------------------\n");
+    printf("*************************************************************\n");
+    printf("* NEWSGROUP: %s\n", newsgroup);
+    printf("* START MSG: %ld\n", msgnum);
+    printf("*************************************************************\n");
 
     sprintf(sendbuf, "GROUP %s\r\n", newsgroup);
     if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
@@ -585,7 +588,7 @@ void main(int argc, char *argv[]) {
     printf(" %lu messages, numbered from %lu to %lu\n", nummsgs, lownum, highnum);
 
     if (msgnum == 0)
-      msgnum = highnum - 5; // TODO Set to five for now!!!!!! 50 is more reasonable
+      msgnum = highnum - 50;
 
     for (msg = msgnum; msg <= highnum; ++msg) {
       sprintf(sendbuf, "STAT %ld\r\n", msgnum);
@@ -596,14 +599,14 @@ void main(int argc, char *argv[]) {
         break;
     }
 
-    msg = 0;
     while (1) {
       if (!w5100_tcp_send_recv("NEXT\r\n", buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
         error_exit();
       }
       if (strncmp(buf, "223", 3) != 0)
         break; // No more messages in group
-      sprintf(filename, "%s/NEWSSPOOL/NEWS.%u", cfg_emaildir, ++msg);
+      sscanf(buf, "223 %ld", &msg);
+      sprintf(filename, "%s/NEWSSPOOL/NEWS.%lu", cfg_emaildir, msg);
       _filetype = PRODOS_T_TXT;
       _auxtype = 0;
       fp = fopen(filename, "wb"); 
@@ -611,13 +614,15 @@ void main(int argc, char *argv[]) {
         printf("Can't create %s\n", filename);
         error_exit();
       }
-      printf("** Retrieving article %ld/%ld from %s\n", msg, nummsgs, newsgroup);
+      printf("\n** Retrieving article %lu/%lu from %s\n", msg, highnum, newsgroup);
       if (!w5100_tcp_send_recv("ARTICLE\r\n", buf, NETBUFSZ, DO_SEND, DATA_MODE)) {
         error_exit();
       }
       spinner(filesize, 1); // Cleanup spinner
       fclose(fp);
     }
+    printf("Updating mailbox %s ...\n", mailbox);
+    update_mailbox(mailbox);
   }
 
   // Ignore any error - can be a race condition where other side
@@ -626,9 +631,6 @@ void main(int argc, char *argv[]) {
 
   printf("Disconnecting\n");
   w5100_disconnect();
-
-//  printf("Updating INBOX ...\n");
-//  update_inbox(nummsgs);
 
   confirm_exit();
 }
