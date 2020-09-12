@@ -373,13 +373,13 @@ uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox)
         return 1;
     }
     // If the mailbox is empty this seek will fail
-    if (fseek(fp, ftell(fp) - startnum * EMAILHDRS_SZ_ON_DISK, SEEK_SET)) {
+    if (fseek(fp, ftell(fp) - (uint32_t)startnum * EMAILHDRS_SZ_ON_DISK, SEEK_SET)) {
       fclose(fp);
       num_msgs = total_new = total_msgs = total_tag = 0;
       return 0;
     }
   } else {
-    if (fseek(fp, (startnum - 1) * EMAILHDRS_SZ_ON_DISK, SEEK_SET)) {
+    if (fseek(fp, (uint32_t)(startnum - 1) * EMAILHDRS_SZ_ON_DISK, SEEK_SET)) {
       fclose(fp);
       error(switchmbox ? ERR_NONFATAL : ERR_FATAL, "Can't seek in %s", filename);
       if (switchmbox)
@@ -425,8 +425,8 @@ uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox)
         free(curr);
     }
     if (reverse) {
-      pos = ftell(fp) - 2 * EMAILHDRS_SZ_ON_DISK;
-      if (pos == -1 * EMAILHDRS_SZ_ON_DISK) {
+      pos = ftell(fp) - 2L * EMAILHDRS_SZ_ON_DISK;
+      if (pos == -1L * EMAILHDRS_SZ_ON_DISK) {
         fclose(fp);
         return 0;
       }
@@ -1205,7 +1205,7 @@ void write_updated_headers(struct emailhdrs *h, uint16_t pos) {
   fp = fopen(filename, "rb+");
   if (!fp)
     error(ERR_FATAL, "Can't open %s", filename);
-  if (fseek(fp, (pos - 1) * EMAILHDRS_SZ_ON_DISK, SEEK_SET))
+  if (fseek(fp, (uint32_t)(pos - 1) * EMAILHDRS_SZ_ON_DISK, SEEK_SET))
     error(ERR_FATAL, "Can't seek in %s", filename);
   l = fwrite(h, 1, EMAILHDRS_SZ_ON_DISK, fp);
   if (l != EMAILHDRS_SZ_ON_DISK)
