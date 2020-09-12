@@ -350,8 +350,10 @@ void readconfigfile(void) {
   colon = strchr(cfg_smtp_server, ':');
   if (!colon)
     smtp_port = 25;
-  else
+  else {
     smtp_port = atoi(colon + 1);
+    *colon = '\0';
+  }
 }
 
 /*

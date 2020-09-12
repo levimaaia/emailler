@@ -310,11 +310,13 @@ void readconfigfile(void) {
   fscanf(fp, "%s", cfg_emaildir);
   fclose(fp);
 
-  colon = strchr(cfg_smtp_server, ':');
+  colon = strchr(cfg_server, ':');
   if (!colon)
     pop_port = 110;
-  else
+  else {
     pop_port = atoi(colon + 1);    
+    *colon = '\0';
+  }
 }
 
 /*
