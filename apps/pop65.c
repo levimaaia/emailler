@@ -227,7 +227,7 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
       if (written != len) {
         printf("Write error");
         fclose(fp);
-        error_exit();
+        return false;
       }
 
       // Copy 4 bytes of overlap
@@ -260,13 +260,21 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
           continue;
       }
 
+      if (rcv == 0) { 
+        if (strncmp(sendbuf, "QUIT\r\n", 6) == 0)
+          return true; // This can happen on QUIT. It's okay.
+        else {
+          printf("Something bad\n");
+          return false;
+        }
+      }
+
       if (rcv > length - len)
         rcv = length - len;
 
       if (rcv == 0) {
-        return true; // This can happen on the final QUIT
-//      printf("Buffer overflow\n"); // Should never happen
-//      error_exit();
+        printf("Buffer overflow\n");
+        return false;
       }
 
       {
