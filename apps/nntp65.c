@@ -44,7 +44,7 @@ static char          mailbox[80];
 uint8_t  exec_email_on_exit = 0;
 char     filename[80];
 int      len;
-FILE     *fp, *newsgroupsfp;
+FILE     *fp, *newsgroupsfp, *newnewsgroupsfp;
 uint32_t filesize;
 uint16_t nntp_port;
 
@@ -54,6 +54,8 @@ uint16_t nntp_port;
 void confirm_exit(void) {
   fclose(fp);
   fclose(newsgroupsfp);
+  fclose(newnewsgroupsfp);
+  w5100_disconnect();
   printf("\n[Press Any Key]");
   cgetc();
   if (exec_email_on_exit) {
@@ -230,8 +232,6 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
       written = fwrite(recvbuf + 4, 1, len, fp);
       if (written != len) {
         printf("Write error");
-        fclose(fp);
-        w5100_disconnect();
         error_exit();
       }
 
@@ -270,7 +270,6 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
 
       if (rcv == 0) {
         printf("Buffer overflow\n"); // Should never happen
-        w5100_disconnect();
         error_exit();
       }
 
@@ -449,7 +448,6 @@ void update_mailbox(char *mbox) {
     if (!destfp) {
       printf("Can't open %s\n", filename);
       closedir(dp);
-      fclose(fp);
       error_exit();
     }
     headers = 1;
@@ -457,6 +455,10 @@ void update_mailbox(char *mbox) {
     hdrs.skipbytes = 0; // Just in case it doesn't get set
     hdrs.status = 'N';
     hdrs.tag = ' ';
+    hdrs.date[0] = hdrs.from[0] = hdrs.cc[0] = hdrs.subject[0] = '\0';
+    // Store News:newsgroup in TO field
+    strcpy(hdrs.to, "News:");
+    strcat(hdrs.to, newsgroup);
     while ((chars = get_line(fp, linebuf, LINEBUFSZ)) != -1) {
       if (headers) {
         headerchars += chars;
@@ -468,16 +470,11 @@ void update_mailbox(char *mbox) {
           copyheader(hdrs.from, linebuf + 6, 79);
           hdrs.from[79] = '\0';
         }
-        hdrs.to[0] = '\0';
-        hdrs.cc[0] = '\0';
-//        if (!strncmp(linebuf, "To: ", 4)) {
-//          copyheader(hdrs.to, linebuf + 4, 79);
-//          hdrs.to[79] = '\0';
-//        }
-//        if (!strncmp(linebuf, "Cc: ", 4)) {
-//          copyheader(hdrs.cc, linebuf + 4, 79);
-//          hdrs.cc[79] = '\0';
-//        }
+        // Store Organization in CC field
+        if (!strncmp(linebuf, "Organization: ", 14)) {
+          copyheader(hdrs.cc, linebuf + 14, 79);
+          hdrs.cc[79] = '\0';
+        }
         if (!strncmp(linebuf, "Subject: ", 9)) {
           copyheader(hdrs.subject, linebuf + 9, 79);
           hdrs.subject[79] = '\0';
@@ -517,7 +514,7 @@ void main(int argc, char *argv[]) {
   readconfigfile();
   printf(" Ok");
 
-  printf("\nReading NEWSGROUPS.CFG       -");
+  printf("\nReading NEWSGROUPS.CFG       - ");
   sprintf(filename, "%s/NEWSGROUPS.CFG", cfg_emaildir);
   newsgroupsfp = fopen(filename, "r");
   if (!newsgroupsfp) {
@@ -525,9 +522,19 @@ void main(int argc, char *argv[]) {
     error_exit();
   }
 
+  printf("Ok\nCreating NEWSGROUPS.NEW      - ");
+  sprintf(filename, "%s/NEWSGROUPS.NEW", cfg_emaildir);
+  _filetype = PRODOS_T_TXT;
+  _auxtype = 0;
+  newnewsgroupsfp = fopen(filename, "wb");
+  if (!newnewsgroupsfp) {
+    printf("\nCan't open %s\n", filename);
+    error_exit();
+  }
+
   {
     int file;
-    printf("\nSetting slot                 - ");
+    printf("Ok\nSetting slot                 - ");
     file = open("ethernet.slot", O_RDONLY);
     if (file != -1) {
       read(file, &eth_init, 1);
@@ -605,7 +612,7 @@ void main(int argc, char *argv[]) {
     printf(" Approx. %lu messages, numbered from %lu to %lu\n", nummsgs, lownum, highnum);
 
     if (msgnum == 0)
-      msgnum = highnum - 200; // If 0 is specified grab 200 messages to start
+      msgnum = highnum - 100; // If 0 is specified grab 100 messages to start
 
     if (msgnum < lownum)
       msgnum = lownum;
@@ -641,8 +648,24 @@ void main(int argc, char *argv[]) {
       spinner(filesize, 1); // Cleanup spinner
       fclose(fp);
     }
+    printf("Updating NEWSGROUPS.NEW (%s:%ld) ...\n", newsgroup, msg);
+    fprintf(newnewsgroupsfp, "%s %s %ld\n", newsgroup, mailbox, msg);
     printf("Updating mailbox %s ...\n", mailbox);
     update_mailbox(mailbox);
+  }
+
+  fclose(newsgroupsfp);
+  fclose(newnewsgroupsfp);
+
+  sprintf(filename, "%s/NEWSGROUPS.CFG", cfg_emaildir);
+  if (unlink(filename)) {
+    printf("Can't delete %s\n", filename);
+    error_exit();
+  }
+  sprintf(linebuf, "%s/NEWSGROUPS.NEW", cfg_emaildir);
+  if (rename(linebuf, filename)) {
+    printf("Can't rename %s to %s\n", linebuf, filename);
+    error_exit();
   }
 
   // Ignore any error - can be a race condition where other side

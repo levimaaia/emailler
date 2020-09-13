@@ -959,7 +959,10 @@ restart:
   fputs("\nTo:      ", stdout);
   printfield(h->to, 0, 70);
   if (h->cc[0] != '\0') {
-    fputs("\nCC:      ", stdout);
+    if (strncmp(h->to, "News:", 5) == 0)
+      fputs("\nOrg:     ", stdout);
+    else
+      fputs("\nCC:      ", stdout);
     printfield(h->cc, 0, 70);
   }
   fputs("\nSubject: ", stdout);
