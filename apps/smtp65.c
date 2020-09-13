@@ -227,7 +227,7 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
 
     } else {
       //
-      // Handle short single packet ASCII text transmissions
+      // Handle short ASCII text transmissions
       //
       uint16_t snd;
       uint16_t pos = 0;
@@ -278,11 +278,15 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
   {
     //
     // Handle short single packet ASCII text responses
+    // Must fit in recvbuf[]
     //
     uint16_t rcv;
     uint16_t len = 0;
+    uint8_t cont = 1;
 
-    while(1) {
+    --length; // Leave space for NULL at end in case of buffer overrun
+
+    while (cont) {
       if (input_check_for_abort_key()) {
         printf("User abort\n");
         w5100_disconnect();
@@ -290,30 +294,35 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
       }
     
       rcv = w5100_receive_request();
-      if (rcv)
-        break;
-      if (!w5100_connected()) {
-        printf("Connection lost\n");
-        return false;
+      if (!rcv) {
+        cont = w5100_connected();
+        if (cont)
+          continue;
       }
-    }
 
-    if (rcv > length - len)
-      rcv = length - len;
+      if ((length - len) == 0)
+        cont = 0;
 
-    {
-      // One less to allow for faster pre-increment below
-      char *dataptr = recvbuf + len - 1;
-      uint16_t i;
-      for (i = 0; i < rcv; ++i) {
-        // The variable is necessary to have cc65 generate code
-        // suitable to access the W5100 auto-increment register.
-        char data = *w5100_data;
-        *++dataptr = data;
+      if (rcv > length - len)
+        rcv = length - len;
+
+      {
+        // One less to allow for faster pre-increment below
+        char *dataptr = recvbuf + len - 1;
+        uint16_t i;
+        for (i = 0; i < rcv; ++i) {
+          // The variable is necessary to have cc65 generate code
+          // suitable to access the W5100 auto-increment register.
+          char data = *w5100_data;
+          *++dataptr = data;
+          if (!memcmp(dataptr - 1, "\r\n", 2))
+            cont = 0;
+        }
       }
       w5100_receive_commit(rcv);
       len += rcv;
     }
+    recvbuf[len + 1] = '\0';
     putchar('<');
     print_strip_crlf(recvbuf);
   }
