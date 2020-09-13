@@ -262,15 +262,6 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
           continue;
       }
 
-//      if (rcv == 0) { 
-//        if (strncmp(sendbuf, "QUIT\r\n", 6) == 0)
-//          return true; // This can happen on QUIT. It's okay.
-//        else {
-//          printf("Something bad\n");
-//          return false;
-//        }
-//      }
-
       if ((length - len) == 0)
         cont = 0;
 
