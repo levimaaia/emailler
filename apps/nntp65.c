@@ -251,6 +251,8 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
     uint16_t len = 0;
     uint8_t cont = 1;
 
+    --length; // Leave space for NULL at end in case of buffer overrun
+
     while (cont) {
       if (input_check_for_abort_key()) {
         printf("User abort\n");
@@ -265,22 +267,20 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
           continue;
       }
 
-      if (rcv == 0) {
-        if (strncmp(sendbuf, "QUIT\r\n", 6) == 0)
-          return true; // This can happen on QUIT. It's okay.
-        else {
-          printf("Something bad\n");
-          return false;
-        }
-      }
+//      if (rcv == 0) {
+//        if (strncmp(sendbuf, "QUIT\r\n", 6) == 0)
+//          return true; // This can happen on QUIT. It's okay.
+//        else {
+//          printf("Remote host disconnected\n");
+//          return false;
+//        }
+//      }
+
+      if ((length - len) == 0)
+        cont = 0;
 
       if (rcv > length - len)
         rcv = length - len;
-
-      if (rcv == 0) {
-        printf("Buffer overflow\n");
-        return false;
-      }
 
       {
         // One less to allow for faster pre-increment below
@@ -299,6 +299,7 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
       w5100_receive_commit(rcv);
       len += rcv;
     }
+    recvbuf[len + 1] = '\0';
     putchar('<');
     print_strip_crlf(recvbuf);
   }
