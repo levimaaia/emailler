@@ -60,6 +60,7 @@ void confirm_exit(void) {
   cgetc();
   if (exec_email_on_exit) {
     sprintf(filename, "%s/EMAIL.SYSTEM", cfg_instdir);
+printf("%s\n", filename);
     exec(filename, NULL);
   }
   exit(0);
@@ -179,7 +180,7 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
 
   if (mode == DATA_MODE) {
     //
-    // Handle email body
+    // Handle article body
     //
     uint16_t rcv, written;
     uint16_t len = 0;
@@ -354,11 +355,12 @@ int16_t get_line(FILE *fp, char *writep, uint16_t n) {
     }
     if (end == 0)
       return -1; // EOF
-    if (i == n - 2) {
-      writep[i] = '\r';
-      writep[i + 1] = '\0';
-    }
     writep[i++] = buf[rd++];
+    if (i == n - 1) {
+      writep[i - 1] = '\r';
+      writep[i] = '\0';
+      return i;
+    }
     // The following line is safe because of linebuf_pad[]
     if ((writep[i - 1] == '\n') && (writep[i - 2] == '\r')) {
       writep[i - 1] = '\0'; // Remove LF

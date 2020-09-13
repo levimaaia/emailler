@@ -111,8 +111,9 @@ void spinner(uint32_t sz, uint8_t final) {
  * fp - file to read from
  * reset - if 1 then just reset the buffer and return
  * writep - Pointer to buffer into which line will be written
+ * n - length of buffer. Longer lines will be truncated and terminated with CR.
  */
-int16_t get_line(FILE *fp, uint8_t reset, char *writep) {
+int16_t get_line(FILE *fp, uint8_t reset, char *writep, uint16_t n) {
   static uint16_t rd = 0; // Read
   static uint16_t end = 0; // End of valid data in buf
   uint16_t i = 0;
@@ -127,6 +128,11 @@ int16_t get_line(FILE *fp, uint8_t reset, char *writep) {
     }
     if (end == 0)
       return -1; // EOF
+    if (i == n - 1) {
+      writep[i - 1] = '\r';
+      writep[i] = '\0';
+      return i;
+    }
     writep[i++] = buf[rd++];
     if (writep[i - 1] == '\r') {
       writep[i] = '\0';
@@ -162,11 +168,11 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
       int16_t len;
 
       filesize = 0;
-      len = get_line(fp, 1, linebuf); // Reset buffer
+      len = get_line(fp, 1, linebuf, LINEBUFSZ); // Reset buffer
 
       while (cont) { 
 
-        len = get_line(fp, 0, linebuf);
+        len = get_line(fp, 0, linebuf, LINEBUFSZ);
         pos = 0;
 
         if (len == -1) {
@@ -444,8 +450,8 @@ void update_sent_mbox(char *name) {
   hdrs.skipbytes = 0; // Just in case it doesn't get set
   hdrs.status = 'N';
   hdrs.tag = ' ';
-  get_line(fp, 1, linebuf); // Reset buffer
-  while ((chars = get_line(fp, 0, linebuf)) != -1) {
+  get_line(fp, 1, linebuf, LINEBUFSZ); // Reset buffer
+  while ((chars = get_line(fp, 0, linebuf, LINEBUFSZ)) != -1) {
     if (headers) {
       headerchars += chars;
       if (!strncmp(linebuf, "Date: ", 6)) {
@@ -556,7 +562,7 @@ void main(int argc, char *argv[]) {
     strcpy(recipients, "");
 
     while (1) {
-      if ((get_line(fp, 0, linebuf) == -1) || (linecount == 20)) {
+      if ((get_line(fp, 0, linebuf, LINEBUFSZ) == -1) || (linecount == 20)) {
         if (strlen(recipients) == 0) {
           printf("No recipients (To or Cc) in %s. Skipping msg.\n", d->d_name);
           goto skiptonext;

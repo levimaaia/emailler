@@ -49,9 +49,9 @@ void error_exit() {
  * Expects Apple ][ style line endings (CR) and does no conversion
  * fp - file to read from
  * writep - Pointer to buffer into which line will be written
- * pos - position in file is updated via this pointer
+ * n - length of buffer. Longer lines will be truncated and terminated with CR.
  */
-int16_t get_line(FILE *fp, char *writep) {
+int16_t get_line(FILE *fp, char *writep, uint16_t n) {
   static uint16_t rd = 0; // Read
   static uint16_t end = 0; // End of valid data in buf
   uint16_t i = 0;
@@ -62,6 +62,11 @@ int16_t get_line(FILE *fp, char *writep) {
     }
     if (end == 0)
       return -1; // EOF
+    if (i == n - 1) {
+      writep[i - 1] = '\r';
+      writep[i] = '\0';
+      return i;
+    }
     writep[i++] = buf[rd++];
     if (writep[i - 1] == '\r') {
       writep[i] = '\0';
@@ -188,7 +193,7 @@ void repair_mailbox(void) {
     hdrs.skipbytes = 0; // Just in case it doesn't get set
     hdrs.status = 'R';
     hdrs.tag = ' ';
-    while ((chars = get_line(fp, linebuf)) != -1) {
+    while ((chars = get_line(fp, linebuf, LINEBUFSZ)) != -1) {
       if (headers) {
         headerchars += chars;
         if (!strncmp(linebuf, "Date: ", 6)) {

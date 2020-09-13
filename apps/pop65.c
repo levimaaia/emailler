@@ -48,6 +48,8 @@ uint16_t pop_port;
  * Keypress before quit
  */
 void confirm_exit(void) {
+  fclose(fp);
+  w5100_disconnect();
   printf("\n[Press Any Key]");
   cgetc();
   if (exec_email_on_exit) {
@@ -237,12 +239,14 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
     }
   } else {
     //
-    // Handle short single packet ASCII text responses
+    // Handle short single line ASCII text responses
+    // Must fit in recvbuf[]
     //
     uint16_t rcv;
     uint16_t len = 0;
+    uint8_t cont = 1;
 
-    while (1) {
+    while (cont) {
       if (input_check_for_abort_key()) {
         printf("User abort\n");
         w5100_disconnect();
@@ -250,26 +254,33 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
       }
     
       rcv = w5100_receive_request();
-      if (rcv)
-        break;
-      if (!w5100_connected()) {
-        printf("Connection lost\n");
-        return false;
+      if (!rcv) {
+        cont = w5100_connected();
+        if (cont)
+          continue;
       }
-    }
 
-    if (rcv > length - len)
-      rcv = length - len;
+      if (rcv > length - len)
+        rcv = length - len;
 
-    {
-      // One less to allow for faster pre-increment below
-      char *dataptr = recvbuf + len - 1;
-      uint16_t i;
-      for (i = 0; i < rcv; ++i) {
-        // The variable is necessary to have cc65 generate code
-        // suitable to access the W5100 auto-increment register.
-        char data = *w5100_data;
-        *++dataptr = data;
+      if (rcv == 0) {
+        return true; // This can happen on the final QUIT
+//      printf("Buffer overflow\n"); // Should never happen
+//      error_exit();
+      }
+
+      {
+        // One less to allow for faster pre-increment below
+        char *dataptr = recvbuf + len - 1;
+        uint16_t i;
+        for (i = 0; i < rcv; ++i) {
+          // The variable is necessary to have cc65 generate code
+          // suitable to access the W5100 auto-increment register.
+          char data = *w5100_data;
+          *++dataptr = data;
+          if (!memcmp(dataptr - 1, "\r\n", 2))
+            cont = 0;
+        }
       }
       w5100_receive_commit(rcv);
       len += rcv;
@@ -323,8 +334,9 @@ void readconfigfile(void) {
  * Expects CRLF line endings (CRLF) and converts to Apple II (CR) convention
  * fp - file to read from
  * writep - Pointer to buffer into which line will be written
+ * n - length of buffer. Longer lines will be truncated and terminated with CR.
  */
-int16_t get_line(FILE *fp, char *writep) {
+int16_t get_line(FILE *fp, char *writep, uint16_t n) {
   static uint16_t rd = 0; // Read
   static uint16_t end = 0; // End of valid data in buf
   uint16_t i = 0;
@@ -335,6 +347,11 @@ int16_t get_line(FILE *fp, char *writep) {
     }
     if (end == 0)
       return -1; // EOF
+    if (i == n - 1) {
+      writep[i - 1] = '\r';
+      writep[i] = '\0';
+      return i;
+    }
     writep[i++] = buf[rd++];
     // The following line is safe because of linebuf_pad[]
     if ((writep[i - 1] == '\n') && (writep[i - 2] == '\r')) {
@@ -434,7 +451,7 @@ void update_inbox(uint16_t nummsgs) {
     hdrs.skipbytes = 0; // Just in case it doesn't get set
     hdrs.status = 'N';
     hdrs.tag = ' ';
-    while ((chars = get_line(fp, linebuf)) != -1) {
+    while ((chars = get_line(fp, linebuf, LINEBUFSZ)) != -1) {
       if (headers) {
         headerchars += chars;
         if (!strncmp(linebuf, "Date: ", 6)) {
