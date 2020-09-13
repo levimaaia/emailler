@@ -22,6 +22,7 @@
 // Program constants
 #define MSGS_PER_PAGE 19     // Number of messages shown on summary screen
 #define PROMPT_ROW    24     // Row that data entry prompt appears on
+#define LINEBUFSZ     1000   // According to RFC2822 Section 2.1.1 (998+CRLF)
 #define READSZ        1024   // Size of buffer for copying files
 
 // Characters
@@ -60,7 +61,7 @@ struct datetime {
 
 char                  filename[80];
 char                  userentry[80];
-char                  linebuf[998+2]; // According to RFC2822 Section 2.1.1 (998+CRLF)
+char                  linebuf[LINEBUFSZ];
 char                  halfscreen[0x0400];
 FILE                  *fp;
 struct emailhdrs      *headers;
@@ -565,9 +566,10 @@ void update_highlighted(void) {
  * fp - file to read from
  * reset - if 1 then just reset the buffer and return
  * writep - Pointer to buffer into which line will be written
+ * n - length of buffer. Longer lines will be truncated and terminated with CR.
  * pos - position in file is updated via this pointer
  */
-int16_t get_line(FILE *fp, uint8_t reset, char *writep, uint32_t *pos) {
+int16_t get_line(FILE *fp, uint8_t reset, char *writep, uint16_t n, uint32_t *pos) {
   static uint16_t rd = 0; // Read
   static uint16_t end = 0; // End of valid data in buf
   uint16_t i = 0;
@@ -583,6 +585,11 @@ int16_t get_line(FILE *fp, uint8_t reset, char *writep, uint32_t *pos) {
     }
     if (end == 0)
       return -1; // EOF
+    if (i == n - 1) {
+      writep[i - 1] = '\r';
+      writep[i] = '\0';
+      return i;
+    }
     writep[i++] = buf[rd++];
     ++(*pos);
     if (writep[i - 1] == '\r') {
@@ -986,13 +993,13 @@ restart:
   skipbytes = h->skipbytes;
   free_headers_list();
 
-  get_line(fp, 1, linebuf, &pos); // Reset buffer
+  get_line(fp, 1, linebuf, LINEBUFSZ, &pos); // Reset buffer
   while (1) {
     if (!readp)
       readp = linebuf;
     if (!writep)
       writep = linebuf;
-    if (get_line(fp, 0, writep, &pos) == -1) {
+    if (get_line(fp, 0, writep, (LINEBUFSZ - (writep - linebuf)), &pos) == -1) {
       eof = 1;
       goto endscreen;
     }
@@ -1172,9 +1179,9 @@ retry:
         mime = 1;
         pos = 0;
         fseek(fp, pos, SEEK_SET);
-        get_line(fp, 1, linebuf, &pos); // Reset buffer
+        get_line(fp, 1, linebuf, LINEBUFSZ, &pos); // Reset buffer
         do {
-          get_line(fp, 0, linebuf, &pos);
+          get_line(fp, 0, linebuf, LINEBUFSZ, &pos);
           if (!strncasecmp(linebuf, "Content-Transfer-Encoding: ", 27)) {
             mime = 4;
             if (!strncmp(linebuf + 27, "7bit", 4))
@@ -1572,10 +1579,10 @@ void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
   mime = 0;
   pos = 0;
   fseek(fp, pos, SEEK_SET);
-  get_line(fp, 1, linebuf, &pos); // Reset buffer
+  get_line(fp, 1, linebuf, LINEBUFSZ, &pos); // Reset buffer
   do {
     spinner();
-    get_line(fp, 0, linebuf, &pos);
+    get_line(fp, 0, linebuf, LINEBUFSZ, &pos);
     if (!strncasecmp(linebuf, "MIME-Version: 1.0", 17))
       mime = 1;
     if (!strncasecmp(linebuf, "Content-Transfer-Encoding: ", 27)) {
@@ -1600,13 +1607,13 @@ void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
   readp = linebuf;
   writep = linebuf;
   mime_binary = 0;
-  get_line(fp, 1, linebuf, &pos); // Reset buffer
+  get_line(fp, 1, linebuf, LINEBUFSZ, &pos); // Reset buffer
   while (1) {
     if (!readp)
       readp = linebuf;
     if (!writep)
       writep = linebuf;
-    if (get_line(fp, 0, writep, &pos) == -1)
+    if (get_line(fp, 0, writep, (LINEBUFSZ - (writep - linebuf)), &pos) == -1)
       break;
     if ((mime >= 1) && (!strncmp(writep, "--", 2))) {
       if ((mime == 4) && !mime_binary) // End of Text/Plain MIME section
