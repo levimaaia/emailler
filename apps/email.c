@@ -930,13 +930,13 @@ void email_pager(struct emailhdrs *h) {
   }
   pos = h->skipbytes;
   fseek(fp, pos, SEEK_SET); // Skip over headers
+  mime_enc = ENC_7BIT;
 restart:
   eof = 0;
   linecount = 0;
   readp = linebuf;
   writep = linebuf;
   attachfp = NULL;
-  mime_enc = ENC_7BIT;
   mime_binary = 0;
   mime_hasfile = 0;
   attnum = 0;
@@ -956,14 +956,20 @@ restart:
   printfield(h->date, 0, 39);
   fputs("\nFrom:    ", stdout);
   printfield(h->from, 0, 70);
-  fputs("\nTo:      ", stdout);
-  printfield(h->to, 0, 70);
-  if (h->cc[0] != '\0') {
-    if (strncmp(h->to, "News:", 5) == 0)
+  if (strncmp(h->to, "News:", 5) == 0) {
+    fputs("\nNewsgrp: ", stdout);
+    printfield(&(h->to[5]), 0, 70);
+    if (h->cc[0] != '\0') {
       fputs("\nOrg:     ", stdout);
-    else
+      printfield(h->cc, 0, 70);
+    }
+  } else {
+    fputs("\nTo:      ", stdout);
+    printfield(h->to, 0, 70);
+    if (h->cc[0] != '\0') {
       fputs("\nCC:      ", stdout);
-    printfield(h->cc, 0, 70);
+      printfield(h->cc, 0, 70);
+    }
   }
   fputs("\nSubject: ", stdout);
   printfield(h->subject, 0, 70);
@@ -1013,6 +1019,8 @@ restart:
       } else if (!strncasecmp(writep, "Content-Transfer-Encoding: ", 27)) {
         mime = 3;
         if (!strncmp(writep + 27, "7bit", 4))
+          mime_enc = ENC_7BIT;
+        else if (!strncmp(writep + 27, "8bit", 4))
           mime_enc = ENC_7BIT;
         else if (!strncmp(writep + 27, "quoted-printable", 16))
           mime_enc = ENC_QP;
@@ -1165,6 +1173,8 @@ retry:
           if (!strncasecmp(linebuf, "Content-Transfer-Encoding: ", 27)) {
             mime = 4;
             if (!strncmp(linebuf + 27, "7bit", 4))
+              mime_enc = ENC_7BIT;
+            else if (!strncmp(linebuf + 27, "8bit", 4))
               mime_enc = ENC_7BIT;
             else if (!strncmp(linebuf + 27, "quoted-printable", 16))
               mime_enc = ENC_QP;
@@ -1567,6 +1577,8 @@ void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
       mime = 4;
       if (!strncmp(linebuf + 27, "7bit", 4))
         mime_enc = ENC_7BIT;
+      else if (!strncmp(linebuf + 27, "8bit", 4))
+        mime_enc = ENC_7BIT;
       else if (!strncmp(linebuf + 27, "quoted-printable", 16))
         mime_enc = ENC_QP;
       else if (!strncmp(linebuf + 27, "base64", 6))
@@ -1611,6 +1623,8 @@ void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
       } else if (!strncasecmp(writep, "Content-Transfer-Encoding: ", 27)) {
         mime = 3;
         if (!strncmp(writep + 27, "7bit", 4))
+          mime_enc = ENC_7BIT;
+        else if (!strncmp(writep + 27, "8bit", 4))
           mime_enc = ENC_7BIT;
         else if (!strncmp(writep + 27, "quoted-printable", 16))
           mime_enc = ENC_QP;
