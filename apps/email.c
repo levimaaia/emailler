@@ -1594,6 +1594,7 @@ void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
   fseek(fp, pos, SEEK_SET);
   readp = linebuf;
   writep = linebuf;
+  mime_binary = 0;
   get_line(fp, 1, linebuf, &pos); // Reset buffer
   while (1) {
     if (!readp)
