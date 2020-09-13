@@ -60,7 +60,6 @@ void confirm_exit(void) {
   cgetc();
   if (exec_email_on_exit) {
     sprintf(filename, "%s/EMAIL.SYSTEM", cfg_instdir);
-printf("%s\n", filename);
     exec(filename, NULL);
   }
   exit(0);
