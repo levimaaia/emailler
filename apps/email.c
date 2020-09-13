@@ -86,6 +86,13 @@ void load_editor(uint8_t compose) {
 #pragma code-name (pop)
 
 #pragma code-name (push, "LC")
+void load_nntp65(void) {
+  snprintf(filename, 80, "%s/NNTP65.SYSTEM", cfg_instdir);
+  exec(filename, "EMAIL");
+}
+#pragma code-name (pop)
+
+#pragma code-name (push, "LC")
 void load_pop65(void) {
   snprintf(filename, 80, "%s/POP65.SYSTEM", cfg_instdir);
   exec(filename, "EMAIL");
@@ -109,14 +116,12 @@ void load_date65(void) {
 /*
  * Put cursor at beginning of PROMPT_ROW
  */
-#pragma code-name (push, "LC")
 void goto_prompt_row(void) {
   uint8_t i;
   putchar(HOME);
   for (i = 0; i < PROMPT_ROW - 1; ++i) 
     putchar(CURDOWN);
 }
-#pragma code-name (pop)
 
 #pragma code-name (push, "LC")
 void clrscr2(void) {
@@ -1960,8 +1965,8 @@ void help(void) {
   puts("Message Composition                       | Invoke Helper Programs");
   printf("  W   Write an email message              |   %s-R     Retrieve messages\n", openapple);
   printf("  R   Reply to current message            |   %s-S     Send outbox\n", openapple);
-  printf("  F   Forward current message             |   %s-D     Set date using NTP\n", openapple);
-  fputs("------------------------------------------+------------------------------------", stdout);
+  printf("  F   Forward current message             |   %s-N     Get/Send Usenet news\n", openapple);
+  printf("------------------------------------------+   %s-D     Set date using NTP", openapple);
   cgetc();
 }
 #pragma code-name (pop)
@@ -2130,6 +2135,10 @@ void keyboard_hdlr(void) {
     case 0x80 + 'E':
       snprintf(filename, 80, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, h->emailnum);
       load_editor(0);
+      break;
+    case 0x80 + 'n': // OA-N "Retrieve/send news via NNTP"
+    case 0x80 + 'N':
+      load_nntp65();
       break;
     case 0x80 + 'r': // OA-R "Retrieve messages from server"
     case 0x80 + 'R':
