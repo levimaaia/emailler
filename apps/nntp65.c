@@ -300,11 +300,12 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
 /*
  * Check expected string from server
  */
-void expect(char *buf, char *s) {
+uint8_t expect(char *buf, char *s) {
   if (strncmp(buf, s, strlen(s)) != 0) {
     printf("\nExpected '%s' got '%s'\n", s, buf);
-    error_exit();
+    return 1;
   }
+  return 0;
 }
 
 /*
@@ -510,7 +511,7 @@ void main(int argc, char *argv[]) {
   linebuf_pad[0] = 0;
 
   videomode(VIDEOMODE_80COL);
-  printf("%c%s NNTP%c\n", 0x0f, PROGNAME, 0x0e);
+  printf("%c%s NNTP - Receive News Articles%c\n", 0x0f, PROGNAME, 0x0e);
 
   printf("\nReading NEWS.CFG             -");
   readconfigfile();
@@ -573,20 +574,22 @@ void main(int argc, char *argv[]) {
   if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DONT_SEND, CMD_MODE)) {
     error_exit();
   }
-  expect(buf, "20"); // "200" if posting is allowed
-                     // "201" if posting is prohibited
+  if (expect(buf, "20")) // "200" if posting is allowed / "201" if no posting
+    error_exit();
 
   sprintf(sendbuf, "AUTHINFO USER %s\r\n", cfg_user);
   if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
     error_exit();
   }
-  expect(buf, "381"); // Username accepted
+  if (expect(buf, "381")) // Username accepted
+    error_exit();
 
   sprintf(sendbuf, "AUTHINFO PASS %s\r\n", cfg_pass);
   if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
     error_exit();
   }
-  expect(buf, "281"); // Authentication successful
+  if (expect(buf, "281")) // Authentication successful
+    error_exit();
 
   while (1) {
     msg = fscanf(newsgroupsfp, "%s %s %ld", newsgroup, mailbox, &msgnum);

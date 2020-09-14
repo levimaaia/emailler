@@ -1,9 +1,9 @@
 /////////////////////////////////////////////////////////////////
-// SMTP65
-// Simple Mail Transport Protocol (SMTP) Client for IP65
-// https://www.ietf.org/rfc/rfc821
-// (Based on IP65's wget65.c)
-// Bobbi June 2020
+// NNTP65.UP
+// Network News Transport Protocol (NNTP) Client for IP65
+// https://www.ietf.org/rfc/rfc3977.txt
+// (Based on smtp65.c, which in turn is based on IP65's wget65.c)
+// Bobbi September 2020
 /////////////////////////////////////////////////////////////////
 
 #include <cc65.h>
@@ -42,7 +42,7 @@ char     filename[80];
 int      len;
 FILE     *fp;
 uint32_t filesize;
-uint16_t smtp_port;
+uint16_t nntp_port;
 
 /*
  * Keypress before quit
@@ -342,13 +342,13 @@ uint8_t expect(char *buf, char *s) {
 }
 
 /*
- * Read parms from EMAIL.CFG
+ * Read parms from NEWS.CFG
  */
 void readconfigfile(void) {
   char *colon;
-  fp = fopen("EMAIL.CFG", "r");
+  fp = fopen("NEWS.CFG", "r");
   if (!fp) {
-    puts("Can't open config file EMAIL.CFG");
+    puts("Can't open config file NEWS.CFG");
     error_exit();
   }
   fscanf(fp, "%s", cfg_server);
@@ -362,11 +362,11 @@ void readconfigfile(void) {
   fscanf(fp, "%s", cfg_emailaddr);
   fclose(fp);
 
-  colon = strchr(cfg_smtp_server, ':');
+  colon = strchr(cfg_server, ':');
   if (!colon)
-    smtp_port = 25;
+    nntp_port = 110;
   else
-    smtp_port = atoi(colon + 1);
+    nntp_port = atoi(colon + 1);
 }
 
 /*
@@ -374,7 +374,7 @@ void readconfigfile(void) {
  */
 void update_email_db(struct emailhdrs *h) {
   FILE *fp;
-  sprintf(filename, "%s/SENT/EMAIL.DB", cfg_emaildir);
+  sprintf(filename, "%s/NEWS.SENT/EMAIL.DB", cfg_emaildir);
   _filetype = PRODOS_T_BIN;
   _auxtype = 0;
   fp = fopen(filename, "ab");
@@ -403,7 +403,7 @@ void copyheader(char *dest, char *source, uint16_t len) {
  * Write NEXT.EMAIL file with number of next EMAIL.n file to be created
  */
 void write_next_email(uint16_t num) {
-  sprintf(filename, "%s/SENT/NEXT.EMAIL", cfg_emaildir);
+  sprintf(filename, "%s/NEWS.SENT/NEXT.EMAIL", cfg_emaildir);
   _filetype = PRODOS_T_TXT;
   _auxtype = 0;
   fp = fopen(filename, "wb");
@@ -417,7 +417,7 @@ void write_next_email(uint16_t num) {
 }
 
 /*
- * Update SENT when a message has been sent
+ * Update NEWS.SENT when a message has been sent
  * Copy a messages from OUTBOX to SENT and find headers of interest
  * (Date, From, To, BCC, Subject)
  * filename - Filename in OUTBOX for message just sent
@@ -427,7 +427,7 @@ void update_sent_mbox(char *name) {
   uint16_t nextemail, chars, headerchars;
   uint8_t headers;
   FILE *destfp;
-  sprintf(filename, "%s/SENT/NEXT.EMAIL", cfg_emaildir);
+  sprintf(filename, "%s/NEWS.SENT/NEXT.EMAIL", cfg_emaildir);
   fp = fopen(filename, "r");
   if (!fp) {
     nextemail = 1;
@@ -437,14 +437,14 @@ void update_sent_mbox(char *name) {
     fclose(fp);
   }
   strcpy(linebuf, "");
-  sprintf(filename, "%s/OUTBOX/%s", cfg_emaildir, name);
+  sprintf(filename, "%s/NEWS.OUTBOX/%s", cfg_emaildir, name);
   fp = fopen(filename, "r");
   if (!fp) {
     printf("Can't open %s\n", filename);
     error_exit();
   }
   hdrs.emailnum = nextemail;
-  sprintf(filename, "%s/SENT/EMAIL.%u", cfg_emaildir, nextemail++);
+  sprintf(filename, "%s/NEWS.SENT/EMAIL.%u", cfg_emaildir, nextemail++);
   puts(filename);
   _filetype = PRODOS_T_TXT;
   _auxtype = 0;
@@ -497,7 +497,7 @@ void update_sent_mbox(char *name) {
 }
 
 void main(int argc, char *argv[]) {
-  static char sendbuf[80], recipients[160];
+  static char sendbuf[80];
   uint8_t linecount;
   DIR *dp;
   struct dirent *d;
@@ -508,9 +508,9 @@ void main(int argc, char *argv[]) {
     exec_email_on_exit = 1;
 
   videomode(VIDEOMODE_80COL);
-  printf("%c%s SMTP%c\n", 0x0f, PROGNAME, 0x0e);
+  printf("%c%s NNTP Post News Article(s)%c\n", 0x0f, PROGNAME, 0x0e);
 
-  printf("\nReading EMAIL.CFG            -");
+  printf("\nReading NEWS.CFG            -");
   readconfigfile();
   printf(" Ok");
 
@@ -543,7 +543,7 @@ void main(int argc, char *argv[]) {
   // Copy IP config from IP65 to W5100
   w5100_config(eth_init);
 
-  sprintf(filename, "%s/OUTBOX", cfg_emaildir);
+  sprintf(filename, "%s/NEWS.OUTBOX", cfg_emaildir);
   dp = opendir(filename);
   if (!dp) {
     printf("Can't open dir %s\n", filename);
@@ -552,7 +552,7 @@ void main(int argc, char *argv[]) {
 
   while (d = readdir(dp)) {
 
-    sprintf(filename, "%s/OUTBOX/%s", cfg_emaildir, d->d_name);
+    sprintf(filename, "%s/NEWS.OUTBOX/%s", cfg_emaildir, d->d_name);
     fp = fopen(filename, "rb");
     if (!fp) {
         printf("Can't open %s\n", d->d_name);
@@ -568,31 +568,11 @@ void main(int argc, char *argv[]) {
     printf("\n** Processing file %s ...\n", d->d_name);
 
     linecount = 0;
-    strcpy(recipients, "");
-
-    while (1) {
-      if ((get_line(fp, 0, linebuf, LINEBUFSZ) == -1) || (linecount == 20)) {
-        if (strlen(recipients) == 0) {
-          printf("No recipients (To or Cc) in %s. Skipping msg.\n", d->d_name);
-          goto skiptonext;
-        }
-        break;
-      }
-      ++linecount;
-      if (!strncmp(linebuf, "To: ", 4) || (!strncmp(linebuf, "cc: ",4))) {
-        linebuf[strlen(linebuf) - 1] = '\0'; // Chop off \r
-        if (strlen(linebuf + 4) > 0) {
-          if (strlen(recipients) > 0)
-            strcat(recipients, ",");
-          strcat(recipients, linebuf + 4);
-        }
-      }
-    }
 
     if (!connected) {
-      printf("Connecting to %s   - ", cfg_smtp_server);
+      printf("Connecting to %s (%u)  - ", cfg_server, nntp_port);
 
-      if (!w5100_connect(parse_dotted_quad(cfg_smtp_server), smtp_port)) {
+      if (!w5100_connect(parse_dotted_quad(cfg_server), nntp_port)) {
         printf("Fail\n");
         error_exit();
       }
@@ -602,78 +582,46 @@ void main(int argc, char *argv[]) {
       if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DONT_SEND, CMD_MODE)) {
         error_exit();
       }
-      if (expect(buf, "220 "))
+      if (expect(buf, "200 ")) // "200" if posting is allowed
         error_exit();
 
-      sprintf(sendbuf, "HELO %s\r\n", cfg_smtp_domain);
+      sprintf(sendbuf, "AUTHINFO USER %s\r\n", cfg_user);
       if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
         error_exit();
       }
-      if (expect(buf, "250 "))
+      if (expect(buf, "381")) // Username accepted
+        error_exit();
+
+      sprintf(sendbuf, "AUTHINFO PASS %s\r\n", cfg_pass);
+      if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
+        error_exit();
+      }
+      if (expect(buf, "281")) // Authentication successful
         error_exit();
 
       connected = 1;
     }
 
-    sprintf(sendbuf, "MAIL FROM:<%s>\r\n", cfg_emailaddr);
-    if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
+    if (!w5100_tcp_send_recv("POST\r\n", buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
       error_exit();
     }
-    if (expect(buf, "250 ")) {
-      printf("Skipping msg\n");
-      goto skiptonext;
-    }
-
-    // Handle multiple comma-separated recipients
-    p = recipients;
-    while (q = strchr(p, ',')) {
-      *q = '\0';
-      while (*p == ' ')
-        ++p;
-      sprintf(sendbuf, "RCPT TO:<%s>\r\n", p);
-      if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
-        error_exit();
-      }
-      if (expect(buf, "250 ")) {
-        printf("Skipping msg\n");
-        goto skiptonext;
-      }
-      p = q + 1;
-    }
-    while (*p == ' ')
-      ++p;
-    sprintf(sendbuf, "RCPT TO:<%s>\r\n", p);
-    if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
+    if (expect(buf, "340"))
       error_exit();
-    }
-    if (expect(buf, "250 ")) {
-      printf("Skipping msg\n");
-      goto skiptonext;
-    }
-
-    sprintf(sendbuf, "DATA\r\n");
-    if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
-      error_exit();
-    }
-    if (expect(buf, "354 ")) {
-      printf("Skipping msg\n");
-      goto skiptonext;
-    }
 
     fseek(fp, 0, SEEK_SET);
 
     if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, DATA_MODE)) {
       error_exit();
     }
-    expect(buf, "250 ");
+    expect(buf, "240");
 
     fclose(fp);
 
-    printf("Updating SENT mailbox ...\n");
+    printf("Updating NEWS.SENT mailbox ...\n");
     update_sent_mbox(d->d_name);
 
-    printf("Removing from OUTBOX ...\n");
-    sprintf(filename, "%s/OUTBOX/%s", cfg_emaildir, d->d_name);
+    printf("Removing from NEWS.OUTBOX ...\n");
+    sprintf(filename, "%s/NEWS.OUTBOX/%s", cfg_emaildir, d->d_name);
     if (unlink(filename))
       printf("Can't remove %s\n", filename);
 
@@ -690,7 +638,7 @@ skiptonext:
     printf("Disconnecting\n");
     w5100_disconnect();
   } else
-    printf("\n** No messages in OUTBOX to send **\n");
+    printf("\n** No messages in NEWS.OUTBOX to send **\n");
 
   confirm_exit();
 }
