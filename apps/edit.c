@@ -2533,7 +2533,7 @@ int edit(char *fname) {
           load_attacher();
         // Fall through
       case 1:
-        if (prompt_okay("Quit to EMAIL") == 0)
+        if (prompt_okay("Return to EMAIL") == 0)
           load_email();
         break;
       default:
