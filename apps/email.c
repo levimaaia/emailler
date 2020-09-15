@@ -922,6 +922,7 @@ void load_screen_from_scrollback(FILE *fp, uint8_t screen) {
  * Includes support for decoding MIME headers
  */
 void email_pager(struct emailhdrs *h) {
+  static struct emailhdrs hh;
   uint32_t pos = 0;
   uint8_t *cursorrow = (uint8_t*)CURSORROW, mime = 0;
   FILE *sbackfp = NULL;
@@ -931,8 +932,15 @@ void email_pager(struct emailhdrs *h) {
   uint8_t mime_enc, mime_binary, mime_hasfile, eof,
           screennum, maxscreennum, attnum;
   char c, *readp, *writep;
+
+  // We do not need all the email headers for the summary screen right now.
+  // Freeing them can release up to nearly 8KB. The caller rebuilds the
+  // summary info by calling read_email_db().
+  hh = *h;
+  free_headers_list();
+
   clrscr2();
-  snprintf(filename, 80, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, h->emailnum);
+  snprintf(filename, 80, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, hh.emailnum);
   fp = fopen(filename, "rb");
   if (!fp) {
     if (sbackfp)
@@ -940,7 +948,7 @@ void email_pager(struct emailhdrs *h) {
     error(ERR_NONFATAL, "Can't open %s", filename);
     return;
   }
-  pos = h->skipbytes;
+  pos = hh.skipbytes;
   fseek(fp, pos, SEEK_SET); // Skip over headers
   mime_enc = ENC_7BIT;
 restart:
@@ -965,34 +973,27 @@ restart:
   maxscreennum = screennum = 0;
   clrscr2();
   fputs("Date:    ", stdout);
-  printfield(h->date, 0, 39);
+  printfield(hh.date, 0, 39);
   fputs("\nFrom:    ", stdout);
-  printfield(h->from, 0, 70);
-  if (strncmp(h->to, "News:", 5) == 0) {
+  printfield(hh.from, 0, 70);
+  if (strncmp(hh.to, "News:", 5) == 0) {
     fputs("\nNewsgrp: ", stdout);
-    printfield(&(h->to[5]), 0, 70);
-    if (h->cc[0] != '\0') {
+    printfield(&(hh.to[5]), 0, 70);
+    if (hh.cc[0] != '\0') {
       fputs("\nOrg:     ", stdout);
-      printfield(h->cc, 0, 70);
+      printfield(hh.cc, 0, 70);
     }
   } else {
     fputs("\nTo:      ", stdout);
-    printfield(h->to, 0, 70);
-    if (h->cc[0] != '\0') {
+    printfield(hh.to, 0, 70);
+    if (hh.cc[0] != '\0') {
       fputs("\nCC:      ", stdout);
-      printfield(h->cc, 0, 70);
+      printfield(hh.cc, 0, 70);
     }
   }
   fputs("\nSubject: ", stdout);
-  printfield(h->subject, 0, 70);
+  printfield(hh.subject, 0, 70);
   fputs("\n\n", stdout);
-
-  // We do not need all the email headers for the summary screen right now.
-  // Freeing them can release up to nearly 8KB. The caller rebuilds the
-  // summary info by calling read_email_db().
-  skipbytes = h->skipbytes;
-  free_headers_list();
-
   get_line(fp, 1, linebuf, LINEBUFSZ, &pos); // Reset buffer
   while (1) {
     if (!readp)
@@ -1163,7 +1164,7 @@ retry:
       case 'T':
       case 't':
         mime = 0;
-        pos = skipbytes;
+        pos = hh.skipbytes;
         fseek(fp, pos, SEEK_SET);
         goto restart;
         break;
@@ -1199,7 +1200,7 @@ retry:
             break;
           }
         } while (linebuf[0] != '\r');
-        pos = skipbytes;
+        pos = hh.skipbytes;
         fseek(fp, pos, SEEK_SET);
         goto restart;
       case 'Q':
