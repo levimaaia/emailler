@@ -702,7 +702,7 @@ void putline(FILE *fp, char *s) {
  *     set to NULL.  If there is text left in the buffer to be consumed then
  *     the pointer will be advanced to point to the next text to process.
  * cols - Number of columns to break at
- * mode - 'R' for reply, 'F' for forward, otherwise ' '
+ * mode - 'R' for reply, 'F' for forward, 'N' for news follow-up, otherwise ' '
  * Returns 1 if the caller should invoke the routine again before obtaining
  * more input, or 0 if there is nothing more to do or caller needs to get more
  * input before next call.
@@ -729,7 +729,7 @@ uint8_t word_wrap_line(FILE *fp, char **s, uint8_t cols, char mode) {
         col = 0;
         if (col + l != cols) {
           fputc('\r', fp);
-          if (mode == 'R') {
+          if ((mode == 'R') || (mode == 'N')) {
             fputc('>', fp);
             ++col;
           }
@@ -750,7 +750,7 @@ uint8_t word_wrap_line(FILE *fp, char **s, uint8_t cols, char mode) {
       } else {                     // There is stuff on this line already
         col = 0;
         fputc('\r', fp);           // Try a blank line
-        if (mode == 'R') {
+        if ((mode == 'R') || (mode == 'N')) {
           fputc('>', fp);
           ++col;
         }
@@ -769,7 +769,7 @@ uint8_t word_wrap_line(FILE *fp, char **s, uint8_t cols, char mode) {
   putline(fp, ss);
   fputc('\r', fp);
   col = 0;
-  if (mode == 'R') {
+  if ((mode == 'R') || (mode == 'N')) {
     fputc('>', fp);
     ++col;
   }
@@ -1577,7 +1577,7 @@ char prompt_okay(char *msg) {
  * For a MIME multipart email, we take the first Text/Plain section
  * Email file to read is expected to be already open using fp
  * f - File handle for destination file (also already open)
- * mode - 'R' if reply, 'F' if forward
+ * mode - 'R' if reply, 'F' if forward, 'N' if news follow-up
  */
 void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
   uint32_t pos = 0;
@@ -1718,12 +1718,22 @@ void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
  * mbox is the name of the destination mailbox
  * delete - if set to 1 then the message will be marked as deleted in the
  *          source mbox
- * mode - 'R' for reply, 'F' for forward, otherwise ' '
+ * mode - 'R' for reply, 'F' for forward, 'N' for news follow-up, otherwise ' '
  */
 void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
                      char *mbox, uint8_t delete, char mode) {
+  struct datetime dt;
   uint16_t num, buflen, l, written;
   FILE *fp2;
+
+#if 0 // FOR TEST
+  if (mode == 'N') {
+    if (strncmp(h->to, "News:", 5) != 0) {
+      error(ERR_NONFATAL, "Not a news article");
+      return;
+    }
+  }
+#endif
 
   if (mode == 'F') {
     if (prompt_for_name("Fwd to", 0) == 255)
@@ -1755,7 +1765,7 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
     return;
   }
 
-  if (mode != ' ')
+  if ((mode == 'R') || (mode == 'F')) {
     l = write_email_headers(fp, fp2, h, mode, userentry);
     if (l == 1)
       error(ERR_NONFATAL, "Invalid email header");
@@ -1764,16 +1774,29 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
       fclose(fp2);
       return;
     }
+  } else if (mode == 'N') {
+    fprintf(fp2, "From: %s\r", cfg_emailaddr);
+    truncate_header(&(h->to[5]), buf, 80);
+    fprintf(fp2, "Newsgroups: %s\r", buf);
+    truncate_header(h->subject, buf, 80);
+    fprintf(fp2, "Subject: Re: %s\n", buf);
+    readdatetime((unsigned char*)(SYSTEMTIME), &dt);
+    datetimelong(&dt, userentry);
+    fprintf(fp2, "Date: %s\r", userentry);
+    fprintf(fp2, "Message-ID: <%05d-%s>\r", num, cfg_emailaddr);
+    fprintf(fp2, "User-Agent: %s - Apple II Forever!\r\r", PROGNAME);
+// TODO: NEED TO ADD REFERENCED NEWSGROUPS SOMEHOW
+  }
 
   // Make sure spinner is in the right place
-  if ((mode == 'R') || (mode == 'F'))
+  if ((mode == 'R') || (mode == 'F') || (mode == 'N'))
     goto_prompt_row();
 
   // Copy email body
   putchar(' '); // For spinner
-  if (mode == 'R')
+  if ((mode == 'R') || (mode == 'N'))
     fputc('>', fp2);
-  if ((mode == 'R') || (mode == 'F')) {
+  if ((mode == 'R') || (mode == 'F') || (mode == 'N')) {
     get_email_body(h, fp2, mode);
   } else {
     while (1) {
@@ -1831,7 +1854,7 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
   email_summary_for(selection);
 
   if (mode != ' ') {
-    snprintf(filename, 80, "%s/OUTBOX/EMAIL.%u", cfg_emaildir, num);
+    snprintf(filename, 80, "%s/%s/EMAIL.%u", cfg_emaildir, mbox, num);
     load_editor(1);
   }
 }
@@ -2047,7 +2070,8 @@ void keyboard_hdlr(void) {
         break;
       case 'f':    // CA-F "Follow-up news article"
       case 'F':
-        // follow_up_news();
+        if (h)
+          copy_to_mailbox(h, get_db_index(), "NEWS.OUTBOX", 0, 'N');
         break;
       }
       continue;
