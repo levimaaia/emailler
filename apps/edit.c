@@ -1886,7 +1886,7 @@ void init_aux_banks(void) {
   uint16_t count;
   clrscr();
   revers(1);
-  cprintf("EDIT.SYSTEM v1.26             Bobbi 2020");
+  cprintf("EDIT.SYSTEM v1.27             Bobbi 2020");
   revers(0);
   cprintf("\n\n\n  %u x 64KB aux banks -> %uKB\n", banktbl[0], banktbl[0]*64);
   for (i = 1; i <= banktbl[0]; ++i) {
