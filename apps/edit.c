@@ -1558,6 +1558,7 @@ done:
 void load_email(void) {
   revers(0);
   clrscr();
+  chdir(startdir);
   snprintf(userentry, 80, "%s/EMAIL.SYSTEM", startdir);
   exec(userentry, NULL);
 }
@@ -1568,6 +1569,7 @@ void load_email(void) {
 void load_attacher(void) {
   revers(0);
   clrscr();
+  chdir(startdir);
   snprintf(userentry, 80, "%s/ATTACHER.SYSTEM", startdir);
   exec(userentry, filename);
 }
