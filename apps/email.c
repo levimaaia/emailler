@@ -94,6 +94,13 @@ void load_nntp65(void) {
 #pragma code-name (pop)
 
 #pragma code-name (push, "LC")
+void load_nntp65up(void) {
+  snprintf(filename, 80, "%s/NNTP65UP.SYSTEM", cfg_instdir);
+  exec(filename, "EMAIL");
+}
+#pragma code-name (pop)
+
+#pragma code-name (push, "LC")
 void load_pop65(void) {
   snprintf(filename, 80, "%s/POP65.SYSTEM", cfg_instdir);
   exec(filename, "EMAIL");
@@ -337,6 +344,7 @@ void printsystemdate(void) {
 /*
  * Free linked list rooted at headers
  */
+#pragma code-name (push, "LC")
 void free_headers_list(void) {
   struct emailhdrs *h = headers;
   while (h) {
@@ -345,6 +353,7 @@ void free_headers_list(void) {
   }
   headers = NULL;
 }
+#pragma code-name (pop)
 
 /*
  * Read EMAIL.DB and populate linked list rooted at headers
@@ -928,7 +937,7 @@ void email_pager(struct emailhdrs *h) {
   FILE *sbackfp = NULL;
   const int8_t *b = b64dec - 43;
   FILE *attachfp;
-  uint16_t linecount, chars, skipbytes;
+  uint16_t linecount, chars;
   uint8_t mime_enc, mime_binary, mime_hasfile, eof,
           screennum, maxscreennum, attnum;
   char c, *readp, *writep;
@@ -1898,15 +1907,11 @@ err:
  * Create a blank outgoing message and put it in OUTBOX.
  * OUTBOX is not a 'proper' mailbox (no EMAIL.DB)
  */
-void create_blank_outgoing() {
+void create_blank_outgoing(void) {
   struct datetime dt;
   uint16_t num;
-
-  // Read next number from dest/NEXT.EMAIL
   if (get_next_email("OUTBOX", &num))
     return;
-
-  // Open destination email file
   snprintf(filename, 80, "%s/OUTBOX/EMAIL.%u", cfg_emaildir, num);
   _filetype = PRODOS_T_TXT;
   _auxtype = 0;
@@ -1915,7 +1920,6 @@ void create_blank_outgoing() {
     error(ERR_NONFATAL, "Can't open %s", filename);
     return;
   }
-
   fprintf(fp, "From: %s\r", cfg_emailaddr);
   if (prompt_for_name("To", 0) == 255)
     goto done; // ESC pressed
@@ -1934,12 +1938,49 @@ void create_blank_outgoing() {
     fprintf(fp, "cc: %s\r", userentry);
   fprintf(fp, "X-Mailer: %s - Apple II Forever!\r\r", PROGNAME);
   fclose(fp);
-
-  // Update dest/NEXT.EMAIL, incrementing count by 1
   if (update_next_email("OUTBOX", num + 1))
     return;
-
   snprintf(filename, 80, "%s/OUTBOX/EMAIL.%u", cfg_emaildir, num);
+  load_editor(1);
+done:
+  fclose(fp);
+}
+
+/*
+ * Create a blank news article and put it in NEWS.OUTBOX
+ * NEWS.OUTBOX is not a 'proper' mailbox (no EMAIL.DB)
+ */
+void create_blank_news(void) {
+  struct datetime dt;
+  uint16_t num;
+  if (get_next_email("NEWS.OUTBOX", &num))
+    return;
+  snprintf(filename, 80, "%s/NEWS.OUTBOX/EMAIL.%u", cfg_emaildir, num);
+  _filetype = PRODOS_T_TXT;
+  _auxtype = 0;
+  fp = fopen(filename, "wb");
+  if (!fp) {
+    error(ERR_NONFATAL, "Can't open %s", filename);
+    return;
+  }
+  fprintf(fp, "From: %s\r", cfg_emailaddr);
+  if (prompt_for_name("Newsgroup(s)", 0) == 255)
+    goto done; // ESC pressed
+  if (strlen(userentry) == 0)
+    goto done;
+  fprintf(fp, "Newsgroups: %s\r", userentry);
+  if (prompt_for_name("Subject", 0) == 255)
+    goto done; // ESC pressed
+  fprintf(fp, "Subject: %s\r", userentry);
+  readdatetime((unsigned char*)(SYSTEMTIME), &dt);
+  datetimelong(&dt, userentry);
+  fprintf(fp, "Date: %s\r", userentry);
+  fprintf(fp, "Message-ID: <%05d-%s>\r", num, cfg_emailaddr);
+  fprintf(fp, "User-Agent: %s - Apple II Forever!\r\r", PROGNAME);
+  fclose(fp);
+  if (update_next_email("NEWS.OUTBOX", num + 1))
+    return;
+  snprintf(filename, 80, "%s/NEWS.OUTBOX/EMAIL.%u", cfg_emaildir, num);
   load_editor(1);
 done:
   fclose(fp);
@@ -1951,6 +1992,7 @@ done:
 #pragma code-name (push, "LC")
 void help(void) {
   clrscr2();
+#if 0
   printf("%c%s HELP%c\n", INVERSE, PROGNAME, NORMAL);
   puts("------------------------------------------+------------------------------------");
   puts("Email Summary Screen                      | Email Pager");
@@ -1975,6 +2017,7 @@ void help(void) {
   printf("  R   Reply to current message            |   %s-S     Send outbox\n", openapple);
   printf("  F   Forward current message             |   %s-N     Get/Send Usenet news\n", openapple);
   printf("------------------------------------------+   %s-D     Set date using NTP", openapple);
+#endif
   cgetc();
 }
 #pragma code-name (pop)
@@ -1988,6 +2031,27 @@ void keyboard_hdlr(void) {
   while (1) {
     h = get_headers(selection);
     c = cgetc();
+    if (*(uint8_t*)0xc062 & 0x80) { // Closed Apple depressed
+      switch (c) {
+      case 'r':    // CA-R "Retrieve news via NNTP"
+      case 'R':
+        load_nntp65();
+        break;
+      case 's':    // CA-S "Sent news via NNTP"
+      case 'S':
+        load_nntp65up();
+        break;
+      case 'p':    // CA-P "Post news article"
+      case 'P':
+        create_blank_news();
+        break;
+      case 'f':    // CA-F "Follow-up news article"
+      case 'F':
+        // follow_up_news();
+        break;
+      }
+      continue;
+    }
     switch (c) {
     case 'k':
     case 'K':
@@ -2144,10 +2208,6 @@ void keyboard_hdlr(void) {
       snprintf(filename, 80, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, h->emailnum);
       load_editor(0);
       break;
-    case 0x80 + 'n': // OA-N "Retrieve/send news via NNTP"
-    case 0x80 + 'N':
-      load_nntp65();
-      break;
     case 0x80 + 'r': // OA-R "Retrieve messages from server"
     case 0x80 + 'R':
       load_pop65();
@@ -2167,7 +2227,6 @@ void keyboard_hdlr(void) {
         exit(0);
       }
     default:
-      //printf("[%02x]", c);
       putchar(BELL);
     }
   }
