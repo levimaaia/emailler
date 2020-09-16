@@ -17,8 +17,8 @@
   P   Purge messages marked as deleted    |                                     
 ------------------------------------------+-------------------------------------
  Email Composition                        | News Composition                    
-  W   Write an email message              |  P    Post news article             
-  R   Reply to current message            |  F    Follow-up to current article  
+  W   Write an email message              |  }-P  Post news article             
+  R   Reply to current message            |  }-F  Follow-up to current article  
   F   Forward current message             |                                     
 ------------------------------------------+-------------------------------------
                                                        [ Any Key to Exit Help ]
