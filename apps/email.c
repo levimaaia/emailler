@@ -6,7 +6,6 @@
 
 // TODO: Scrunch memory
 // TODO: Some way to abort an email that has been created already - final verification to send
-// TODO: No MIME attachments for Usenet posts
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -50,6 +49,8 @@
 
 char closedapple[]  = "\x0f\x1b""@\x18\x0e";
 char openapple[]    = "\x0f\x1b""A\x18\x0e";
+char email[]        = "EMAIL";
+char email_cfg[]    = "EMAIL.CFG";
 char email_prefs[]  = "EMAIL.PREFS";
 char email_db[]     = "%s/%s/EMAIL.DB";
 char email_db_new[] = "%s/%s/EMAIL.DB.NEW";
@@ -101,46 +102,70 @@ unsigned char         buf[READSZ];
 #define ERR_NONFATAL 0
 #define ERR_FATAL    1
 
+/*
+ * Load and run EDIT.SYSTEM
+ * compose - Controls the arguments passed to EDIT.SYSTEM
+ *           0: Email reading (-reademail)
+ *           1: Email composition (-email)
+ *           2: News composition (-news)
+ */
 #pragma code-name (push, "LC")
 void load_editor(uint8_t compose) {
-  snprintf(userentry, 80, "%s %s", (compose ? "-compose" : "-reademail"), filename);
+  snprintf(userentry, 80, "%s %s",
+           (compose == 0 ? "-reademail" : (compose == 1 ? "-email" : "-news")),
+           filename);
   snprintf(filename, 80, "%s/EDIT.SYSTEM", cfg_instdir);
   exec(filename, userentry);
 }
 #pragma code-name (pop)
 
+/*
+ * Load and run NNTP65.SYSTEM
+ */
 #pragma code-name (push, "LC")
 void load_nntp65(void) {
   snprintf(filename, 80, "%s/NNTP65.SYSTEM", cfg_instdir);
-  exec(filename, "EMAIL");
+  exec(filename, email);
 }
 #pragma code-name (pop)
 
+/*
+ * Load and run NNTP65UP.SYSTEM
+ */
 #pragma code-name (push, "LC")
 void load_nntp65up(void) {
   snprintf(filename, 80, "%s/NNTP65UP.SYSTEM", cfg_instdir);
-  exec(filename, "EMAIL");
+  exec(filename, email);
 }
 #pragma code-name (pop)
 
+/*
+ * Load and run POP65.SYSTEM
+ */
 #pragma code-name (push, "LC")
 void load_pop65(void) {
   snprintf(filename, 80, "%s/POP65.SYSTEM", cfg_instdir);
-  exec(filename, "EMAIL");
+  exec(filename, email);
 }
 #pragma code-name (pop)
 
+/*
+ * Load and run SMTP65.SYSTEM
+ */
 #pragma code-name (push, "LC")
 void load_smtp65(void) {
   snprintf(filename, 80, "%s/SMTP65.SYSTEM", cfg_instdir);
-  exec(filename, "EMAIL");
+  exec(filename, email);
 }
 #pragma code-name (pop)
 
+/*
+ * Load and run DATE65.SYSTEM
+ */
 #pragma code-name (push, "LC")
 void load_date65(void) {
   snprintf(filename, 80, "%s/DATE65.SYSTEM", cfg_instdir);
-  exec(filename, "EMAIL");
+  exec(filename, email);
 }
 #pragma code-name (pop)
 
@@ -272,9 +297,9 @@ void spinner(void) {
  */
 #pragma code-name (push, "LC")
 void readconfigfile(void) {
-  fp = fopen("EMAIL.CFG", "r");
+  fp = fopen(email_cfg, "r");
   if (!fp)
-    error(ERR_FATAL, cant_open, "EMAIL.CFG");
+    error(ERR_FATAL, cant_open, email_cfg);
   fscanf(fp, "%s", cfg_server);
   fscanf(fp, "%s", cfg_user);
   fscanf(fp, "%s", cfg_pass);
@@ -1537,11 +1562,9 @@ esc_pressed:
  * s - Subject text
  * Adds 'Re: ' to subject line unless it is already there
  */
-#pragma code-name (push, "LC")
 void subject_response(FILE *f, char *s) {
   fprintf(f, "Subject: %s%s\r", (strncmp(s, "Re: ", 3) ? "Re: " : ""), s);
 }
-#pragma code-name (pop)
 
 /*
  * Write subject line to file
@@ -1957,7 +1980,7 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
 
   if (mode != ' ') {
     snprintf(filename, 80, email_file, cfg_emaildir, mbox, num);
-    load_editor(1);
+    load_editor(mode == 'N' ? 0 : 1);
   }
 }
 

@@ -11,9 +11,9 @@
   T   Tag current message                 |  {-D  Set date using DATE65 (NTP)   
   A   Archive current/tagged message      |  {-R  Receive email using POP65     
   C   Copy current/tagged message         |  {-S  Send OUTBOX using SMTP65      
-  M   Move current/tagged message         |  }-R  Receive news using NNTP65     
-  D   Mark current message deleted        |  }-S  Sent NEWS.OUTBOX with NNTP65UP
-  U   Remove deletion mark                |                                     
+  M   Move current/tagged message         |  {-E  Open current message in EDIT  
+  D   Mark current message deleted        |  }-R  Receive news using NNTP65     
+  U   Remove deletion mark                |  }-S  Sent NEWS.OUTBOX with NNTP65UP
   P   Purge messages marked as deleted    |                                     
 ------------------------------------------+-------------------------------------
  Email Composition                        | News Composition                    

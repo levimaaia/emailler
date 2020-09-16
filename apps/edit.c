@@ -1581,6 +1581,10 @@ void name_file(void);                 // Forward declaration
 void save(void) {
   uint8_t rc;
   FILE *fp;
+  if (email_mode == 1) {
+    show_error("Read-only file");
+    return;
+  }
   if (strlen(filename) == 0) {
     status[1] = 1; // Prompt if save will overwrite existing file
     name_file();
@@ -2521,6 +2525,8 @@ int edit(char *fname) {
     case 0x80 + 'N': // OA-N "Name"
     case 0x80 + 'n': // OA-n
       name_file();
+      if (email_mode == 1)
+        email_mode = 3;
       break;
     case 0x80 + 'Q': // OA-Q "Quit"
     case 0x80 + 'q': // OA-q
@@ -2531,6 +2537,7 @@ int edit(char *fname) {
           load_attacher();
         // Fall through
       case 1:
+      case 3:
         if (prompt_okay("Return to EMAIL") == 0)
           load_email();
         break;
@@ -2751,11 +2758,18 @@ donehelp:
  */
 void usage(void) {
   printf("Usage: -EDIT.SYSTEM [filename.txt]");
-  printf("   or  -EDIT.SYSTEM [-reademail|-compose] filename.txt");
+  printf("   or  -EDIT.SYSTEM [-reademail|-email|-news] filename.txt");
   reconnect_ramdisk();
   exit(1);
 }
 
+/*
+ * Command line arguments:
+ *  -reademail - Open file read-only. Load EMAIL.SYSTEM on quit.
+ *  -email     - Prompt for attachments, load ATTACHER.SYSTEM
+ *               or EMAIL.SYSTEM on quit
+ *  -news      - Load EMAIL.SYSTEM on quit
+ */
 void main(int argc, char *argv[]) {
   uint8_t *pp = (uint8_t*)0xbf98;
   if (!(*pp & 0x02)) {
@@ -2775,8 +2789,10 @@ void main(int argc, char *argv[]) {
   case 3:
     if (strcmp(argv[1], "-reademail") == 0)
       email_mode = 1;
-    else if (strcmp(argv[1], "-compose") == 0)
+    else if (strcmp(argv[1], "-email") == 0)
       email_mode = 2;
+    else if (strcmp(argv[1], "-news") == 0)
+      email_mode = 3;
     else
       usage();
     edit(argv[2]);
