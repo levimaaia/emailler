@@ -4,8 +4,9 @@
 // Bobbi June-September 2020
 /////////////////////////////////////////////////////////////////
 
-// TODO: Scrunch memory
+// TODO: Scrunch memory. Move strings to string table to avoid duplication.
 // TODO: Some way to abort an email that has been created already - final verification to send
+//       Maybe it is better to do this in EDIT.SYSTEM - command to delete file
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1652,8 +1653,11 @@ uint8_t write_news_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h, uint16_t n
   get_line(fp1, 1, linebuf, LINEBUFSZ, &pos); // Reset buffer
   while (1) {
     get_line(fp1, 0, linebuf, LINEBUFSZ, &pos);
-    if (linebuf[0] == '\r') // End of headers
+    if (linebuf[0] == '\r') { // End of headers
+      if ((idstate == 1) && (refstate == 0))
+        fprintf(fp2, "References: %s", userentry);
       break;
+    }
     if (strncmp(linebuf, "Message-ID:", 11) == 0) {
       if (refstate == 2)
         fprintf(fp2, &(linebuf[11]));
