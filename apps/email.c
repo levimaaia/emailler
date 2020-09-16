@@ -1984,7 +1984,7 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
 
   if (mode != ' ') {
     snprintf(filename, 80, email_file, cfg_emaildir, mbox, num);
-    load_editor(mode == 'N' ? 0 : 1);
+    load_editor(mode == 'N' ? 2 : 1);
   }
 }
 
