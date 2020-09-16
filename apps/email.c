@@ -4,7 +4,7 @@
 // Bobbi June-September 2020
 /////////////////////////////////////////////////////////////////
 
-// TODO: Scrunch memory. Reinstate help.
+// TODO: Scrunch memory
 // TODO: Some way to abort an email that has been created already - final verification to send
 // TODO: No MIME attachments for Usenet posts
 
@@ -27,7 +27,7 @@
 #define MSGS_PER_PAGE 19     // Number of messages shown on summary screen
 #define PROMPT_ROW    24     // Row that data entry prompt appears on
 #define LINEBUFSZ     1000   // According to RFC2822 Section 2.1.1 (998+CRLF)
-#define READSZ        1024   // Size of buffer for copying files
+#define READSZ        512    // Size of buffer for copying files
 
 // Characters
 #define BELL          0x07
@@ -60,10 +60,13 @@ char news_outbox[]  = "NEWS.OUTBOX";
 char cant_open[]    = "Can't open %s";
 char cant_seek[]    = "Can't seek in %s";
 char mime_ver[]     = "MIME-Version: 1.0";
+char ct[]           = "Content-Type: ";
 char cte[]          = "Content-Transfer-Encoding: ";
 char qp[]           = "quoted-printable";
 char b64[]          = "base64";
+char unsupp_enc[]   = "** Unsupp encoding %s\n";
 char sb_err[]       = "Scrollback error";
+char a2_forever[]   = "%s: %s - Apple II Forever!\r\r";
 
 /*
  * Represents a date and time
@@ -1058,7 +1061,7 @@ restart:
       mime_hasfile = 0;
       readp = writep = NULL;
     } else if ((mime < 4) && (mime >= 2)) {
-      if (!strncasecmp(writep, "Content-Type: ", 14)) {
+      if (!strncasecmp(writep, ct, 14)) {
         if (!strncmp(writep + 14, "text/plain", 10)) {
           mime = 3;
         } else if (!strncmp(writep + 14, "text/html", 9)) {
@@ -1079,7 +1082,7 @@ restart:
         else if (!strncmp(writep + 27, b64, 6))
           mime_enc = ENC_B64;
         else {
-          printf("** Unsupp encoding %s\n", writep + 27);
+          printf(unsupp_enc, writep + 27);
           mime = 1;
         }
       } else if (strstr(writep, "filename=")) {
@@ -1233,7 +1236,7 @@ retry:
             else if (!strncmp(linebuf + 27, b64, 6))
               mime_enc = ENC_B64;
             else {
-              printf("** Unsupp encoding %s\n", linebuf + 27);
+              printf(unsupp_enc, linebuf + 27);
               mime = 1;
             }
             break;
@@ -1534,9 +1537,11 @@ esc_pressed:
  * s - Subject text
  * Adds 'Re: ' to subject line unless it is already there
  */
+#pragma code-name (push, "LC")
 void subject_response(FILE *f, char *s) {
   fprintf(f, "Subject: %s%s\r", (strncmp(s, "Re: ", 3) ? "Re: " : ""), s);
 }
+#pragma code-name (pop)
 
 /*
  * Write subject line to file
@@ -1580,7 +1585,7 @@ uint8_t write_email_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h,
     return 255; // ESC pressed
   if (strlen(userentry) > 0)
     fprintf(fp2, "cc: %s\r", userentry);
-  fprintf(fp2, "X-Mailer: %s - Apple II Forever!\r\r", PROGNAME);
+  fprintf(fp2, a2_forever, "X-Mailer", PROGNAME);
   if (mode == 'R') {
     truncate_header(h->date, buf, 40);
     fprintf(fp2, "On %s, ", buf);
@@ -1648,7 +1653,7 @@ uint8_t write_news_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h, uint16_t n
       }
     }
   }
-  fprintf(fp2, "User-Agent: %s - Apple II Forever!\r\r", PROGNAME);
+  fprintf(fp2, a2_forever, "User-Agent", PROGNAME);
   truncate_header(h->from, buf, 80);
   fprintf(fp2, "%s wrote:\r\r", buf);
   fseek(fp1, h->skipbytes, SEEK_SET); // Skip headers when copying
@@ -1713,7 +1718,7 @@ void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
       else if (!strncmp(linebuf + 27, b64, 6))
         mime_enc = ENC_B64;
       else {
-        error(ERR_NONFATAL, "Unsupp encoding %s\n", linebuf + 27);
+        error(ERR_NONFATAL, unsupp_enc, linebuf + 27);
         return;
       }
       break;
@@ -1740,7 +1745,7 @@ void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
       mime_binary = 0;
       readp = writep = NULL;
     } else if ((mime < 4) && (mime >= 2)) {
-      if (!strncasecmp(writep, "Content-Type: ", 14)) {
+      if (!strncasecmp(writep, ct, 14)) {
         if (!strncmp(writep + 14, "text/plain", 10)) {
           mime = 3;
         } else if (!strncmp(writep + 14, "text/html", 9)) {
@@ -1761,7 +1766,7 @@ void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
         else if (!strncmp(writep + 27, b64, 6))
           mime_enc = ENC_B64;
         else {
-          printf("** Unsupp encoding %s\n", writep + 27);
+          printf(unsupp_enc, writep + 27);
           mime = 1;
         }
       } else if ((mime == 3) && (!strncmp(writep, "\r", 1))) {
@@ -2056,7 +2061,7 @@ void create_blank_outgoing(void) {
     goto done; // ESC pressed
   if (strlen(userentry) > 0)
     fprintf(fp, "cc: %s\r", userentry);
-  fprintf(fp, "X-Mailer: %s - Apple II Forever!\r\r", PROGNAME);
+  fprintf(fp, a2_forever, "X-Mailer", PROGNAME);
   fclose(fp);
   if (update_next_email(outbox, num + 1))
     return;
@@ -2096,7 +2101,7 @@ void create_blank_news(void) {
   datetimelong(&dt, userentry);
   fprintf(fp, "Date: %s\r", userentry);
   fprintf(fp, "Message-ID: <%05d-%s>\r", num, cfg_emailaddr);
-  fprintf(fp, "User-Agent: %s - Apple II Forever!\r\r", PROGNAME);
+  fprintf(fp, a2_forever, "User-Agent", PROGNAME);
   fclose(fp);
   if (update_next_email(news_outbox, num + 1))
     return;
@@ -2109,7 +2114,6 @@ done:
 /*
  * Display help screen
  */
-#if 0
 void help(uint8_t num) {
   char *p;
   char c;
@@ -2141,7 +2145,6 @@ void help(uint8_t num) {
 done:
   fclose(fp);
 }
-#endif
 
 /*
  * Keyboard handler
@@ -2339,7 +2342,7 @@ void keyboard_hdlr(void) {
       load_smtp65();
       break;
     case 0x80 + '?': // OA-? "Help"
-      //help(1);
+      help(1);
       c = cgetc();
       email_summary();
       break;
