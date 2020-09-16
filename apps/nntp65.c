@@ -321,9 +321,6 @@ void readconfigfile(void) {
   fscanf(fp, "%s", cfg_server);
   fscanf(fp, "%s", cfg_user);
   fscanf(fp, "%s", cfg_pass);
-  fscanf(fp, "%s", cfg_pop_delete);
-  fscanf(fp, "%s", cfg_smtp_server);
-  fscanf(fp, "%s", cfg_smtp_domain);
   fscanf(fp, "%s", cfg_instdir);
   fscanf(fp, "%s", cfg_emaildir);
   fclose(fp);
@@ -431,11 +428,11 @@ void update_mailbox(char *mbox) {
   uint8_t headers;
   FILE *destfp;
   DIR *dp;
-  sprintf(filename, "%s/NEWSSPOOL", cfg_emaildir);
+  sprintf(filename, "%s/NEWS.SPOOL", cfg_emaildir);
   dp = opendir(filename);
   while (d = readdir(dp)) {
     strcpy(linebuf, "");
-    sprintf(filename, "%s/NEWSSPOOL/%s", cfg_emaildir, d->d_name);
+    sprintf(filename, "%s/NEWS.SPOOL/%s", cfg_emaildir, d->d_name);
     fp = fopen(filename, "r");
     if (!fp) {
       printf("Can't open %s\n", filename);
@@ -493,7 +490,7 @@ void update_mailbox(char *mbox) {
     fclose(destfp);
     update_email_db(mbox, &hdrs);
 
-    sprintf(filename, "%s/NEWSSPOOL/NEWS.%u", cfg_emaildir, msg);
+    sprintf(filename, "%s/NEWS.SPOOL/NEWS.%u", cfg_emaildir, msg);
     if (unlink(filename))
       printf("Can't delete %s\n", filename);
   }
@@ -638,7 +635,7 @@ void main(int argc, char *argv[]) {
       if (strncmp(buf, "223", 3) != 0)
         break; // No more messages in group
       sscanf(buf, "223 %ld", &msg);
-      sprintf(filename, "%s/NEWSSPOOL/NEWS.%lu", cfg_emaildir, msg);
+      sprintf(filename, "%s/NEWS.SPOOL/NEWS.%lu", cfg_emaildir, msg);
       _filetype = PRODOS_T_TXT;
       _auxtype = 0;
       fp = fopen(filename, "wb"); 

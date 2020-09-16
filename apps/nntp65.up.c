@@ -354,9 +354,6 @@ void readconfigfile(void) {
   fscanf(fp, "%s", cfg_server);
   fscanf(fp, "%s", cfg_user);
   fscanf(fp, "%s", cfg_pass);
-  fscanf(fp, "%s", cfg_pop_delete);
-  fscanf(fp, "%s", cfg_smtp_server);
-  fscanf(fp, "%s", cfg_smtp_domain);
   fscanf(fp, "%s", cfg_instdir);
   fscanf(fp, "%s", cfg_emaildir);
   fscanf(fp, "%s", cfg_emailaddr);
@@ -501,7 +498,6 @@ void main(int argc, char *argv[]) {
   uint8_t linecount;
   DIR *dp;
   struct dirent *d;
-  char *p, *q;
   uint8_t eth_init = ETH_INIT_DEFAULT, connected = 0;
 
   if ((argc == 2) && (strcmp(argv[1], "EMAIL") == 0))
