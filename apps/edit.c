@@ -1569,7 +1569,7 @@ void load_attacher(void) {
   revers(0);
   clrscr();
   chdir(startdir);
-  exec("ATTACHER.SYSTEM", NULL);
+  exec("ATTACHER.SYSTEM", filename);
 }
 
 void file_ui(char *, char *, char *); // Forward declaration

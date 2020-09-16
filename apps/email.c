@@ -48,16 +48,22 @@
 #define CURSORROW     0x0025
 #define SYSTEMTIME    0xbf90
 
-char closedapple[] = "\x0f\x1b""@\x18\x0e";
-char openapple[]   = "\x0f\x1b""A\x18\x0e";
-char email_prefs[] = "EMAIL.PREFS";
-char email_db[]    = "%s/%s/EMAIL.DB";
-char next_email[]  = "%s/%s/NEXT.EMAIL";
-char email_file[]  = "%s/%s/EMAIL.%u";
-char outbox[]      = "OUTBOX";
-char news_outbox[] = "NEWS.OUTBOX";
-char cant_open[]   = "Can't open %s";
-char cant_seek[]   = "Can't seek in %s";
+char closedapple[]  = "\x0f\x1b""@\x18\x0e";
+char openapple[]    = "\x0f\x1b""A\x18\x0e";
+char email_prefs[]  = "EMAIL.PREFS";
+char email_db[]     = "%s/%s/EMAIL.DB";
+char email_db_new[] = "%s/%s/EMAIL.DB.NEW";
+char next_email[]   = "%s/%s/NEXT.EMAIL";
+char email_file[]   = "%s/%s/EMAIL.%u";
+char outbox[]       = "OUTBOX";
+char news_outbox[]  = "NEWS.OUTBOX";
+char cant_open[]    = "Can't open %s";
+char cant_seek[]    = "Can't seek in %s";
+char mime_ver[]     = "MIME-Version: 1.0";
+char cte[]          = "Content-Transfer-Encoding: ";
+char qp[]           = "quoted-printable";
+char b64[]          = "base64";
+char sb_err[]       = "Scrollback error";
 
 /*
  * Represents a date and time
@@ -895,12 +901,12 @@ void copyaux(char *src, char *dst, uint16_t len, uint8_t dir) {
  */
 void save_screen_to_scrollback(FILE *fp) {
   if (fwrite((void*)0x0400, 0x0400, 1, fp) != 1) { // Even cols
-    error(ERR_NONFATAL, "Can't write scrollback");
+    error(ERR_NONFATAL, sb_err);
     return;
   }
   copyaux((void*)0x400, halfscreen, 0x400, FROMAUX);
   if (fwrite(halfscreen, 0x0400, 1, fp) != 1) { // Odd cols
-    error(ERR_NONFATAL, "Can't write scrollback");
+    error(ERR_NONFATAL, sb_err);
     return;
   }
 }
@@ -912,11 +918,11 @@ void save_screen_to_scrollback(FILE *fp) {
  */
 void load_screen_from_scrollback(FILE *fp, uint8_t screen) {
   if (fseek(fp, (screen - 1) * 0x0800, SEEK_SET)) {
-    error(ERR_NONFATAL, "Can't seek scrollback");
+    error(ERR_NONFATAL, sb_err);
     return;
   }
   if (fread(halfscreen, 0x0400, 1, fp) != 1) { // Even cols
-    error(ERR_NONFATAL, "Can't read scrollback");
+    error(ERR_NONFATAL, sb_err);
     return;
   }
   memcpy((void*)0x400, halfscreen + 0x000, 0x078);
@@ -928,7 +934,7 @@ void load_screen_from_scrollback(FILE *fp, uint8_t screen) {
   memcpy((void*)0x700, halfscreen + 0x300, 0x078);
   memcpy((void*)0x780, halfscreen + 0x380, 0x078);
   if (fread(halfscreen, 0x0400, 1, fp) != 1) { // Odd cols
-    error(ERR_NONFATAL, "Can't read scrollback");
+    error(ERR_NONFATAL, sb_err);
     return;
   }
   copyaux(halfscreen + 0x000, (void*)0x400, 0x078, TOAUX);
@@ -940,7 +946,7 @@ void load_screen_from_scrollback(FILE *fp, uint8_t screen) {
   copyaux(halfscreen + 0x300, (void*)0x700, 0x078, TOAUX);
   copyaux(halfscreen + 0x380, (void*)0x780, 0x078, TOAUX);
   if (fseek(fp, 0, SEEK_END)) {
-    error(ERR_NONFATAL, "Can't seek scrollback");
+    error(ERR_NONFATAL, sb_err);
     return;
   }
 }
@@ -1001,7 +1007,7 @@ restart:
   unlink(filename);
   sbackfp = fopen(filename, "wb+");
   if (!sbackfp) {
-    error(ERR_NONFATAL, "No scrollback");
+    error(ERR_NONFATAL, sb_err);
   }
   maxscreennum = screennum = 0;
   clrscr2();
@@ -1062,15 +1068,15 @@ restart:
           mime_binary = 1;
           mime = 3;
         }
-      } else if (!strncasecmp(writep, "Content-Transfer-Encoding: ", 27)) {
+      } else if (!strncasecmp(writep, cte, 27)) {
         mime = 3;
         if (!strncmp(writep + 27, "7bit", 4))
           mime_enc = ENC_7BIT;
         else if (!strncmp(writep + 27, "8bit", 4))
           mime_enc = ENC_7BIT;
-        else if (!strncmp(writep + 27, "quoted-printable", 16))
+        else if (!strncmp(writep + 27, qp, 16))
           mime_enc = ENC_QP;
-        else if (!strncmp(writep + 27, "base64", 6))
+        else if (!strncmp(writep + 27, b64, 6))
           mime_enc = ENC_B64;
         else {
           printf("** Unsupp encoding %s\n", writep + 27);
@@ -1216,15 +1222,15 @@ retry:
         get_line(fp, 1, linebuf, LINEBUFSZ, &pos); // Reset buffer
         do {
           get_line(fp, 0, linebuf, LINEBUFSZ, &pos);
-          if (!strncasecmp(linebuf, "Content-Transfer-Encoding: ", 27)) {
+          if (!strncasecmp(linebuf, cte, 27)) {
             mime = 4;
             if (!strncmp(linebuf + 27, "7bit", 4))
               mime_enc = ENC_7BIT;
             else if (!strncmp(linebuf + 27, "8bit", 4))
               mime_enc = ENC_7BIT;
-            else if (!strncmp(linebuf + 27, "quoted-printable", 16))
+            else if (!strncmp(linebuf + 27, qp, 16))
               mime_enc = ENC_QP;
-            else if (!strncmp(linebuf + 27, "base64", 6))
+            else if (!strncmp(linebuf + 27, b64, 6))
               mime_enc = ENC_B64;
             else {
               printf("** Unsupp encoding %s\n", linebuf + 27);
@@ -1341,7 +1347,7 @@ void purge_deleted(void) {
     error(ERR_NONFATAL, cant_open, filename);
     return;
   }
-  snprintf(filename, 80, "%s/%s/EMAIL.DB.NEW", cfg_emaildir, curr_mbox);
+  snprintf(filename, 80, email_db_new, cfg_emaildir, curr_mbox);
   _filetype = PRODOS_T_BIN;
   _auxtype = 0;
   fp2 = fopen(filename, "wb");
@@ -1383,7 +1389,7 @@ done:
     error(ERR_NONFATAL, "Can't delete %s", filename);
     return;
   }
-  snprintf(userentry, 80, "%s/%s/EMAIL.DB.NEW", cfg_emaildir, curr_mbox);
+  snprintf(userentry, 80, email_db_new, cfg_emaildir, curr_mbox);
   if (rename(userentry, filename)) {
     error(ERR_NONFATAL, "Can't rename %s", userentry);
     return;
@@ -1694,17 +1700,17 @@ void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
   do {
     spinner();
     get_line(fp, 0, linebuf, LINEBUFSZ, &pos);
-    if (!strncasecmp(linebuf, "MIME-Version: 1.0", 17))
+    if (!strncasecmp(linebuf, mime_ver, 17))
       mime = 1;
-    if (!strncasecmp(linebuf, "Content-Transfer-Encoding: ", 27)) {
+    if (!strncasecmp(linebuf, cte, 27)) {
       mime = 4;
       if (!strncmp(linebuf + 27, "7bit", 4))
         mime_enc = ENC_7BIT;
       else if (!strncmp(linebuf + 27, "8bit", 4))
         mime_enc = ENC_7BIT;
-      else if (!strncmp(linebuf + 27, "quoted-printable", 16))
+      else if (!strncmp(linebuf + 27, qp, 16))
         mime_enc = ENC_QP;
-      else if (!strncmp(linebuf + 27, "base64", 6))
+      else if (!strncmp(linebuf + 27, b64, 6))
         mime_enc = ENC_B64;
       else {
         error(ERR_NONFATAL, "Unsupp encoding %s\n", linebuf + 27);
@@ -1744,15 +1750,15 @@ void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
           mime_binary = 1;
           mime = 3;
         }
-      } else if (!strncasecmp(writep, "Content-Transfer-Encoding: ", 27)) {
+      } else if (!strncasecmp(writep, cte, 27)) {
         mime = 3;
         if (!strncmp(writep + 27, "7bit", 4))
           mime_enc = ENC_7BIT;
         else if (!strncmp(writep + 27, "8bit", 4))
           mime_enc = ENC_7BIT;
-        else if (!strncmp(writep + 27, "quoted-printable", 16))
+        else if (!strncmp(writep + 27, qp, 16))
           mime_enc = ENC_QP;
-        else if (!strncmp(writep + 27, "base64", 6))
+        else if (!strncmp(writep + 27, b64, 6))
           mime_enc = ENC_B64;
         else {
           printf("** Unsupp encoding %s\n", writep + 27);
@@ -2333,7 +2339,7 @@ void keyboard_hdlr(void) {
       load_smtp65();
       break;
     case 0x80 + '?': // OA-? "Help"
-//      help(1);
+      //help(1);
       c = cgetc();
       email_summary();
       break;
