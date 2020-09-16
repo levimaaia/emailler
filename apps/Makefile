@@ -152,6 +152,7 @@ ip65.dsk: bin
 	java -jar $(AC) -p  $@ edithelp2.txt   txt < edithelp2.txt
 	java -jar $(AC) -p  $@ edit.system     sys < $(CC65)/apple2enh/util/loader.system
 	java -jar $(AC) -as $@ email               < email.bin
+	java -jar $(AC) -p  $@ emailhelp1.txt  txt < emailhelp1.txt
 	java -jar $(AC) -p  $@ email.cfg       txt < email.cfg
 	java -jar $(AC) -p  $@ email.system    sys < $(CC65)/apple2enh/util/loader.system
 	java -jar $(AC) -as $@ hfs65               < hfs65.bin

@@ -4,6 +4,10 @@
 // Bobbi June-September 2020
 /////////////////////////////////////////////////////////////////
 
+// TODO: Scrunch memory. Reinstate help.
+// TODO: Some way to abort an email that has been created already - final verification to send
+// TODO: No MIME attachments for Usenet posts
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -44,6 +48,7 @@
 #define CURSORROW     0x0025
 #define SYSTEMTIME    0xbf90
 
+char closedapple[] = "\x0f\x1b""@\x18\x0e";
 char openapple[]   = "\x0f\x1b""A\x18\x0e";
 char email_prefs[] = "EMAIL.PREFS";
 char email_db[]    = "%s/%s/EMAIL.DB";
@@ -1518,6 +1523,26 @@ esc_pressed:
 }
 
 /*
+ * Write subject line to file
+ * f - File descriptor to write to
+ * s - Subject text
+ * Adds 'Re: ' to subject line unless it is already there
+ */
+void subject_response(FILE *f, char *s) {
+  fprintf(f, "Subject: %s%s\r", (strncmp(s, "Re: ", 3) ? "Re: " : ""), s);
+}
+
+/*
+ * Write subject line to file
+ * f - File descriptor to write to
+ * s - Subject text
+ * Adds 'Fwd: ' to subject line unless it is already there
+ */
+void subject_forward(FILE *f, char *s) {
+  fprintf(f, "Subject: %s%s\r", (strncmp(s, "Fwd: ", 3) ? "Fwd: " : ""), s);
+}
+
+/*
  * Write email headers for replies and forwarded messages
  * fp1  - File handle of the mail message being replied/forwarded
  * fp2  - File handle of the destination mail message
@@ -1531,7 +1556,10 @@ uint8_t write_email_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h,
   struct datetime dt;
   fprintf(fp2, "From: %s\r", cfg_emailaddr);
   truncate_header(h->subject, buf, 80);
-  fprintf(fp2, "Subject: %s: %s\r", (mode == 'F' ? "Fwd" : "Re"), buf);
+  if (mode == 'F')
+    subject_forward(fp2, buf);
+  else
+    subject_response(fp2, buf);
   readdatetime((unsigned char*)(SYSTEMTIME), &dt);
   datetimelong(&dt, buf);
   fprintf(fp2, "Date: %s\r", buf);
@@ -1582,7 +1610,7 @@ uint8_t write_news_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h, uint16_t n
   truncate_header(&(h->to[5]), buf, 80);
   fprintf(fp2, "Newsgroups: %s\r", buf);
   truncate_header(h->subject, buf, 80);
-  fprintf(fp2, "Subject: Re: %s\n", buf); // TODO CHECK if Re: before blindly adding it
+  subject_response(fp2, buf);
   readdatetime((unsigned char*)(SYSTEMTIME), &dt);
   datetimelong(&dt, userentry);
   fprintf(fp2, "Date: %s\r", userentry);
@@ -1615,6 +1643,8 @@ uint8_t write_news_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h, uint16_t n
     }
   }
   fprintf(fp2, "User-Agent: %s - Apple II Forever!\r\r", PROGNAME);
+  truncate_header(h->from, buf, 80);
+  fprintf(fp2, "%s wrote:\r\r", buf);
   fseek(fp1, h->skipbytes, SEEK_SET); // Skip headers when copying
   return 0;
 }
@@ -2073,39 +2103,39 @@ done:
 /*
  * Display help screen
  */
-#pragma code-name (push, "LC")
-void help(void) {
-  clrscr2();
-// TODO Redo this using a text file
 #if 0
-  printf("%c%s HELP%c\n", INVERSE, PROGNAME, NORMAL);
-  puts("------------------------------------------+------------------------------------");
-  puts("Email Summary Screen                      | Email Pager");
-  puts("  [Up]   / K        Previous message      |   [Space]   Page forward");
-  puts("  [Down] / J        Next message          |   B         Page back");
-  puts("  [Space] / [Ret]   Read current message  |   T         Go to top");
-  puts("  Q                 Quit to ProDOS        |   M         MIME mode");
-  puts("------------------------------------------+   H         Show email headers");
-  puts("Message Management                        |   Q         Return to summary");     
-  puts("  S   Switch mailbox                      +------------------------------------");
-  puts("  N   Create new mailbox");
-  puts("  T   Tag current message for group Archive/Move/Copy");
-  puts("  A   Archive current/tagged message to 'received' mailbox");
-  puts("  C   Copy current/tagged message to another mailbox");
-  puts("  M   Move current/tagged message to another mailbox");
-  puts("  D   Mark current message deleted");
-  puts("  U   Undelete current message if marked deleted");
-  puts("  P   Purge messages marked as deleted");
-  puts("------------------------------------------+------------------------------------");
-  puts("Message Composition                       | Invoke Helper Programs");
-  printf("  W   Write an email message              |   %s-R     Retrieve messages\n", openapple);
-  printf("  R   Reply to current message            |   %s-S     Send outbox\n", openapple);
-  printf("  F   Forward current message             |   %s-N     Get/Send Usenet news\n", openapple);
-  printf("------------------------------------------+   %s-D     Set date using NTP", openapple);
-#endif
-  cgetc();
+void help(uint8_t num) {
+  char *p;
+  char c;
+  uint16_t i, s;
+  uint8_t cont;
+  revers(0);
+  cursor(0);
+  clrscr2();
+  snprintf(filename, 80, "%s/EMAILHELP%u.TXT", cfg_instdir, num);
+  fp = fopen(filename, "rb");
+  if (!fp) {
+    printf("Can't open help file\n\n");
+    goto done;
+  }
+  p = buf;
+  do {
+    s = fread(p, 1, READSZ, fp);
+    cont = (s == READSZ ? 1 : 0);
+    for (i = 0; i < s; ++i) {
+      c = p[i];
+      if (c == '{')
+        printf("%s", openapple);
+      else if (c == '}')
+        printf("%s", closedapple);
+      else if ((c != '\r') && (c != '\n'))
+        putchar(c);
+    }
+  } while (cont);
+done:
+  fclose(fp);
 }
-#pragma code-name (pop)
+#endif
 
 /*
  * Keyboard handler
@@ -2303,7 +2333,8 @@ void keyboard_hdlr(void) {
       load_smtp65();
       break;
     case 0x80 + '?': // OA-? "Help"
-      help();
+//      help(1);
+      c = cgetc();
       email_summary();
       break;
     case 'q':
