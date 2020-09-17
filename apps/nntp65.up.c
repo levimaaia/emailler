@@ -23,7 +23,11 @@
 
 #include "email_common.h"
 
+#define BELL      7
 #define BACKSPACE 8
+#define NORMAL    0x0e
+#define INVERSE   0x0f
+#define CLRLINE   0x1a
 
 // Both pragmas are obligatory to have cc65 generate code
 // suitable to access the W5100 auto-increment registers.
@@ -502,6 +506,7 @@ void main(int argc, char *argv[]) {
   uint8_t linecount;
   DIR *dp;
   struct dirent *d;
+  char c;
   uint8_t eth_init = ETH_INIT_DEFAULT, connected = 0;
 
   if ((argc == 2) && (strcmp(argv[1], "EMAIL") == 0))
@@ -569,6 +574,59 @@ void main(int argc, char *argv[]) {
 
     linecount = 0;
 
+    while (1) {
+      if ((get_line(fp, 0, linebuf, LINEBUFSZ) == -1) || (linecount == 20))
+        break;
+      ++linecount;
+      if (!strncmp(linebuf, "Newsgroups: ", 12))
+        printf("%s", linebuf);
+      if (!strncmp(linebuf, "Subject: ", 9))
+        printf("%s", linebuf);
+    }
+
+    printf("\n%cS)end message | H)old message in NEWS.OUTBOX | D)elete message from NEWS.OUTBOX %c",
+           INVERSE, NORMAL);
+    while (1) {
+      c = cgetc();
+      switch (c) {
+      case 'S':
+      case 's':
+        goto sendmessage;
+      case 'H':
+      case 'h':
+        printf("\n  Holding message\n");
+        fclose(fp);
+        goto skiptonext;
+      case 'D':
+      case 'd':
+        printf("Sure? (y/n)");
+        while (1) {
+          c = cgetc();
+          switch (c) {
+          case 'Y':
+          case 'y':
+            putchar(CLRLINE);
+            printf("\n  Deleting message\n");
+            fclose(fp);
+            goto unlink;
+          case 'N':
+          case 'n':
+            putchar(CLRLINE);
+            printf("\n  Holding message\n");
+            fclose(fp);
+            goto skiptonext;
+          default:
+            putchar(BELL);
+          }
+        }
+        break;
+      default:
+        putchar(BELL);
+      }
+    }
+
+sendmessage:
+
     if (!connected) {
       printf("Connecting to %s (%u)  - ", cfg_server, nntp_port);
 
@@ -622,6 +680,8 @@ void main(int argc, char *argv[]) {
 
     printf("Removing from NEWS.OUTBOX ...\n");
     sprintf(filename, "%s/NEWS.OUTBOX/%s", cfg_emaildir, d->d_name);
+
+unlink:
     if (unlink(filename))
       printf("Can't remove %s\n", filename);
 
