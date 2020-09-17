@@ -23,7 +23,11 @@
 
 #include "email_common.h"
 
+#define BELL      7
 #define BACKSPACE 8
+#define NORMAL    0x0e
+#define INVERSE   0x0f
+#define CLRLINE   0x1a
 
 // Both pragmas are obligatory to have cc65 generate code
 // suitable to access the W5100 auto-increment registers.
@@ -497,11 +501,11 @@ void update_sent_mbox(char *name) {
 }
 
 void main(int argc, char *argv[]) {
-  static char sendbuf[80], recipients[160];
+  static char sendbuf[80], recipients[160], subject[80];
   uint8_t linecount;
   DIR *dp;
   struct dirent *d;
-  char *p, *q;
+  char *p, *q, c;
   uint8_t eth_init = ETH_INIT_DEFAULT, connected = 0;
 
   if ((argc == 2) && (strcmp(argv[1], "EMAIL") == 0))
@@ -580,6 +584,7 @@ void main(int argc, char *argv[]) {
       }
       ++linecount;
       if (!strncmp(linebuf, "To: ", 4) || (!strncmp(linebuf, "cc: ",4))) {
+        printf("%s", linebuf);
         linebuf[strlen(linebuf) - 1] = '\0'; // Chop off \r
         if (strlen(linebuf + 4) > 0) {
           if (strlen(recipients) > 0)
@@ -587,7 +592,52 @@ void main(int argc, char *argv[]) {
           strcat(recipients, linebuf + 4);
         }
       }
+      if (!strncmp(linebuf, "Subject: ", 9))
+        printf("%s", linebuf);
     }
+
+    printf("\n%cS)end message | H)old message in OUTBOX | D)elete message from OUTBOX           %c",
+           INVERSE, NORMAL);
+    while (1) {
+      c = cgetc();
+      switch (c) {
+      case 'S':
+      case 's':
+        goto sendmessage;
+      case 'H':
+      case 'h':
+        printf("\n  Holding message\n");
+        fclose(fp);
+        goto skiptonext;
+      case 'D':
+      case 'd':
+        printf("Sure? (y/n)");
+        while (1) {
+          c = cgetc();
+          switch (c) {
+          case 'Y':
+          case 'y':
+            putchar(CLRLINE);
+            printf("\n  Deleting message\n");
+            fclose(fp);
+            goto unlink;
+          case 'N':
+          case 'n':
+            putchar(CLRLINE);
+            printf("\n  Holding message\n");
+            fclose(fp);
+            goto skiptonext;
+          default:
+            putchar(BELL);
+          }
+        }
+        break;
+      default:
+        putchar(BELL);
+      }
+    }
+
+sendmessage:
 
     if (!connected) {
       printf("Connecting to %s   - ", cfg_smtp_server);
@@ -674,6 +724,8 @@ void main(int argc, char *argv[]) {
 
     printf("Removing from OUTBOX ...\n");
     sprintf(filename, "%s/OUTBOX/%s", cfg_emaildir, d->d_name);
+
+unlink:
     if (unlink(filename))
       printf("Can't remove %s\n", filename);
 
@@ -690,7 +742,7 @@ skiptonext:
     printf("Disconnecting\n");
     w5100_disconnect();
   } else
-    printf("\n** No messages in OUTBOX to send **\n");
+    printf("\n** No messages were sent **\n");
 
   confirm_exit();
 }
