@@ -110,14 +110,14 @@ void spinner(uint32_t sz, uint8_t final) {
 
 /*
  * Read a text file a line at a time
- * Returns number of chars in the line, or -1 if EOF.
+ * Returns number of chars in the line, or 0 if EOF.
  * Expects Apple ][ style line endings (CR) and does no conversion
  * fp - file to read from
  * reset - if 1 then just reset the buffer and return
  * writep - Pointer to buffer into which line will be written
  * n - length of buffer. Longer lines will be truncated and terminated with CR.
  */
-int16_t get_line(FILE *fp, uint8_t reset, char *writep, uint16_t n) {
+uint16_t get_line(FILE *fp, uint8_t reset, char *writep, uint16_t n) {
   static uint16_t rd = 0; // Read
   static uint16_t end = 0; // End of valid data in buf
   uint16_t i = 0;
@@ -131,18 +131,18 @@ int16_t get_line(FILE *fp, uint8_t reset, char *writep, uint16_t n) {
       rd = 0;
     }
     if (end == 0)
-      return -1; // EOF
+      goto done;
     if (i == n - 1) {
       writep[i - 1] = '\r';
-      writep[i] = '\0';
-      return i;
+      goto done;
     }
     writep[i++] = buf[rd++];
-    if (writep[i - 1] == '\r') {
-      writep[i] = '\0';
-      return i;
-    }
+    if (writep[i - 1] == '\r')
+      goto done;
   }
+done:
+  writep[i] = '\0';
+  return i;
 }
 
 #define DO_SEND   1  // For do_send param
@@ -169,17 +169,17 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
       uint16_t pos = 0;
       uint8_t  cont = 1;
       uint16_t snd;
-      int16_t len;
+      uint16_t len;
 
       filesize = 0;
       len = get_line(fp, 1, linebuf, LINEBUFSZ); // Reset buffer
 
       while (cont) { 
 
-        len = get_line(fp, 0, linebuf, LINEBUFSZ);
+        len = get_line(fp, 0, linebuf, LINEBUFSZ - 1);
         pos = 0;
 
-        if (len == -1) {
+        if (len == 0) {
           strcpy(linebuf, "\r\n.\r\n");
           len = 5;
           cont = 0;
@@ -464,7 +464,7 @@ void update_sent_mbox(char *name) {
   hdrs.status = 'N';
   hdrs.tag = ' ';
   get_line(fp, 1, linebuf, LINEBUFSZ); // Reset buffer
-  while ((chars = get_line(fp, 0, linebuf, LINEBUFSZ)) != -1) {
+  while ((chars = get_line(fp, 0, linebuf, LINEBUFSZ)) != 0) {
     if (headers) {
       headerchars += chars;
       if (!strncmp(linebuf, "Date: ", 6)) {
@@ -575,7 +575,7 @@ void main(int argc, char *argv[]) {
     strcpy(recipients, "");
 
     while (1) {
-      if ((get_line(fp, 0, linebuf, LINEBUFSZ) == -1) || (linecount == 20)) {
+      if ((get_line(fp, 0, linebuf, LINEBUFSZ) == 0) || (linecount == 20)) {
         if (strlen(recipients) == 0) {
           printf("No recipients (To or Cc) in %s. Skipping msg.\n", d->d_name);
           goto skiptonext;

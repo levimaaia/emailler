@@ -330,13 +330,13 @@ void readconfigfile(void) {
 
 /*
  * Read a text file a line at a time
- * Returns number of chars in the line, or -1 if EOF.
+ * Returns number of chars in the line, or 0 if EOF.
  * Expects CRLF line endings (CRLF) and converts to Apple II (CR) convention
  * fp - file to read from
  * writep - Pointer to buffer into which line will be written
  * n - length of buffer. Longer lines will be truncated and terminated with CR.
  */
-int16_t get_line(FILE *fp, char *writep, uint16_t n) {
+uint16_t get_line(FILE *fp, char *writep, uint16_t n) {
   static uint16_t rd = 0; // Read
   static uint16_t end = 0; // End of valid data in buf
   uint16_t i = 0;
@@ -346,11 +346,10 @@ int16_t get_line(FILE *fp, char *writep, uint16_t n) {
       rd = 0;
     }
     if (end == 0)
-      return -1; // EOF
+      goto done;
     if (i == n - 1) {
       writep[i - 1] = '\r';
-      writep[i] = '\0';
-      return i;
+      goto done;
     }
     writep[i++] = buf[rd++];
     // The following line is safe because of linebuf_pad[]
@@ -359,6 +358,9 @@ int16_t get_line(FILE *fp, char *writep, uint16_t n) {
       return i - 1;
     }
   }
+done:
+  writep[i] = '\0';
+  return i;
 }
 
 /*
@@ -451,7 +453,7 @@ void update_inbox(uint16_t nummsgs) {
     hdrs.skipbytes = 0; // Just in case it doesn't get set
     hdrs.status = 'N';
     hdrs.tag = ' ';
-    while ((chars = get_line(fp, linebuf, LINEBUFSZ)) != -1) {
+    while ((chars = get_line(fp, linebuf, LINEBUFSZ)) != 0) {
       if (headers) {
         headerchars += chars;
         if (!strncmp(linebuf, "Date: ", 6)) {

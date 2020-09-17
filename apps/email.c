@@ -627,7 +627,7 @@ void update_highlighted(void) {
 
 /*
  * Read a text file a line at a time
- * Returns number of chars in the line, or -1 if EOF.
+ * Returns number of chars in the line, or 0 if EOF.
  * Expects Apple ][ style line endings (CR) and does no conversion
  * fp - file to read from
  * reset - if 1 then just reset the buffer and return
@@ -635,7 +635,7 @@ void update_highlighted(void) {
  * n - length of buffer. Longer lines will be truncated and terminated with CR.
  * pos - position in file is updated via this pointer
  */
-int16_t get_line(FILE *fp, uint8_t reset, char *writep, uint16_t n, uint32_t *pos) {
+uint16_t get_line(FILE *fp, uint8_t reset, char *writep, uint16_t n, uint32_t *pos) {
   static uint16_t rd = 0; // Read
   static uint16_t end = 0; // End of valid data in buf
   uint16_t i = 0;
@@ -650,19 +650,19 @@ int16_t get_line(FILE *fp, uint8_t reset, char *writep, uint16_t n, uint32_t *po
       rd = 0;
     }
     if (end == 0)
-      return -1; // EOF
+      goto done;
     if (i == n - 1) {
       writep[i - 1] = '\r';
-      writep[i] = '\0';
-      return i;
+      goto done;
     }
     writep[i++] = buf[rd++];
     ++(*pos);
-    if (writep[i - 1] == '\r') {
-      writep[i] = '\0';
-      return i;
-    }
+    if (writep[i - 1] == '\r')
+      goto done;
   }
+done:
+  writep[i] = '\0';
+  return i;
 }
 
 /*
@@ -1066,7 +1066,7 @@ restart:
       readp = linebuf;
     if (!writep)
       writep = linebuf;
-    if (get_line(fp, 0, writep, (LINEBUFSZ - (writep - linebuf)), &pos) == -1) {
+    if (get_line(fp, 0, writep, (LINEBUFSZ - (writep - linebuf)), &pos) == 0) {
       eof = 1;
       goto endscreen;
     }
@@ -1760,7 +1760,7 @@ void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
       readp = linebuf;
     if (!writep)
       writep = linebuf;
-    if (get_line(fp, 0, writep, (LINEBUFSZ - (writep - linebuf)), &pos) == -1)
+    if (get_line(fp, 0, writep, (LINEBUFSZ - (writep - linebuf)), &pos) == 0)
       break;
     if ((mime >= 1) && (!strncmp(writep, "--", 2))) {
       if ((mime == 4) && !mime_binary) // End of Text/Plain MIME section
