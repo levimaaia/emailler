@@ -501,7 +501,7 @@ void update_sent_mbox(char *name) {
 }
 
 void main(int argc, char *argv[]) {
-  static char sendbuf[80], recipients[160], subject[80];
+  static char sendbuf[80], recipients[160];
   uint8_t linecount;
   DIR *dp;
   struct dirent *d;
