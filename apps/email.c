@@ -5,8 +5,6 @@
 /////////////////////////////////////////////////////////////////
 
 // TODO: Scrunch memory. Move strings to string table to avoid duplication.
-// TODO: Some way to abort an email that has been created already - final verification to send
-//       Maybe it is better to do this in EDIT.SYSTEM - command to delete file
 
 #include <stdio.h>
 #include <stdlib.h>
