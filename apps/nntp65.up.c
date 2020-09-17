@@ -233,8 +233,12 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
       uint16_t pos = 0;
       uint16_t len = strlen(sendbuf);
 
-      putchar('>');
-      print_strip_crlf(sendbuf);
+      if (strncmp(sendbuf, "AUTHINFO PASS", 13) == 0)
+        printf(">AUTHINFO PASS ****\n");
+      else {
+        putchar('>');
+        print_strip_crlf(sendbuf);
+      }
 
       while (len) {
         if (input_check_for_abort_key())
@@ -634,7 +638,7 @@ skiptonext:
     printf("Disconnecting\n");
     w5100_disconnect();
   } else
-    printf("\n** No messages in NEWS.OUTBOX to send **\n");
+    printf("\n** No messages were sent **\n");
 
   confirm_exit();
 }
