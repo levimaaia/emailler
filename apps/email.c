@@ -1244,11 +1244,15 @@ retry:
       case 'M':
       case 'm':
         mime = 1;
+        mime_enc = ENC_7BIT;
+        mime_binary = 0;
         pos = 0;
         fseek(fp, pos, SEEK_SET);
         get_line(fp, 1, linebuf, LINEBUFSZ, &pos); // Reset buffer
         do {
           get_line(fp, 0, linebuf, LINEBUFSZ, &pos);
+          if (!strncasecmp(linebuf, ct, 14))
+            mime = 4;
           if (!strncasecmp(linebuf, cte, 27)) {
             mime = 4;
             if (!strncmp(linebuf + 27, "7bit", 4))
@@ -1260,10 +1264,9 @@ retry:
             else if (!strncmp(linebuf + 27, b64, 6))
               mime_enc = ENC_B64;
             else {
-              printf(unsupp_enc, linebuf + 27);
-              mime = 1;
+              mime = 0;
+              break;
             }
-            break;
           }
         } while (linebuf[0] != '\r');
         pos = hh.skipbytes;
@@ -1717,14 +1720,11 @@ char prompt_okay(char *msg) {
  * mode - 'R' if reply, 'F' if forward, 'N' if news follow-up
  */
 void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
-  uint32_t pos = 0;
-  uint8_t mime = 0;
-  const int8_t *b = b64dec - 43;
   uint16_t chars;
-  uint8_t  mime_enc, mime_binary;
   char c, *readp, *writep;
-  mime = 0;
-  pos = 0;
+  uint32_t pos = 0;
+  const int8_t *b = b64dec - 43;
+  uint8_t  mime = 0, mime_enc = ENC_7BIT, mime_binary = 0;
   fseek(fp, pos, SEEK_SET);
   get_line(fp, 1, linebuf, LINEBUFSZ, &pos); // Reset buffer
   do {
@@ -1732,6 +1732,8 @@ void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
     get_line(fp, 0, linebuf, LINEBUFSZ, &pos);
     if (!strncasecmp(linebuf, mime_ver, 17))
       mime = 1;
+    if (!strncasecmp(linebuf, ct, 14))
+      mime = 4;
     if (!strncasecmp(linebuf, cte, 27)) {
       mime = 4;
       if (!strncmp(linebuf + 27, "7bit", 4))
@@ -1746,7 +1748,6 @@ void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
         error(ERR_NONFATAL, unsupp_enc, linebuf + 27);
         return;
       }
-      break;
     }
   } while (linebuf[0] != '\r');
   pos = h->skipbytes;

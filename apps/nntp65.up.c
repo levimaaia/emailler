@@ -584,7 +584,7 @@ void main(int argc, char *argv[]) {
         printf("%s", linebuf);
     }
 
-    printf("\n%cS)end message | H)old message in NEWS.OUTBOX | D)elete message from NEWS.OUTBOX %c",
+    printf("\n%cS)end message | H)old message in NEWS.OUTBOX | D)elete message from NEWS.OUTBOX%c",
            INVERSE, NORMAL);
     while (1) {
       c = cgetc();
@@ -599,7 +599,7 @@ void main(int argc, char *argv[]) {
         goto skiptonext;
       case 'D':
       case 'd':
-        printf("Sure? (y/n)");
+        printf("\nSure? (y/n)");
         while (1) {
           c = cgetc();
           switch (c) {
