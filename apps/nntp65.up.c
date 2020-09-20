@@ -628,7 +628,7 @@ void main(int argc, char *argv[]) {
 sendmessage:
 
     if (!connected) {
-      printf("Connecting to %s (%u)  - ", cfg_server, nntp_port);
+      printf("\nConnecting to %s (%u)  - ", cfg_server, nntp_port);
 
       if (!w5100_connect(parse_dotted_quad(cfg_server), nntp_port)) {
         printf("Fail\n");
