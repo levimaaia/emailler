@@ -640,7 +640,7 @@ void main(int argc, char *argv[]) {
 sendmessage:
 
     if (!connected) {
-      printf("Connecting to %s   - ", cfg_smtp_server);
+      printf("\nConnecting to %s   - ", cfg_smtp_server);
 
       if (!w5100_connect(parse_dotted_quad(cfg_smtp_server), smtp_port)) {
         printf("Fail\n");
