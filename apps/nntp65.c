@@ -459,8 +459,9 @@ void update_mailbox(char *mbox) {
     hdrs.tag = ' ';
     hdrs.date[0] = hdrs.from[0] = hdrs.cc[0] = hdrs.subject[0] = '\0';
     // Store News:newsgroup in TO field
-    strcpy(hdrs.to, "News:");
-    strcat(hdrs.to, newsgroup);
+    strcpy(filename, "News:");
+    strcat(filename, newsgroup);
+    copyheader(hdrs.to, filename, 79);
     while ((chars = get_line(fp, linebuf, LINEBUFSZ)) != 0) {
       if (headers) {
         headerchars += chars;

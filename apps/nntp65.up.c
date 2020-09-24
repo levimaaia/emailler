@@ -476,12 +476,14 @@ void update_sent_mbox(char *name) {
         copyheader(hdrs.from, linebuf + 6, 79);
         hdrs.from[79] = '\0';
       }
-      if (!strncmp(linebuf, "To: ", 4)) {
-        copyheader(hdrs.to, linebuf + 4, 79);
+      if (!strncmp(linebuf, "Newsgroups: ", 12)) {
+        strcpy(filename, "News:");
+        strcat(filename, linebuf + 12);
+        copyheader(hdrs.to, filename, 79);
         hdrs.to[79] = '\0';
       }
-      if (!strncmp(linebuf, "Cc: ", 4)) {
-        copyheader(hdrs.cc, linebuf + 4, 79);
+      if (!strncmp(linebuf, "Organization: ", 14)) {
+        copyheader(hdrs.cc, linebuf + 14, 79);
         hdrs.cc[79] = '\0';
       }
       if (!strncmp(linebuf, "Subject: ", 9)) {
