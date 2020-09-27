@@ -585,10 +585,6 @@ redraw:
         goto done;
         break;
       default:
-        if (prompt_okay("Not a text file, open anyhow") != 0) {
-          strcpy(userentry, "");
-          goto done;
-        }
         getcwd(userentry, 80);
         strcat(userentry, "/");
         strcat(userentry, entry->name);
