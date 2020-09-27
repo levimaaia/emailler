@@ -28,7 +28,7 @@
 #define NETBUFSZ  1500
 #define LINEBUFSZ 1000         // According to RFC2822 Section 2.1.1 (998+CRLF)
 #define READSZ    1024         // Must be less than NETBUFSZ to fit in buf[]
-#define IOBUFSZ   4096
+#define IOBUFSZ   8192
 
 unsigned char buf[NETBUFSZ+1];    // One extra byte for null terminator
 char          linebuf[LINEBUFSZ];
