@@ -796,14 +796,13 @@ uint8_t word_wrap_line(FILE *fp, char **s, uint8_t cols, char mode) {
       return (*s ? 1 : 0);         // Caller should invoke again
     }
     i = cols - col;                  // Doesn't fit, need to break
-    if (i > l)
-      i = l;
     while ((ss[--i] != ' ') && (i > 0));
     if (i == 0) {                  // No space character found
-      if (col == 0)                // Doesn't fit on full line
-        for (i = 0; i < cols; ++i) { // Truncate @cols chars
+      if (col == 0) {              // Doesn't fit on full line
+        for (i = 0; i <= cols; ++i) { // Truncate @cols chars
           fputc(ss[i], fp);
           *s = ss + l + 1;
+        }
       } else {                     // There is stuff on this line already
         col = 0;
         fputc('\r', fp);           // Try a blank line
