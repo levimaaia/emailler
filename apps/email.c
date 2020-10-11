@@ -680,9 +680,9 @@ uint8_t hexdigit(char c) {
  * p - Pointer to buffer to decode. Results written in place.
  * Returns number of bytes decoded
  */
-uint16_t decode_quoted_printable(char *p) {
+uint16_t decode_quoted_printable(uint8_t *p) {
   uint16_t i = 0, j = 0;
-  char c;
+  uint8_t c;
   while (c = p[i]) {
     if (c == '=') {
       if (p[i + 1] == '\r') { // Trailing '=' is a soft '\r'
@@ -690,9 +690,8 @@ uint16_t decode_quoted_printable(char *p) {
         return j;
       }
       // Otherwise '=xx' where x is a hex digit
-      c = 16 * hexdigit(linebuf[i + 1]) + hexdigit(linebuf[i + 2]);
-      if ((c >= 0x20) && (c <= 0x7e))
-        p[j++] = c;
+      c = 16 * hexdigit(p[i + 1]) + hexdigit(p[i + 2]);
+      p[j++] = c;
       i += 3;
     } else {
       p[j++] = c;
@@ -740,15 +739,20 @@ uint16_t decode_base64(char *p) {
 #endif
 
 /*
+ * Do fputc() but replace unprintable chars with '#'
+ */
+void filter_fputc(uint8_t c, FILE *f) {
+  fputc((((c < 32) || (c > 127)) ? '#' : c), f);
+}
+
+/*
  * Print line up to first '\r' or '\0'
  */
-void putline(FILE *fp, char *s) {
-  char *ret = strchr(s, '\r');
-  if (ret)
-    *ret = '\0';
-  fputs(s, fp);
-  if (ret)
-    *ret = '\r';
+void putline(FILE *f, char *s) {
+  while ((*s != NULL) && (*s != '\r')) {
+    filter_fputc(*s, f);
+    ++s;
+  }
 }
 
 /*
@@ -800,7 +804,7 @@ uint8_t word_wrap_line(FILE *fp, char **s, uint8_t cols, char mode) {
     if (i == 0) {                  // No space character found
       if (col == 0) {              // Doesn't fit on full line
         for (i = 0; i <= cols; ++i) { // Truncate @cols chars
-          fputc(ss[i], fp);
+          filter_fputc(ss[i], fp);
           *s = ss + l + 1;
         }
       } else {                     // There is stuff on this line already
@@ -996,7 +1000,7 @@ void email_pager(struct emailhdrs *h) {
   uint16_t linecount, chars;
   uint8_t mime_enc, mime_binary, mime_hasfile, eof,
           screennum, maxscreennum, attnum;
-  char c, *readp, *writep;
+  uint8_t c, *readp, *writep;
 
   // We do not need all the email headers for the summary screen right now.
   // Freeing them can release up to nearly 8KB. The caller rebuilds the
