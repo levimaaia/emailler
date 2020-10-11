@@ -1558,8 +1558,8 @@ done:
 void load_email(void) {
   revers(0);
   clrscr();
-  snprintf(userentry, 80, "%s/EMAIL.SYSTEM", startdir);
-  exec(userentry, NULL);
+  chdir(startdir);
+  exec("EMAIL.SYSTEM", NULL);
 }
 
 /*
@@ -1568,8 +1568,8 @@ void load_email(void) {
 void load_attacher(void) {
   revers(0);
   clrscr();
-  snprintf(userentry, 80, "%s/ATTACHER.SYSTEM", startdir);
-  exec(userentry, filename);
+  chdir(startdir);
+  exec("ATTACHER.SYSTEM", filename);
 }
 
 void file_ui(char *, char *, char *); // Forward declaration
@@ -1581,6 +1581,10 @@ void name_file(void);                 // Forward declaration
 void save(void) {
   uint8_t rc;
   FILE *fp;
+  if (email_mode == 1) {
+    show_error("Read-only file");
+    return;
+  }
   if (strlen(filename) == 0) {
     status[1] = 1; // Prompt if save will overwrite existing file
     name_file();
@@ -1884,7 +1888,7 @@ void init_aux_banks(void) {
   uint16_t count;
   clrscr();
   revers(1);
-  cprintf("EDIT.SYSTEM v1.26             Bobbi 2020");
+  cprintf("EDIT.SYSTEM v1.27             Bobbi 2020");
   revers(0);
   cprintf("\n\n\n  %u x 64KB aux banks -> %uKB\n", banktbl[0], banktbl[0]*64);
   for (i = 1; i <= banktbl[0]; ++i) {
@@ -2024,7 +2028,9 @@ struct tabent {
   uint32_t size;
 } *entry;
 
-#define FILELINES 16
+// It is best if FILESPERPAGE is a multiple of FILELINES
+#define FILELINES 16       // Number of lines displayed in file_ui
+#define FILESPERPAGE 160   // Number of files loaded into iobuf[]
 
 /*
  * Draw one line in file chooser UI
@@ -2130,6 +2136,49 @@ uint16_t online(void) {
 }
 
 /*
+ * Read directory entries and populate table in iobuf[]
+ * for file_ui()
+ * page - page index, each page has FILESPERPAGE entries
+ *        page is 0, 1, 2, 3 ...
+ * num_entries - number of entries read
+ * Returns 0 there are more files, 1 if end of directory reached
+ */
+uint8_t read_dir(uint8_t page, uint16_t *num_entries) {
+  DIR *dp;
+  struct dirent *ent;
+  struct tabent *entry;
+  uint8_t rc = 0;
+  uint16_t entries = 0, i = 0;
+  entry = (struct tabent*)iobuf;
+  if (page == 0) {
+    strcpy(entry->name, ".."); // Add fake '..' entry
+    entry->type = 0x0f;
+    ++entry;
+    ++entries;
+  }
+  dp = opendir(".");
+  while (1) {
+    ent = readdir(dp);
+    if (!ent) {
+      rc = 1;
+      break;
+    }
+    if (++i < page * FILESPERPAGE)
+      continue;
+    if (entries >= FILESPERPAGE)
+      break;
+    memcpy(entry->name, ent->d_name, 16);
+    entry->type = ent->d_type;
+    entry->size = ent->d_size;
+    ++entry;
+    ++entries;
+  }
+  closedir(dp);
+  *num_entries = entries;
+  return rc;
+}
+
+/*
  * File chooser UI
  * Leaves file name in userentry[], or empty string if error/cancel
  * msg1 - Message for top line
@@ -2138,13 +2187,15 @@ uint16_t online(void) {
  */
 void file_ui(char *msg1, char *msg2, char *msg3) {
   struct tabent *entry;
-  DIR *dp;
-  struct dirent *ent;
   char c;
-  uint16_t entries, current, first;
-  uint8_t toplevel = 0;
+  uint16_t entries;
+  uint8_t end_of_dir;
+  uint16_t first = 0, current = 0;
+  uint8_t toplevel = 0, page = 0;
+  cutbuflen = 0;
 restart:
   clrscr();
+  cursor(0);
   gotoxy(0,0);
   revers(1);
   cprintf("%s", msg1);
@@ -2158,34 +2209,10 @@ restart:
   revers(1);
   cprintf("%s", (toplevel ? "Volumes" : userentry));
   revers(0);
-  entries = current = first = 0;
-  cutbuflen = 0;
-  if (toplevel) {
+  if (toplevel)
     entries = online();
-  } else {
-    entry = (struct tabent*)iobuf;
-    strcpy(entry->name, ".."); // Add fake '..' entry
-    entry->type = 0x0f;
-    ++entry;
-    ++entries;
-    cursor(0);
-    dp = opendir(".");
-    while (1) {
-      ent = readdir(dp);
-      if (!ent)
-        break;
-      memcpy(entry->name, ent->d_name, 16);
-      entry->type = ent->d_type;
-      entry->size = ent->d_size;
-      ++entry;
-      ++entries;
-      if ((char*)entry > (char*)iobuf + CUTBUFSZ - 100) {
-        beep();
-        break;
-      }
-    }
-    closedir(dp);
-  }
+  else
+    end_of_dir = read_dir(page, &entries);
 redraw:
   file_ui_draw_all(first, current, entries);
   while (1) {
@@ -2194,6 +2221,13 @@ redraw:
     case 0x0b:  // Up
       if (current > 0)
         --current;
+      else
+        if (page > 0) {
+          --page;
+          current = FILESPERPAGE - 1;
+          first = current - FILELINES + 1;
+          goto restart;
+        }
       if (current < first) {
         if (first > FILELINES)
           first -= FILELINES;
@@ -2207,6 +2241,11 @@ redraw:
     case 0x0a:  // Down
       if (current < entries - 1)
         ++current;
+      else if (!end_of_dir) {
+        ++page;
+        first = current = 0;
+        goto restart;
+      }
       if (current >= first + FILELINES) {
         first += FILELINES;
         goto redraw;
@@ -2229,6 +2268,7 @@ redraw:
             toplevel = 1;
           else
             chdir(userentry);
+          first = current = 0;
           goto restart;
         } else {
           if (toplevel) {
@@ -2241,6 +2281,7 @@ redraw:
             chdir(userentry);
           }
           toplevel = 0;
+          first = current = 0;
           goto restart;
         }
         break;
@@ -2521,6 +2562,8 @@ int edit(char *fname) {
     case 0x80 + 'N': // OA-N "Name"
     case 0x80 + 'n': // OA-n
       name_file();
+      if (email_mode == 1)
+        email_mode = 3;
       break;
     case 0x80 + 'Q': // OA-Q "Quit"
     case 0x80 + 'q': // OA-q
@@ -2531,7 +2574,8 @@ int edit(char *fname) {
           load_attacher();
         // Fall through
       case 1:
-        if (prompt_okay("Quit to EMAIL") == 0)
+      case 3:
+        if (prompt_okay("Return to EMAIL") == 0)
           load_email();
         break;
       default:
@@ -2751,11 +2795,18 @@ donehelp:
  */
 void usage(void) {
   printf("Usage: -EDIT.SYSTEM [filename.txt]");
-  printf("   or  -EDIT.SYSTEM [-reademail|-compose] filename.txt");
+  printf("   or  -EDIT.SYSTEM [-reademail|-email|-news] filename.txt");
   reconnect_ramdisk();
   exit(1);
 }
 
+/*
+ * Command line arguments:
+ *  -reademail - Open file read-only. Load EMAIL.SYSTEM on quit.
+ *  -email     - Prompt for attachments, load ATTACHER.SYSTEM
+ *               or EMAIL.SYSTEM on quit
+ *  -news      - Load EMAIL.SYSTEM on quit
+ */
 void main(int argc, char *argv[]) {
   uint8_t *pp = (uint8_t*)0xbf98;
   if (!(*pp & 0x02)) {
@@ -2775,8 +2826,10 @@ void main(int argc, char *argv[]) {
   case 3:
     if (strcmp(argv[1], "-reademail") == 0)
       email_mode = 1;
-    else if (strcmp(argv[1], "-compose") == 0)
+    else if (strcmp(argv[1], "-email") == 0)
       email_mode = 2;
+    else if (strcmp(argv[1], "-news") == 0)
+      email_mode = 3;
     else
       usage();
     edit(argv[2]);

@@ -28,7 +28,7 @@
 #define NETBUFSZ  1500
 #define LINEBUFSZ 1000         // According to RFC2822 Section 2.1.1 (998+CRLF)
 #define READSZ    1024         // Must be less than NETBUFSZ to fit in buf[]
-#define IOBUFSZ   4096
+#define IOBUFSZ   8192
 
 unsigned char buf[NETBUFSZ+1];    // One extra byte for null terminator
 char          linebuf[LINEBUFSZ];
@@ -155,12 +155,13 @@ void readconfigfile(void) {
 
 /*
  * Read a text file a line at a time
- * Returns number of chars in the line, or -1 if EOF.
+ * Returns number of chars in the line, or 0 if EOF.
  * Expects Apple ][ style line endings (CR) and does no conversion
  * fp - file to read from
  * writep - Pointer to buffer into which line will be written
+ * n - length of buffer. Longer lines will be truncated and terminated with CR.
  */
-int16_t get_line(FILE *fp, char *writep) {
+uint16_t get_line(FILE *fp, char *writep, uint16_t n) {
   static uint16_t rd = 0; // Read
   static uint16_t end = 0; // End of valid data in buf
   uint16_t i = 0;
@@ -170,13 +171,18 @@ int16_t get_line(FILE *fp, char *writep) {
       rd = 0;
     }
     if (end == 0)
-      return -1; // EOF
-    writep[i++] = buf[rd++];
-    if (writep[i - 1] == '\r') {
-      writep[i] = '\0';
-      return i;
+      goto done;
+    if (i == n - 1) {
+      writep[i - 1] = '\r';
+      goto done;
     }
+    writep[i++] = buf[rd++];
+    if (writep[i - 1] == '\r')
+      goto done;
   }
+done:
+  writep[i] = '\0';
+  return i;
 }
 
 /*
@@ -316,7 +322,9 @@ struct tabent {
   uint32_t size;
 } *entry;
 
-#define FILELINES 16
+// It is best if FILESPERPAGE is a multiple of FILELINES
+#define FILELINES 16       // Number of lines displayed in file_ui
+#define FILESPERPAGE 160   // Number of files loaded into iobuf[]
 
 /*
  * Draw one line in file chooser UI
@@ -422,6 +430,49 @@ uint16_t online(void) {
 }
 
 /*
+ * Read directory entries and populate table in iobuf[]
+ * for file_ui()
+ * page - page index, each page has FILESPERPAGE entries
+ *        page is 0, 1, 2, 3 ...
+ * num_entries - number of entries read
+ * Returns 0 there are more files, 1 if end of directory reached
+ */
+uint8_t read_dir(uint8_t page, uint16_t *num_entries) {
+  DIR *dp;
+  struct dirent *ent;
+  struct tabent *entry;
+  uint8_t rc = 0;
+  uint16_t entries = 0, i = 0;
+  entry = (struct tabent*)iobuf;
+  if (page == 0) {
+    strcpy(entry->name, ".."); // Add fake '..' entry
+    entry->type = 0x0f;
+    ++entry;
+    ++entries;
+  }
+  dp = opendir(".");
+  while (1) {
+    ent = readdir(dp);
+    if (!ent) {
+      rc = 1;
+      break;
+    }
+    if (++i < page * FILESPERPAGE)
+      continue;
+    if (entries >= FILESPERPAGE)
+      break;
+    memcpy(entry->name, ent->d_name, 16);
+    entry->type = ent->d_type;
+    entry->size = ent->d_size;
+    ++entry;
+    ++entries;
+  }
+  closedir(dp);
+  *num_entries = entries;
+  return rc;
+}
+
+/*
  * File chooser UI
  * Leaves file name in userentry[], or empty string if error/cancel
  * msg1 - Message for top line
@@ -430,13 +481,14 @@ uint16_t online(void) {
  */
 void file_ui(char *msg1, char *msg2, char *msg3) {
   struct tabent *entry;
-  DIR *dp;
-  struct dirent *ent;
   char c;
-  uint16_t entries, current, first;
-  uint8_t toplevel = 0;
+  uint16_t entries;
+  uint8_t end_of_dir;
+  uint16_t first = 0, current = 0;
+  uint8_t toplevel = 0, page = 0;
 restart:
   clrscr();
+  cursor(0);
   gotoxy(0,0);
   revers(1);
   cprintf("%s", msg1);
@@ -450,33 +502,10 @@ restart:
   revers(1);
   cprintf("%s", (toplevel ? "Volumes" : userentry));
   revers(0);
-  entries = current = first = 0;
-  if (toplevel) {
+  if (toplevel)
     entries = online();
-  } else {
-    entry = (struct tabent*)iobuf;
-    strcpy(entry->name, ".."); // Add fake '..' entry
-    entry->type = 0x0f;
-    ++entry;
-    ++entries;
-    cursor(0);
-    dp = opendir(".");
-    while (1) {
-      ent = readdir(dp);
-      if (!ent)
-        break;
-      memcpy(entry->name, ent->d_name, 16);
-      entry->type = ent->d_type;
-      entry->size = ent->d_size;
-      ++entry;
-      ++entries;
-      if ((char*)entry > (char*)iobuf + IOBUFSZ - 100) {
-        beep();
-        break;
-      }
-    }
-    closedir(dp);
-  }
+  else
+    end_of_dir = read_dir(page, &entries);
 redraw:
   file_ui_draw_all(first, current, entries);
   while (1) {
@@ -485,6 +514,13 @@ redraw:
     case 0x0b:  // Up
       if (current > 0)
         --current;
+      else
+        if (page > 0) {
+          --page;
+          current = FILESPERPAGE - 1;
+          first = current - FILELINES + 1;
+          goto restart;
+        }
       if (current < first) {
         if (first > FILELINES)
           first -= FILELINES;
@@ -498,6 +534,11 @@ redraw:
     case 0x0a:  // Down
       if (current < entries - 1)
         ++current;
+      else if (!end_of_dir) {
+        ++page;
+        first = current = 0;
+        goto restart;
+      }
       if (current >= first + FILELINES) {
         first += FILELINES;
         goto redraw;
@@ -520,6 +561,7 @@ redraw:
             toplevel = 1;
           else
             chdir(userentry);
+          first = current = 0;
           goto restart;
         } else {
           if (toplevel) {
@@ -532,13 +574,21 @@ redraw:
             chdir(userentry);
           }
           toplevel = 0;
+          first = current = 0;
           goto restart;
         }
         break;
-      default: // All other file types
-        strcpy(userentry, entry->name);
+      case 0x04: // ASCII text
+        getcwd(userentry, 80);
+        strcat(userentry, "/");
+        strcat(userentry, entry->name);
         goto done;
         break;
+      default:
+        getcwd(userentry, 80);
+        strcat(userentry, "/");
+        strcat(userentry, entry->name);
+        goto done;
       }
       break;
     case ESC:
@@ -587,7 +637,7 @@ void attach(char *fname) {
 
   printf("  Copying email content ...  "); // Space is for spinner to eat
   size = 0;
-  while ((chars = get_line(fp, linebuf)) != -1) {
+  while ((chars = get_line(fp, linebuf, LINEBUFSZ)) != 0) {
     size += chars;
     if (linebuf[0] == '\r')
       break;
@@ -600,7 +650,7 @@ void attach(char *fname) {
   fprintf(destfp, "--a2forever\r");
   fprintf(destfp, "Content-Type: text/plain; charset=US-ASCII\r");
   fprintf(destfp, "Content-Transfer-Encoding: 7bit\r\r");
-  while ((chars = get_line(fp, linebuf)) != -1) {
+  while ((chars = get_line(fp, linebuf, LINEBUFSZ)) != 0) {
     size += chars;
     fputs(linebuf, destfp);
     spinner(size, 0);

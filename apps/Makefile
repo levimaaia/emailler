@@ -45,7 +45,7 @@ TCP =\
 	tweet65 \
 	pop65-slow
 
-bin: wget65.bin pop65.bin smtp65.bin email.bin rebuild.bin edit.bin attacher.bin
+bin: wget65.bin pop65.bin smtp65.bin email.bin rebuild.bin edit.bin attacher.bin nntp65.bin nntp65.up.bin
 
 wget65.bin: w5100.c w5100_http.c linenoise.c
 wget65.bin: IP65LIB = ../ip65/ip65.lib
@@ -58,6 +58,14 @@ pop65.bin: A2_DRIVERLIB = ../drivers/ip65_apple2_uther2.lib
 smtp65.bin: w5100.c
 smtp65.bin: IP65LIB = ../ip65/ip65.lib
 smtp65.bin: A2_DRIVERLIB = ../drivers/ip65_apple2_uther2.lib
+
+nntp65.bin: w5100.c
+nntp65.bin: IP65LIB = ../ip65/ip65.lib
+nntp65.bin: A2_DRIVERLIB = ../drivers/ip65_apple2_uther2.lib
+
+nntp65.up.bin: w5100.c
+nntp65.up.bin: IP65LIB = ../ip65/ip65.lib
+nntp65.up.bin: A2_DRIVERLIB = ../drivers/ip65_apple2_uther2.lib
 
 date65.bin hfs65.bin tweet65.bin: CL65FLAGS = --start-addr 0x0C00 apple2enh-iobuf-0800.o
 
@@ -144,10 +152,16 @@ ip65.dsk: bin
 	java -jar $(AC) -p  $@ edithelp2.txt   txt < edithelp2.txt
 	java -jar $(AC) -p  $@ edit.system     sys < $(CC65)/apple2enh/util/loader.system
 	java -jar $(AC) -as $@ email               < email.bin
+	java -jar $(AC) -p  $@ emailhelp1.txt  txt < emailhelp1.txt
 	java -jar $(AC) -p  $@ email.cfg       txt < email.cfg
 	java -jar $(AC) -p  $@ email.system    sys < $(CC65)/apple2enh/util/loader.system
 	java -jar $(AC) -as $@ hfs65               < hfs65.bin
 	java -jar $(AC) -p  $@ hfs65.system    sys < $(CC65)/apple2enh/util/loader.system
+	java -jar $(AC) -p  $@ news.cfg        txt < news.cfg
+	java -jar $(AC) -as $@ nntp65              < nntp65.bin
+	java -jar $(AC) -p  $@ nntp65.system   sys < $(CC65)/apple2enh/util/loader.system
+	java -jar $(AC) -as $@ nntp65up            < nntp65.up.bin
+	java -jar $(AC) -p  $@ nntp65up.system sys < $(CC65)/apple2enh/util/loader.system
 	java -jar $(AC) -as $@ pop65               < pop65.bin
 	java -jar $(AC) -p  $@ pop65.system    sys < $(CC65)/apple2enh/util/loader.system
 	java -jar $(AC) -as $@ rebuild             < rebuild.bin

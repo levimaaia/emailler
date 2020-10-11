@@ -1,14 +1,15 @@
 /////////////////////////////////////////////////////////////////
-// POP65
-// Post Office Protocol v3 (POP3) Client for IP65
-// https://www.ietf.org/rfc/rfc1939.txt
-// (Based on IP65's wget65.c)
-// Bobbi June 2020
+// NNTP65
+// Network News Transport Protocol (NNTP) Client for IP65
+// https://www.ietf.org/rfc/rfc3977.txt
+// (Based on smtp65.c, which in turn is based on IP65's wget65.c)
+// Bobbi September 2020
 /////////////////////////////////////////////////////////////////
 
 #include <cc65.h>
 #include <errno.h>
 #include <ctype.h>
+#include <dirent.h>
 #include <fcntl.h>
 #include <conio.h>
 #include <stdio.h>
@@ -22,6 +23,7 @@
 
 #include "email_common.h"
 
+#define BELL      7
 #define BACKSPACE 8
 
 // Both pragmas are obligatory to have cc65 generate code
@@ -30,25 +32,29 @@
 #pragma static-locals (on)
 
 #define NETBUFSZ  1500+4       // 4 extra bytes for overlap between packets
-#define LINEBUFSZ 1000         // According to RFC2822 Section 2.1.1 (998+CRLF)
+#define LINEBUFSZ 2000 /*1000*/         // According to RFC2822 Section 2.1.1 (998+CRLF)
 #define READSZ    1024         // Must be less than NETBUFSZ to fit in buf[]
 
 static unsigned char buf[NETBUFSZ+1];    // One extra byte for null terminator
 static char          linebuf_pad[1];     // One byte of padding make it easier
 static char          linebuf[LINEBUFSZ];
+static char          newsgroup[80];
+static char          mailbox[80];
 
 uint8_t  exec_email_on_exit = 0;
 char     filename[80];
 int      len;
-FILE     *fp;
+FILE     *fp, *newsgroupsfp, *newnewsgroupsfp;
 uint32_t filesize;
-uint16_t pop_port;
+uint16_t nntp_port;
 
 /*
  * Keypress before quit
  */
 void confirm_exit(void) {
   fclose(fp);
+  fclose(newsgroupsfp);
+  fclose(newnewsgroupsfp);
   w5100_disconnect();
   printf("\n[Press Any Key]");
   cgetc();
@@ -126,8 +132,8 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
     uint16_t pos = 0;
     uint16_t len = strlen(sendbuf);
 
-    if (strncmp(sendbuf, "PASS", 4) == 0)
-      printf(">PASS ****\n");
+    if (strncmp(sendbuf, "AUTHINFO PASS", 13) == 0)
+      printf(">AUTHINFO PASS ****\n");
     else {
       putchar('>');
       print_strip_crlf(sendbuf);
@@ -173,7 +179,7 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
 
   if (mode == DATA_MODE) {
     //
-    // Handle email body
+    // Handle article body
     //
     uint16_t rcv, written;
     uint16_t len = 0;
@@ -226,7 +232,6 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
       written = fwrite(recvbuf + 4, 1, len, fp);
       if (written != len) {
         printf("Write error");
-        fclose(fp);
         return false;
       }
 
@@ -270,6 +275,7 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
 
       {
         // One less to allow for faster pre-increment below
+        // 4 bytes of overlap between blocks
         char *dataptr = recvbuf + len - 1;
         uint16_t i;
         for (i = 0; i < rcv; ++i) {
@@ -294,38 +300,36 @@ bool w5100_tcp_send_recv(char* sendbuf, char* recvbuf, size_t length,
 /*
  * Check expected string from server
  */
-void expect(char *buf, char *s) {
+uint8_t expect(char *buf, char *s) {
   if (strncmp(buf, s, strlen(s)) != 0) {
     printf("\nExpected '%s' got '%s'\n", s, buf);
-    error_exit();
+    return 1;
   }
+  return 0;
 }
 
 /*
- * Read parms from EMAIL.CFG
+ * Read parms from NEWS.CFG
  */
 void readconfigfile(void) {
   char *colon;
-  fp = fopen("EMAIL.CFG", "r");
+  fp = fopen("NEWS.CFG", "r");
   if (!fp) {
-    puts("Can't open config file EMAIL.CFG");
+    puts("Can't open config file NEWS.CFG");
     error_exit();
   }
   fscanf(fp, "%s", cfg_server);
   fscanf(fp, "%s", cfg_user);
   fscanf(fp, "%s", cfg_pass);
-  fscanf(fp, "%s", cfg_pop_delete);
-  fscanf(fp, "%s", cfg_smtp_server);
-  fscanf(fp, "%s", cfg_smtp_domain);
   fscanf(fp, "%s", cfg_instdir);
   fscanf(fp, "%s", cfg_emaildir);
   fclose(fp);
 
   colon = strchr(cfg_server, ':');
   if (!colon)
-    pop_port = 110;
+    nntp_port = 110;
   else {
-    pop_port = atoi(colon + 1);    
+    nntp_port = atoi(colon + 1);    
     *colon = '\0';
   }
 }
@@ -349,11 +353,11 @@ uint16_t get_line(FILE *fp, char *writep, uint16_t n) {
     }
     if (end == 0)
       goto done;
+    writep[i++] = buf[rd++];
     if (i == n - 1) {
       writep[i - 1] = '\r';
       goto done;
     }
-    writep[i++] = buf[rd++];
     // The following line is safe because of linebuf_pad[]
     if ((writep[i - 1] == '\n') && (writep[i - 2] == '\r')) {
       writep[i - 1] = '\0'; // Remove LF
@@ -368,9 +372,9 @@ done:
 /*
  * Update EMAIL.DB - quick access database for header info
  */
-void update_email_db(struct emailhdrs *h) {
+void update_email_db(char *mbox, struct emailhdrs *h) {
   FILE *fp;
-  sprintf(filename, "%s/INBOX/EMAIL.DB", cfg_emaildir);
+  sprintf(filename, "%s/%s/EMAIL.DB", cfg_emaildir, mbox);
   _filetype = PRODOS_T_BIN;
   _auxtype = 0;
   fp = fopen(filename, "ab");
@@ -398,6 +402,7 @@ void copyheader(char *dest, char *source, uint16_t len) {
 /*
  * Write NEXT.EMAIL file with number of next EMAIL.n file to be created
  */
+#if 0
 void write_next_email(uint16_t num) {
   sprintf(filename, "%s/INBOX/NEXT.EMAIL", cfg_emaildir);
   _filetype = PRODOS_T_TXT;
@@ -411,43 +416,40 @@ void write_next_email(uint16_t num) {
   fprintf(fp, "%u", num);
   fclose(fp);
 }
+#endif
 
 /*
- * Update INBOX
- * Copy messages from spool dir to inbox and find headers of interest
- * (Date, From, To, BCC, Subject)
+ * Update mailbox
+ * Copy messages from spool dir to mailbox and find headers of interest
+ * (Date, From, Subject)
  */
-void update_inbox(uint16_t nummsgs) {
+void update_mailbox(char *mbox) {
   static struct emailhdrs hdrs;
-  uint16_t nextemail, msg, chars, headerchars;
+  struct dirent *d;
+  uint16_t msg, chars, headerchars;
   uint8_t headers;
   FILE *destfp;
-  sprintf(filename, "%s/INBOX/NEXT.EMAIL", cfg_emaildir);
-  fp = fopen(filename, "r");
-  if (!fp) {
-    nextemail = 1;
-    write_next_email(nextemail);
-  } else {
-    fscanf(fp, "%u", &nextemail);
-    fclose(fp);
-  }
-  for (msg = 1; msg <= nummsgs; ++msg) {
+  DIR *dp;
+  sprintf(filename, "%s/NEWS.SPOOL", cfg_emaildir);
+  dp = opendir(filename);
+  while (d = readdir(dp)) {
     strcpy(linebuf, "");
-    sprintf(filename, "%s/SPOOL/EMAIL.%u", cfg_emaildir, msg);
+    sprintf(filename, "%s/NEWS.SPOOL/%s", cfg_emaildir, d->d_name);
     fp = fopen(filename, "r");
     if (!fp) {
       printf("Can't open %s\n", filename);
+      closedir(dp);
       error_exit();
     }
-    hdrs.emailnum = nextemail;
-    sprintf(filename, "%s/INBOX/EMAIL.%u", cfg_emaildir, nextemail++);
+    hdrs.emailnum = msg = atoi(&(d->d_name[5]));
+    sprintf(filename, "%s/%s/EMAIL.%u", cfg_emaildir, mbox, msg);
     puts(filename);
     _filetype = PRODOS_T_TXT;
     _auxtype = 0;
     destfp = fopen(filename, "wb");
     if (!destfp) {
       printf("Can't open %s\n", filename);
-      fclose(fp);
+      closedir(dp);
       error_exit();
     }
     headers = 1;
@@ -455,6 +457,11 @@ void update_inbox(uint16_t nummsgs) {
     hdrs.skipbytes = 0; // Just in case it doesn't get set
     hdrs.status = 'N';
     hdrs.tag = ' ';
+    hdrs.date[0] = hdrs.from[0] = hdrs.cc[0] = hdrs.subject[0] = '\0';
+    // Store News:newsgroup in TO field
+    strcpy(filename, "News:");
+    strcat(filename, newsgroup);
+    copyheader(hdrs.to, filename, 79);
     while ((chars = get_line(fp, linebuf, LINEBUFSZ)) != 0) {
       if (headers) {
         headerchars += chars;
@@ -466,12 +473,9 @@ void update_inbox(uint16_t nummsgs) {
           copyheader(hdrs.from, linebuf + 6, 79);
           hdrs.from[79] = '\0';
         }
-        if (!strncmp(linebuf, "To: ", 4)) {
-          copyheader(hdrs.to, linebuf + 4, 79);
-          hdrs.to[79] = '\0';
-        }
-        if (!strncmp(linebuf, "Cc: ", 4)) {
-          copyheader(hdrs.cc, linebuf + 4, 79);
+        // Store Organization in CC field
+        if (!strncmp(linebuf, "Organization: ", 14)) {
+          copyheader(hdrs.cc, linebuf + 14, 79);
           hdrs.cc[79] = '\0';
         }
         if (!strncmp(linebuf, "Subject: ", 9)) {
@@ -487,20 +491,19 @@ void update_inbox(uint16_t nummsgs) {
     }
     fclose(fp);
     fclose(destfp);
-    update_email_db(&hdrs);
+    update_email_db(mbox, &hdrs);
 
-    sprintf(filename, "%s/SPOOL/EMAIL.%u", cfg_emaildir, msg);
+    sprintf(filename, "%s/NEWS.SPOOL/NEWS.%u", cfg_emaildir, msg);
     if (unlink(filename))
       printf("Can't delete %s\n", filename);
   }
-  write_next_email(nextemail);
+  closedir(dp);
 }
 
 void main(int argc, char *argv[]) {
-  uint8_t eth_init = ETH_INIT_DEFAULT;
+  uint32_t nummsgs, lownum, highnum, msgnum, msg;
   char sendbuf[80];
-  uint16_t msg, nummsgs;
-  uint32_t bytes;
+  uint8_t eth_init = ETH_INIT_DEFAULT;
 
   if ((argc == 2) && (strcmp(argv[1], "EMAIL") == 0))
     exec_email_on_exit = 1;
@@ -508,16 +511,33 @@ void main(int argc, char *argv[]) {
   linebuf_pad[0] = 0;
 
   videomode(VIDEOMODE_80COL);
-  printf("%c%s POP3%c\n", 0x0f, PROGNAME, 0x0e);
+  printf("%c%s NNTP - Receive News Articles%c\n", 0x0f, PROGNAME, 0x0e);
 
-  printf("\nReading EMAIL.CFG            -");
+  printf("\nReading NEWS.CFG             -");
   readconfigfile();
   printf(" Ok");
 
+  printf("\nReading NEWSGROUPS.CFG       - ");
+  sprintf(filename, "%s/NEWSGROUPS.CFG", cfg_emaildir);
+  newsgroupsfp = fopen(filename, "r");
+  if (!newsgroupsfp) {
+    printf("\nCan't read %s\n", filename);
+    error_exit();
+  }
+
+  printf("Ok\nCreating NEWSGROUPS.NEW      - ");
+  sprintf(filename, "%s/NEWSGROUPS.NEW", cfg_emaildir);
+  _filetype = PRODOS_T_TXT;
+  _auxtype = 0;
+  newnewsgroupsfp = fopen(filename, "wb");
+  if (!newnewsgroupsfp) {
+    printf("\nCan't open %s\n", filename);
+    error_exit();
+  }
+
   {
     int file;
-
-    printf("\nSetting slot                 - ");
+    printf("Ok\nSetting slot                 - ");
     file = open("ethernet.slot", O_RDONLY);
     if (file != -1) {
       read(file, &eth_init, 1);
@@ -542,9 +562,9 @@ void main(int argc, char *argv[]) {
   // Copy IP config from IP65 to W5100
   w5100_config(eth_init);
 
-  printf("Ok\nConnecting to %s   - ", cfg_server);
+  printf("Ok\nConnecting to %s (%u) - ", cfg_server, nntp_port);
 
-  if (!w5100_connect(parse_dotted_quad(cfg_server), pop_port)) {
+  if (!w5100_connect(parse_dotted_quad(cfg_server), nntp_port)) {
     printf("Fail\n");
     error_exit();
   }
@@ -554,48 +574,103 @@ void main(int argc, char *argv[]) {
   if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DONT_SEND, CMD_MODE)) {
     error_exit();
   }
-  expect(buf, "+OK");
+  if (expect(buf, "20")) // "200" if posting is allowed / "201" if no posting
+    error_exit();
 
-  sprintf(sendbuf, "USER %s\r\n", cfg_user);
+  sprintf(sendbuf, "AUTHINFO USER %s\r\n", cfg_user);
   if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
     error_exit();
   }
-  expect(buf, "+OK");
+  if (expect(buf, "381")) // Username accepted
+    error_exit();
 
-  sprintf(sendbuf, "PASS %s\r\n", cfg_pass);
+  sprintf(sendbuf, "AUTHINFO PASS %s\r\n", cfg_pass);
   if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
     error_exit();
   }
-  expect(buf, "+OK");
-
-  if (!w5100_tcp_send_recv("STAT\r\n", buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
+  if (expect(buf, "281")) // Authentication successful
     error_exit();
-  }
-  sscanf(buf, "+OK %u %lu", &nummsgs, &bytes);
-  printf(" %u message(s), %lu total bytes\n", nummsgs, bytes);
 
-  for (msg = 1; msg <= nummsgs; ++msg) {
-    sprintf(filename, "%s/SPOOL/EMAIL.%u", cfg_emaildir, msg);
-    _filetype = PRODOS_T_TXT;
-    _auxtype = 0;
-    fp = fopen(filename, "wb"); 
-    if (!fp) {
-      printf("Can't create %s\n", filename);
+  while (1) {
+    msg = fscanf(newsgroupsfp, "%s %s %ld", newsgroup, mailbox, &msgnum);
+    if (strcmp(newsgroup, "0") == 0)
+      break;
+    if ((msg == 0) || (msg == EOF))
+      break;
+    printf("*************************************************************\n");
+    printf("* NEWSGROUP: %s\n", newsgroup);
+    printf("* MAILBOX:   %s\n", mailbox);
+    printf("* START MSG: %ld\n", msgnum);
+    printf("*************************************************************\n");
+
+    sprintf(sendbuf, "GROUP %s\r\n", newsgroup);
+    if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
       error_exit();
     }
-    sprintf(sendbuf, "RETR %u\r\n", msg);
-    if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, DATA_MODE)) {
-      error_exit();
+    if (strncmp(buf, "411", 3) == 0) {
+      putchar(BELL);
+      printf("** Non-existent newsgroup %s\n", newsgroup);
+      continue;
     }
-    spinner(filesize, 1); // Cleanup spinner
-    if (strcmp(cfg_pop_delete, "DELETE") == 0) {
-      sprintf(sendbuf, "DELE %u\r\n", msg);
+
+    sscanf(buf, "211 %lu %lu %lu", &nummsgs, &lownum, &highnum);
+    printf(" Approx. %lu messages, numbered from %lu to %lu\n", nummsgs, lownum, highnum);
+
+    if (msgnum == 0)
+      msgnum = highnum - 100; // If 0 is specified grab 100 messages to start
+
+    if (msgnum < lownum)
+      msgnum = lownum;
+
+    for (msg = msgnum; msg <= highnum; ++msg) {
+      sprintf(sendbuf, "STAT %ld\r\n", msgnum);
       if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
         error_exit();
       }
-      expect(buf, "+OK");
+      if (strncmp(buf, "220", 3)) // Message number exists
+        break;
     }
-    fclose(fp);
+
+    while (1) {
+      if (!w5100_tcp_send_recv("NEXT\r\n", buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
+        error_exit();
+      }
+      if (strncmp(buf, "223", 3) != 0)
+        break; // No more messages in group
+      sscanf(buf, "223 %ld", &msg);
+      sprintf(filename, "%s/NEWS.SPOOL/NEWS.%lu", cfg_emaildir, msg);
+      _filetype = PRODOS_T_TXT;
+      _auxtype = 0;
+      fp = fopen(filename, "wb"); 
+      if (!fp) {
+        printf("Can't create %s\n", filename);
+        error_exit();
+      }
+      printf("\n** Retrieving article %lu/%lu from %s\n", msg, highnum, newsgroup);
+      if (!w5100_tcp_send_recv("ARTICLE\r\n", buf, NETBUFSZ, DO_SEND, DATA_MODE)) {
+        error_exit();
+      }
+      spinner(filesize, 1); // Cleanup spinner
+      fclose(fp);
+    }
+    printf("Updating NEWSGROUPS.NEW (%s:%ld) ...\n", newsgroup, msg);
+    fprintf(newnewsgroupsfp, "%s %s %ld\n", newsgroup, mailbox, msg);
+    printf("Updating mailbox %s ...\n", mailbox);
+    update_mailbox(mailbox);
+  }
+
+  fclose(newsgroupsfp);
+  fclose(newnewsgroupsfp);
+
+  sprintf(filename, "%s/NEWSGROUPS.CFG", cfg_emaildir);
+  if (unlink(filename)) {
+    printf("Can't delete %s\n", filename);
+    error_exit();
+  }
+  sprintf(linebuf, "%s/NEWSGROUPS.NEW", cfg_emaildir);
+  if (rename(linebuf, filename)) {
+    printf("Can't rename %s to %s\n", linebuf, filename);
+    error_exit();
   }
 
   // Ignore any error - can be a race condition where other side
@@ -604,9 +679,6 @@ void main(int argc, char *argv[]) {
 
   printf("Disconnecting\n");
   w5100_disconnect();
-
-  printf("Updating INBOX ...\n");
-  update_inbox(nummsgs);
 
   confirm_exit();
 }

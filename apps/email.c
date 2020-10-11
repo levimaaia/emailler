@@ -1,8 +1,10 @@
 /////////////////////////////////////////////////////////////////
 // emai//er - Simple Email User Agent vaguely inspired by Elm
 // Handles INBOX in the format created by POP65
-// Bobbi June, July 2020
+// Bobbi June-September 2020
 /////////////////////////////////////////////////////////////////
+
+// TODO: Scrunch memory. Move strings to string table to avoid duplication.
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,7 +24,8 @@
 // Program constants
 #define MSGS_PER_PAGE 19     // Number of messages shown on summary screen
 #define PROMPT_ROW    24     // Row that data entry prompt appears on
-#define READSZ        1024   // Size of buffer for copying files
+#define LINEBUFSZ     1000   // According to RFC2822 Section 2.1.1 (998+CRLF)
+#define READSZ        512    // Size of buffer for copying files
 
 // Characters
 #define BELL          0x07
@@ -43,7 +46,27 @@
 #define CURSORROW     0x0025
 #define SYSTEMTIME    0xbf90
 
-char openapple[] = "\x0f\x1b""A\x18\x0e";
+char closedapple[]  = "\x0f\x1b""@\x18\x0e";
+char openapple[]    = "\x0f\x1b""A\x18\x0e";
+char email[]        = "EMAIL";
+char email_cfg[]    = "EMAIL.CFG";
+char email_prefs[]  = "EMAIL.PREFS";
+char email_db[]     = "%s/%s/EMAIL.DB";
+char email_db_new[] = "%s/%s/EMAIL.DB.NEW";
+char next_email[]   = "%s/%s/NEXT.EMAIL";
+char email_file[]   = "%s/%s/EMAIL.%u";
+char outbox[]       = "OUTBOX";
+char news_outbox[]  = "NEWS.OUTBOX";
+char cant_open[]    = "Can't open %s";
+char cant_seek[]    = "Can't seek in %s";
+char mime_ver[]     = "MIME-Version: 1.0";
+char ct[]           = "Content-Type: ";
+char cte[]          = "Content-Transfer-Encoding: ";
+char qp[]           = "quoted-printable";
+char b64[]          = "base64";
+char unsupp_enc[]   = "** Unsupp encoding %s\n";
+char sb_err[]       = "Scrollback error";
+char a2_forever[]   = "%s: %s - Apple II Forever!\r\r";
 
 /*
  * Represents a date and time
@@ -60,7 +83,7 @@ struct datetime {
 
 char                  filename[80];
 char                  userentry[80];
-char                  linebuf[998+2]; // According to RFC2822 Section 2.1.1 (998+CRLF)
+char                  linebuf[LINEBUFSZ];
 char                  halfscreen[0x0400];
 FILE                  *fp;
 struct emailhdrs      *headers;
@@ -72,37 +95,76 @@ uint16_t              total_tag;   // Total number of tagged messages
 uint16_t              first_msg;   // Msg numr: first message current page
 uint8_t               reverse;     // 0 normal, 1 reverse order
 char                  curr_mbox[80] = "INBOX";
-static unsigned char  buf[READSZ];
+unsigned char         buf[READSZ];
+
 
 #define ERR_NONFATAL 0
 #define ERR_FATAL    1
 
+/*
+ * Load and run EDIT.SYSTEM
+ * compose - Controls the arguments passed to EDIT.SYSTEM
+ *           0: Email reading (-reademail)
+ *           1: Email composition (-email)
+ *           2: News composition (-news)
+ */
 #pragma code-name (push, "LC")
 void load_editor(uint8_t compose) {
-  snprintf(userentry, 80, "%s %s", (compose ? "-compose" : "-reademail"), filename);
+  snprintf(userentry, 80, "%s %s",
+           (compose == 0 ? "-reademail" : (compose == 1 ? "-email" : "-news")),
+           filename);
   snprintf(filename, 80, "%s/EDIT.SYSTEM", cfg_instdir);
   exec(filename, userentry);
 }
 #pragma code-name (pop)
 
+/*
+ * Load and run NNTP65.SYSTEM
+ */
+#pragma code-name (push, "LC")
+void load_nntp65(void) {
+  snprintf(filename, 80, "%s/NNTP65.SYSTEM", cfg_instdir);
+  exec(filename, email);
+}
+#pragma code-name (pop)
+
+/*
+ * Load and run NNTP65UP.SYSTEM
+ */
+#pragma code-name (push, "LC")
+void load_nntp65up(void) {
+  snprintf(filename, 80, "%s/NNTP65UP.SYSTEM", cfg_instdir);
+  exec(filename, email);
+}
+#pragma code-name (pop)
+
+/*
+ * Load and run POP65.SYSTEM
+ */
 #pragma code-name (push, "LC")
 void load_pop65(void) {
   snprintf(filename, 80, "%s/POP65.SYSTEM", cfg_instdir);
-  exec(filename, "EMAIL");
+  exec(filename, email);
 }
 #pragma code-name (pop)
 
+/*
+ * Load and run SMTP65.SYSTEM
+ */
 #pragma code-name (push, "LC")
 void load_smtp65(void) {
   snprintf(filename, 80, "%s/SMTP65.SYSTEM", cfg_instdir);
-  exec(filename, "EMAIL");
+  exec(filename, email);
 }
 #pragma code-name (pop)
 
+/*
+ * Load and run DATE65.SYSTEM
+ */
 #pragma code-name (push, "LC")
 void load_date65(void) {
   snprintf(filename, 80, "%s/DATE65.SYSTEM", cfg_instdir);
-  exec(filename, "EMAIL");
+  exec(filename, email);
 }
 #pragma code-name (pop)
 
@@ -171,7 +233,7 @@ void pr_spc(uint8_t n) {
 void save_prefs(void) {
   _filetype = PRODOS_T_TXT;
   _auxtype = 0;
-  fp = fopen("EMAIL.PREFS", "wb");
+  fp = fopen(email_prefs, "wb");
   if (!fp)
     return;
   fprintf(fp, "order:%s", (reverse ? "<" : ">"));
@@ -185,7 +247,7 @@ void save_prefs(void) {
 #pragma code-name (push, "LC")
 void load_prefs(void) {
   char order = 'a';
-  fp = fopen("EMAIL.PREFS", "rb");
+  fp = fopen(email_prefs, "rb");
   if (!fp)
     return;
   fscanf(fp, "order:%s", &order);
@@ -197,6 +259,7 @@ void load_prefs(void) {
 /*
  * Print ASCII-art envelope
  */
+#if 0
 #pragma code-name (push, "LC")
 void envelope(void) {
   uint8_t i;
@@ -214,6 +277,7 @@ void envelope(void) {
   pr_spc(30); puts("                 ... No messages in this mailbox");
 }
 #pragma code-name (pop)
+#endif
 
 /*
  * Busy spinner
@@ -232,9 +296,9 @@ void spinner(void) {
  */
 #pragma code-name (push, "LC")
 void readconfigfile(void) {
-  fp = fopen("EMAIL.CFG", "r");
+  fp = fopen(email_cfg, "r");
   if (!fp)
-    error(ERR_FATAL, "Can't open config file EMAIL.CFG");
+    error(ERR_FATAL, cant_open, email_cfg);
   fscanf(fp, "%s", cfg_server);
   fscanf(fp, "%s", cfg_user);
   fscanf(fp, "%s", cfg_pass);
@@ -331,6 +395,7 @@ void printsystemdate(void) {
 /*
  * Free linked list rooted at headers
  */
+#pragma code-name (push, "LC")
 void free_headers_list(void) {
   struct emailhdrs *h = headers;
   while (h) {
@@ -339,6 +404,7 @@ void free_headers_list(void) {
   }
   headers = NULL;
 }
+#pragma code-name (pop)
 
 /*
  * Read EMAIL.DB and populate linked list rooted at headers
@@ -358,30 +424,30 @@ uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox)
     total_new = total_msgs = total_tag = 0;
   }
   free_headers_list();
-  snprintf(filename, 80, "%s/%s/EMAIL.DB", cfg_emaildir, curr_mbox);
+  snprintf(filename, 80, email_db, cfg_emaildir, curr_mbox);
   fp = fopen(filename, "rb");
   if (!fp) {
-    error(switchmbox ? ERR_NONFATAL : ERR_FATAL, "Can't open %s", filename);
+    error(switchmbox ? ERR_NONFATAL : ERR_FATAL, cant_open, filename);
     if (switchmbox)
       return 1;
   }
   if (reverse) {
     if (fseek(fp, 0, SEEK_END)) {
       fclose(fp);
-      error(switchmbox ? ERR_NONFATAL : ERR_FATAL, "Can't seek in %s", filename);
+      error(switchmbox ? ERR_NONFATAL : ERR_FATAL, cant_seek, filename);
       if (switchmbox)
         return 1;
     }
     // If the mailbox is empty this seek will fail
-    if (fseek(fp, ftell(fp) - startnum * EMAILHDRS_SZ_ON_DISK, SEEK_SET)) {
+    if (fseek(fp, ftell(fp) - (uint32_t)startnum * EMAILHDRS_SZ_ON_DISK, SEEK_SET)) {
       fclose(fp);
       num_msgs = total_new = total_msgs = total_tag = 0;
       return 0;
     }
   } else {
-    if (fseek(fp, (startnum - 1) * EMAILHDRS_SZ_ON_DISK, SEEK_SET)) {
+    if (fseek(fp, (uint32_t)(startnum - 1) * EMAILHDRS_SZ_ON_DISK, SEEK_SET)) {
       fclose(fp);
-      error(switchmbox ? ERR_NONFATAL : ERR_FATAL, "Can't seek in %s", filename);
+      error(switchmbox ? ERR_NONFATAL : ERR_FATAL, cant_seek, filename);
       if (switchmbox)
         return 1;
     }
@@ -425,13 +491,13 @@ uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox)
         free(curr);
     }
     if (reverse) {
-      pos = ftell(fp) - 2 * EMAILHDRS_SZ_ON_DISK;
-      if (pos == -1 * EMAILHDRS_SZ_ON_DISK) {
+      pos = ftell(fp) - 2L * EMAILHDRS_SZ_ON_DISK;
+      if (pos == -1L * EMAILHDRS_SZ_ON_DISK) {
         fclose(fp);
         return 0;
       }
       if (fseek(fp, pos, SEEK_SET)) {
-        error(switchmbox ? ERR_NONFATAL : ERR_FATAL, "Can't seek in %s", filename);
+        error(switchmbox ? ERR_NONFATAL : ERR_FATAL, cant_seek, filename);
         fclose(fp);
         return 0;
       }
@@ -446,12 +512,14 @@ uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox)
  * Print a header field from char postion start to end,
  * padding with spaces as needed
  */
+#pragma code-name (push, "LC")
 void printfield(char *s, uint8_t start, uint8_t end) {
   uint8_t i;
   uint8_t l = strlen(s);
   for (i = start; i < end; i++)
     putchar(i < l ? s[i] : ' ');
 }
+#pragma code-name (pop)
 
 /*
  * Print one line summary of email headers for one message
@@ -482,6 +550,7 @@ void print_one_email_summary(struct emailhdrs *h, uint8_t inverse) {
 /*
  * Get emailhdrs for nth email in list of headers
  */
+#pragma code-name (push, "LC")
 struct emailhdrs *get_headers(uint16_t n) {
   uint16_t i = 1;
   struct emailhdrs *h = headers;
@@ -491,6 +560,7 @@ struct emailhdrs *get_headers(uint16_t n) {
   }
   return h;
 }
+#pragma code-name (pop)
 
 /*
  * Print status bar at the top
@@ -503,7 +573,7 @@ void status_bar(void) {
   putchar(HOME);
   if (num_msgs == 0) {
     printf("%c%s [%s] No messages ", INVERSE, PROGNAME, curr_mbox);
-    envelope();
+    //envelope();
   } else
     printf("%c[%s] %u msgs, %u new, %u tagged. Showing %u-%u. %c ",
            INVERSE, curr_mbox, total_msgs, total_new, total_tag, first_msg,
@@ -548,21 +618,24 @@ void email_summary_for(uint16_t n) {
 /*
  * Move the highlight bar when user selects different message
  */
+#pragma code-name (push, "LC")
 void update_highlighted(void) {
   email_summary_for(prevselection);
   email_summary_for(selection);
 }
+#pragma code-name (pop)
 
 /*
  * Read a text file a line at a time
- * Returns number of chars in the line, or -1 if EOF.
+ * Returns number of chars in the line, or 0 if EOF.
  * Expects Apple ][ style line endings (CR) and does no conversion
  * fp - file to read from
  * reset - if 1 then just reset the buffer and return
  * writep - Pointer to buffer into which line will be written
+ * n - length of buffer. Longer lines will be truncated and terminated with CR.
  * pos - position in file is updated via this pointer
  */
-int16_t get_line(FILE *fp, uint8_t reset, char *writep, uint32_t *pos) {
+uint16_t get_line(FILE *fp, uint8_t reset, char *writep, uint16_t n, uint32_t *pos) {
   static uint16_t rd = 0; // Read
   static uint16_t end = 0; // End of valid data in buf
   uint16_t i = 0;
@@ -577,14 +650,19 @@ int16_t get_line(FILE *fp, uint8_t reset, char *writep, uint32_t *pos) {
       rd = 0;
     }
     if (end == 0)
-      return -1; // EOF
+      goto done;
+    if (i == n - 1) {
+      writep[i - 1] = '\r';
+      goto done;
+    }
     writep[i++] = buf[rd++];
     ++(*pos);
-    if (writep[i - 1] == '\r') {
-      writep[i] = '\0';
-      return i;
-    }
+    if (writep[i - 1] == '\r')
+      goto done;
   }
+done:
+  writep[i] = '\0';
+  return i;
 }
 
 /*
@@ -602,9 +680,9 @@ uint8_t hexdigit(char c) {
  * p - Pointer to buffer to decode. Results written in place.
  * Returns number of bytes decoded
  */
-uint16_t decode_quoted_printable(char *p) {
+uint16_t decode_quoted_printable(uint8_t *p) {
   uint16_t i = 0, j = 0;
-  char c;
+  uint8_t c;
   while (c = p[i]) {
     if (c == '=') {
       if (p[i + 1] == '\r') { // Trailing '=' is a soft '\r'
@@ -612,9 +690,8 @@ uint16_t decode_quoted_printable(char *p) {
         return j;
       }
       // Otherwise '=xx' where x is a hex digit
-      c = 16 * hexdigit(linebuf[i + 1]) + hexdigit(linebuf[i + 2]);
-      if ((c >= 0x20) && (c <= 0x7e))
-        p[j++] = c;
+      c = 16 * hexdigit(p[i + 1]) + hexdigit(p[i + 2]);
+      p[j++] = c;
       i += 3;
     } else {
       p[j++] = c;
@@ -662,15 +739,20 @@ uint16_t decode_base64(char *p) {
 #endif
 
 /*
+ * Do fputc() but replace unprintable chars with '#'
+ */
+void filter_fputc(uint8_t c, FILE *f) {
+  fputc((((c < 32) || (c > 127)) ? '#' : c), f);
+}
+
+/*
  * Print line up to first '\r' or '\0'
  */
-void putline(FILE *fp, char *s) {
-  char *ret = strchr(s, '\r');
-  if (ret)
-    *ret = '\0';
-  fputs(s, fp);
-  if (ret)
-    *ret = '\r';
+void putline(FILE *f, char *s) {
+  while ((*s != NULL) && (*s != '\r')) {
+    filter_fputc(*s, f);
+    ++s;
+  }
 }
 
 /*
@@ -681,7 +763,7 @@ void putline(FILE *fp, char *s) {
  *     set to NULL.  If there is text left in the buffer to be consumed then
  *     the pointer will be advanced to point to the next text to process.
  * cols - Number of columns to break at
- * mode - 'R' for reply, 'F' for forward, otherwise ' '
+ * mode - 'R' for reply, 'F' for forward, 'N' for news follow-up, otherwise ' '
  * Returns 1 if the caller should invoke the routine again before obtaining
  * more input, or 0 if there is nothing more to do or caller needs to get more
  * input before next call.
@@ -708,7 +790,7 @@ uint8_t word_wrap_line(FILE *fp, char **s, uint8_t cols, char mode) {
         col = 0;
         if (col + l != cols) {
           fputc('\r', fp);
-          if (mode == 'R') {
+          if ((mode == 'R') || (mode == 'N')) {
             fputc('>', fp);
             ++col;
           }
@@ -718,18 +800,17 @@ uint8_t word_wrap_line(FILE *fp, char **s, uint8_t cols, char mode) {
       return (*s ? 1 : 0);         // Caller should invoke again
     }
     i = cols - col;                  // Doesn't fit, need to break
-    if (i > l)
-      i = l;
     while ((ss[--i] != ' ') && (i > 0));
     if (i == 0) {                  // No space character found
-      if (col == 0)                // Doesn't fit on full line
-        for (i = 0; i < cols; ++i) { // Truncate @cols chars
-          fputc(ss[i], fp);
+      if (col == 0) {              // Doesn't fit on full line
+        for (i = 0; i <= cols; ++i) { // Truncate @cols chars
+          filter_fputc(ss[i], fp);
           *s = ss + l + 1;
+        }
       } else {                     // There is stuff on this line already
         col = 0;
         fputc('\r', fp);           // Try a blank line
-        if (mode == 'R') {
+        if ((mode == 'R') || (mode == 'N')) {
           fputc('>', fp);
           ++col;
         }
@@ -748,7 +829,7 @@ uint8_t word_wrap_line(FILE *fp, char **s, uint8_t cols, char mode) {
   putline(fp, ss);
   fputc('\r', fp);
   col = 0;
-  if (mode == 'R') {
+  if ((mode == 'R') || (mode == 'N')) {
     fputc('>', fp);
     ++col;
   }
@@ -850,12 +931,12 @@ void copyaux(char *src, char *dst, uint16_t len, uint8_t dir) {
  */
 void save_screen_to_scrollback(FILE *fp) {
   if (fwrite((void*)0x0400, 0x0400, 1, fp) != 1) { // Even cols
-    error(ERR_NONFATAL, "Can't write scrollback");
+    error(ERR_NONFATAL, sb_err);
     return;
   }
   copyaux((void*)0x400, halfscreen, 0x400, FROMAUX);
   if (fwrite(halfscreen, 0x0400, 1, fp) != 1) { // Odd cols
-    error(ERR_NONFATAL, "Can't write scrollback");
+    error(ERR_NONFATAL, sb_err);
     return;
   }
 }
@@ -867,11 +948,11 @@ void save_screen_to_scrollback(FILE *fp) {
  */
 void load_screen_from_scrollback(FILE *fp, uint8_t screen) {
   if (fseek(fp, (screen - 1) * 0x0800, SEEK_SET)) {
-    error(ERR_NONFATAL, "Can't seek scrollback");
+    error(ERR_NONFATAL, sb_err);
     return;
   }
   if (fread(halfscreen, 0x0400, 1, fp) != 1) { // Even cols
-    error(ERR_NONFATAL, "Can't read scrollback");
+    error(ERR_NONFATAL, sb_err);
     return;
   }
   memcpy((void*)0x400, halfscreen + 0x000, 0x078);
@@ -883,7 +964,7 @@ void load_screen_from_scrollback(FILE *fp, uint8_t screen) {
   memcpy((void*)0x700, halfscreen + 0x300, 0x078);
   memcpy((void*)0x780, halfscreen + 0x380, 0x078);
   if (fread(halfscreen, 0x0400, 1, fp) != 1) { // Odd cols
-    error(ERR_NONFATAL, "Can't read scrollback");
+    error(ERR_NONFATAL, sb_err);
     return;
   }
   copyaux(halfscreen + 0x000, (void*)0x400, 0x078, TOAUX);
@@ -895,7 +976,7 @@ void load_screen_from_scrollback(FILE *fp, uint8_t screen) {
   copyaux(halfscreen + 0x300, (void*)0x700, 0x078, TOAUX);
   copyaux(halfscreen + 0x380, (void*)0x780, 0x078, TOAUX);
   if (fseek(fp, 0, SEEK_END)) {
-    error(ERR_NONFATAL, "Can't seek scrollback");
+    error(ERR_NONFATAL, sb_err);
     return;
   }
 }
@@ -910,33 +991,41 @@ void load_screen_from_scrollback(FILE *fp, uint8_t screen) {
  * Includes support for decoding MIME headers
  */
 void email_pager(struct emailhdrs *h) {
+  static struct emailhdrs hh;
   uint32_t pos = 0;
   uint8_t *cursorrow = (uint8_t*)CURSORROW, mime = 0;
   FILE *sbackfp = NULL;
   const int8_t *b = b64dec - 43;
   FILE *attachfp;
-  uint16_t linecount, chars, skipbytes;
+  uint16_t linecount, chars;
   uint8_t mime_enc, mime_binary, mime_hasfile, eof,
           screennum, maxscreennum, attnum;
-  char c, *readp, *writep;
+  uint8_t c, *readp, *writep;
+
+  // We do not need all the email headers for the summary screen right now.
+  // Freeing them can release up to nearly 8KB. The caller rebuilds the
+  // summary info by calling read_email_db().
+  hh = *h;
+  free_headers_list();
+
   clrscr2();
-  snprintf(filename, 80, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, h->emailnum);
+  snprintf(filename, 80, email_file, cfg_emaildir, curr_mbox, hh.emailnum);
   fp = fopen(filename, "rb");
   if (!fp) {
     if (sbackfp)
       fclose(sbackfp);
-    error(ERR_NONFATAL, "Can't open %s", filename);
+    error(ERR_NONFATAL, cant_open, filename);
     return;
   }
-  pos = h->skipbytes;
+  pos = hh.skipbytes;
   fseek(fp, pos, SEEK_SET); // Skip over headers
+  mime_enc = ENC_7BIT;
 restart:
   eof = 0;
   linecount = 0;
   readp = linebuf;
   writep = linebuf;
   attachfp = NULL;
-  mime_enc = ENC_7BIT;
   mime_binary = 0;
   mime_hasfile = 0;
   attnum = 0;
@@ -948,37 +1037,39 @@ restart:
   unlink(filename);
   sbackfp = fopen(filename, "wb+");
   if (!sbackfp) {
-    error(ERR_NONFATAL, "No scrollback");
+    error(ERR_NONFATAL, sb_err);
   }
   maxscreennum = screennum = 0;
   clrscr2();
   fputs("Date:    ", stdout);
-  printfield(h->date, 0, 39);
+  printfield(hh.date, 0, 39);
   fputs("\nFrom:    ", stdout);
-  printfield(h->from, 0, 70);
-  fputs("\nTo:      ", stdout);
-  printfield(h->to, 0, 70);
-  if (h->cc[0] != '\0') {
-    fputs("\nCC:      ", stdout);
-    printfield(h->cc, 0, 70);
+  printfield(hh.from, 0, 70);
+  if (strncmp(hh.to, "News:", 5) == 0) {
+    fputs("\nNewsgrp: ", stdout);
+    printfield(&(hh.to[5]), 0, 70);
+    if (hh.cc[0] != '\0') {
+      fputs("\nOrg:     ", stdout);
+      printfield(hh.cc, 0, 70);
+    }
+  } else {
+    fputs("\nTo:      ", stdout);
+    printfield(hh.to, 0, 70);
+    if (hh.cc[0] != '\0') {
+      fputs("\nCC:      ", stdout);
+      printfield(hh.cc, 0, 70);
+    }
   }
   fputs("\nSubject: ", stdout);
-  printfield(h->subject, 0, 70);
+  printfield(hh.subject, 0, 70);
   fputs("\n\n", stdout);
-
-  // We do not need all the email headers for the summary screen right now.
-  // Freeing them can release up to nearly 8KB. The caller rebuilds the
-  // summary info by calling read_email_db().
-  skipbytes = h->skipbytes;
-  free_headers_list();
-
-  get_line(fp, 1, linebuf, &pos); // Reset buffer
+  get_line(fp, 1, linebuf, LINEBUFSZ, &pos); // Reset buffer
   while (1) {
     if (!readp)
       readp = linebuf;
     if (!writep)
       writep = linebuf;
-    if (get_line(fp, 0, writep, &pos) == -1) {
+    if (get_line(fp, 0, writep, (LINEBUFSZ - (writep - linebuf)), &pos) == 0) {
       eof = 1;
       goto endscreen;
     }
@@ -997,7 +1088,7 @@ restart:
       mime_hasfile = 0;
       readp = writep = NULL;
     } else if ((mime < 4) && (mime >= 2)) {
-      if (!strncasecmp(writep, "Content-Type: ", 14)) {
+      if (!strncasecmp(writep, ct, 14)) {
         if (!strncmp(writep + 14, "text/plain", 10)) {
           mime = 3;
         } else if (!strncmp(writep + 14, "text/html", 9)) {
@@ -1007,16 +1098,18 @@ restart:
           mime_binary = 1;
           mime = 3;
         }
-      } else if (!strncasecmp(writep, "Content-Transfer-Encoding: ", 27)) {
+      } else if (!strncasecmp(writep, cte, 27)) {
         mime = 3;
         if (!strncmp(writep + 27, "7bit", 4))
           mime_enc = ENC_7BIT;
-        else if (!strncmp(writep + 27, "quoted-printable", 16))
+        else if (!strncmp(writep + 27, "8bit", 4))
+          mime_enc = ENC_7BIT;
+        else if (!strncmp(writep + 27, qp, 16))
           mime_enc = ENC_QP;
-        else if (!strncmp(writep + 27, "base64", 6))
+        else if (!strncmp(writep + 27, b64, 6))
           mime_enc = ENC_B64;
         else {
-          printf("** Unsupp encoding %s\n", writep + 27);
+          printf(unsupp_enc, writep + 27);
           mime = 1;
         }
       } else if (strstr(writep, "filename=")) {
@@ -1034,7 +1127,7 @@ prompt_dl:
           printf("*** Attachment -> %s  ", filename);
           attachfp = fopen(filename, "wb");
           if (!attachfp) {
-            printf("\n*** Can't open %s %d\n", filename, errno);
+            printf("\n*** Can't open %s\n", filename);
             goto prompt_dl;
           }
         } else
@@ -1140,7 +1233,7 @@ retry:
       case 'T':
       case 't':
         mime = 0;
-        pos = skipbytes;
+        pos = hh.skipbytes;
         fseek(fp, pos, SEEK_SET);
         goto restart;
         break;
@@ -1154,27 +1247,32 @@ retry:
       case 'M':
       case 'm':
         mime = 1;
+        mime_enc = ENC_7BIT;
+        mime_binary = 0;
         pos = 0;
         fseek(fp, pos, SEEK_SET);
-        get_line(fp, 1, linebuf, &pos); // Reset buffer
+        get_line(fp, 1, linebuf, LINEBUFSZ, &pos); // Reset buffer
         do {
-          get_line(fp, 0, linebuf, &pos);
-          if (!strncasecmp(linebuf, "Content-Transfer-Encoding: ", 27)) {
+          get_line(fp, 0, linebuf, LINEBUFSZ, &pos);
+          if (!strncasecmp(linebuf, ct, 14))
+            mime = 4;
+          if (!strncasecmp(linebuf, cte, 27)) {
             mime = 4;
             if (!strncmp(linebuf + 27, "7bit", 4))
               mime_enc = ENC_7BIT;
-            else if (!strncmp(linebuf + 27, "quoted-printable", 16))
+            else if (!strncmp(linebuf + 27, "8bit", 4))
+              mime_enc = ENC_7BIT;
+            else if (!strncmp(linebuf + 27, qp, 16))
               mime_enc = ENC_QP;
-            else if (!strncmp(linebuf + 27, "base64", 6))
+            else if (!strncmp(linebuf + 27, b64, 6))
               mime_enc = ENC_B64;
             else {
-              printf("** Unsupp encoding %s\n", linebuf + 27);
-              mime = 1;
+              mime = 0;
+              break;
             }
-            break;
           }
         } while (linebuf[0] != '\r');
-        pos = skipbytes;
+        pos = hh.skipbytes;
         fseek(fp, pos, SEEK_SET);
         goto restart;
       case 'Q':
@@ -1199,14 +1297,14 @@ retry:
  */
 void write_updated_headers(struct emailhdrs *h, uint16_t pos) {
   uint16_t l;
-  snprintf(filename, 80, "%s/%s/EMAIL.DB", cfg_emaildir, curr_mbox);
+  snprintf(filename, 80, email_db, cfg_emaildir, curr_mbox);
   _filetype = PRODOS_T_BIN;
   _auxtype = 0;
   fp = fopen(filename, "rb+");
   if (!fp)
-    error(ERR_FATAL, "Can't open %s", filename);
-  if (fseek(fp, (pos - 1) * EMAILHDRS_SZ_ON_DISK, SEEK_SET))
-    error(ERR_FATAL, "Can't seek in %s", filename);
+    error(ERR_FATAL, cant_open, filename);
+  if (fseek(fp, (uint32_t)(pos - 1) * EMAILHDRS_SZ_ON_DISK, SEEK_SET))
+    error(ERR_FATAL, cant_seek, filename);
   l = fwrite(h, 1, EMAILHDRS_SZ_ON_DISK, fp);
   if (l != EMAILHDRS_SZ_ON_DISK)
     error(ERR_FATAL, "Can't write to %s", filename);
@@ -1223,7 +1321,7 @@ void new_mailbox(char *mbox) {
     error(ERR_NONFATAL, "Can't create dir %s", filename);
     return;
   }
-  snprintf(filename, 80, "%s/%s/EMAIL.DB", cfg_emaildir, mbox);
+  snprintf(filename, 80, email_db, cfg_emaildir, mbox);
   _filetype = PRODOS_T_BIN;
   _auxtype = 0;
   fp = fopen(filename, "wb");
@@ -1232,7 +1330,7 @@ void new_mailbox(char *mbox) {
     return;
   }
   fclose(fp);
-  snprintf(filename, 80, "%s/%s/NEXT.EMAIL", cfg_emaildir, mbox);
+  snprintf(filename, 80, next_email, cfg_emaildir, mbox);
   _filetype = PRODOS_T_TXT;
   _auxtype = 0;
   fp = fopen(filename, "wb");
@@ -1276,19 +1374,19 @@ void purge_deleted(void) {
   h = (struct emailhdrs*)malloc(sizeof(struct emailhdrs));
   if (!h)
     error(ERR_FATAL, "Can't malloc()");
-  snprintf(filename, 80, "%s/%s/EMAIL.DB", cfg_emaildir, curr_mbox);
+  snprintf(filename, 80, email_db, cfg_emaildir, curr_mbox);
   fp = fopen(filename, "rb");
   if (!fp) {
-    error(ERR_NONFATAL, "Can't open %s", filename);
+    error(ERR_NONFATAL, cant_open, filename);
     return;
   }
-  snprintf(filename, 80, "%s/%s/EMAIL.DB.NEW", cfg_emaildir, curr_mbox);
+  snprintf(filename, 80, email_db_new, cfg_emaildir, curr_mbox);
   _filetype = PRODOS_T_BIN;
   _auxtype = 0;
   fp2 = fopen(filename, "wb");
   if (!fp2) {
     fclose(fp);
-    error(ERR_NONFATAL, "Can't open %s", filename);
+    error(ERR_NONFATAL, cant_open, filename);
     return;
   }
   while (1) {
@@ -1297,7 +1395,7 @@ void purge_deleted(void) {
     if (l != EMAILHDRS_SZ_ON_DISK)
       goto done;
     if (h->status == 'D') {
-      snprintf(filename, 80, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, h->emailnum);
+      snprintf(filename, 80, email_file, cfg_emaildir, curr_mbox, h->emailnum);
       if (unlink(filename)) {
         error(ERR_NONFATAL, "Can't delete %s", filename);
       }
@@ -1319,12 +1417,12 @@ done:
   free(h);
   fclose(fp);
   fclose(fp2);
-  snprintf(filename, 80, "%s/%s/EMAIL.DB", cfg_emaildir, curr_mbox);
+  snprintf(filename, 80, email_db, cfg_emaildir, curr_mbox);
   if (unlink(filename)) {
     error(ERR_NONFATAL, "Can't delete %s", filename);
     return;
   }
-  snprintf(userentry, 80, "%s/%s/EMAIL.DB.NEW", cfg_emaildir, curr_mbox);
+  snprintf(userentry, 80, email_db_new, cfg_emaildir, curr_mbox);
   if (rename(userentry, filename)) {
     error(ERR_NONFATAL, "Can't rename %s", userentry);
     return;
@@ -1336,10 +1434,10 @@ done:
  * Returns 1 on error, 0 if all is good
  */
 uint8_t get_next_email(char *mbox, uint16_t *num) {
-  snprintf(filename, 80, "%s/%s/NEXT.EMAIL", cfg_emaildir, mbox);
+  snprintf(filename, 80, next_email, cfg_emaildir, mbox);
   fp = fopen(filename, "rb");
   if (!fp) {
-    error(ERR_NONFATAL, "Can't open %s/NEXT.EMAIL", mbox);
+    error(ERR_NONFATAL, cant_open, filename);
     return 1;
   }
   fscanf(fp, "%u", num);
@@ -1351,12 +1449,12 @@ uint8_t get_next_email(char *mbox, uint16_t *num) {
  * Update NEXT.EMAIL file
  */
 uint8_t update_next_email(char *mbox, uint16_t num) {
-  snprintf(filename, 80, "%s/%s/NEXT.EMAIL", cfg_emaildir, mbox);
+  snprintf(filename, 80, next_email, cfg_emaildir, mbox);
   _filetype = PRODOS_T_TXT;
   _auxtype = 0;
   fp = fopen(filename, "wb");
   if (!fp) {
-    error(ERR_NONFATAL, "Can't open %s/NEXT.EMAIL", mbox);
+    error(ERR_NONFATAL, cant_open, filename);
     return 1;
   }
   fprintf(fp, "%u", num);
@@ -1464,6 +1562,26 @@ esc_pressed:
 }
 
 /*
+ * Write subject line to file
+ * f - File descriptor to write to
+ * s - Subject text
+ * Adds 'Re: ' to subject line unless it is already there
+ */
+void subject_response(FILE *f, char *s) {
+  fprintf(f, "Subject: %s%s\r", (strncmp(s, "Re: ", 3) ? "Re: " : ""), s);
+}
+
+/*
+ * Write subject line to file
+ * f - File descriptor to write to
+ * s - Subject text
+ * Adds 'Fwd: ' to subject line unless it is already there
+ */
+void subject_forward(FILE *f, char *s) {
+  fprintf(f, "Subject: %s%s\r", (strncmp(s, "Fwd: ", 3) ? "Fwd: " : ""), s);
+}
+
+/*
  * Write email headers for replies and forwarded messages
  * fp1  - File handle of the mail message being replied/forwarded
  * fp2  - File handle of the destination mail message
@@ -1477,7 +1595,10 @@ uint8_t write_email_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h,
   struct datetime dt;
   fprintf(fp2, "From: %s\r", cfg_emailaddr);
   truncate_header(h->subject, buf, 80);
-  fprintf(fp2, "Subject: %s: %s\r", (mode == 'F' ? "Fwd" : "Re"), buf);
+  if (mode == 'F')
+    subject_forward(fp2, buf);
+  else
+    subject_response(fp2, buf);
   readdatetime((unsigned char*)(SYSTEMTIME), &dt);
   datetimelong(&dt, buf);
   fprintf(fp2, "Date: %s\r", buf);
@@ -1492,7 +1613,7 @@ uint8_t write_email_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h,
     return 255; // ESC pressed
   if (strlen(userentry) > 0)
     fprintf(fp2, "cc: %s\r", userentry);
-  fprintf(fp2, "X-Mailer: %s - Apple II Forever!\r\r", PROGNAME);
+  fprintf(fp2, a2_forever, "X-Mailer", PROGNAME);
   if (mode == 'R') {
     truncate_header(h->date, buf, 40);
     fprintf(fp2, "On %s, ", buf);
@@ -1509,6 +1630,63 @@ uint8_t write_email_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h,
     truncate_header(h->to, buf, 80);
     fprintf(fp2, "To: %s\r\r", buf);
   }
+  fseek(fp1, h->skipbytes, SEEK_SET); // Skip headers when copying
+  return 0;
+}
+
+/*
+ * Write news article headers for follow-up postings
+ * fp1  - File handle of the article being replied/forwarded
+ * fp2  - File handle of the destination article
+ * h    - headers of the article being replied/forwarded
+ * Returns 0 if okay, 1 on error.
+ */
+uint8_t write_news_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h, uint16_t num) {
+  struct datetime dt;
+  uint32_t pos;
+  uint8_t refstate = 0, idstate = 0;
+  fprintf(fp2, "From: %s\r", cfg_emailaddr);
+  truncate_header(&(h->to[5]), buf, 80);
+  fprintf(fp2, "Newsgroups: %s\r", buf);
+  truncate_header(h->subject, buf, 80);
+  subject_response(fp2, buf);
+  readdatetime((unsigned char*)(SYSTEMTIME), &dt);
+  datetimelong(&dt, userentry);
+  fprintf(fp2, "Date: %s\r", userentry);
+  fprintf(fp2, "Message-ID: <%05d-%s>\r", num, cfg_emailaddr);
+  get_line(fp1, 1, linebuf, LINEBUFSZ, &pos); // Reset buffer
+  while (1) {
+    get_line(fp1, 0, linebuf, LINEBUFSZ, &pos);
+    if (linebuf[0] == '\r') { // End of headers
+      if ((idstate == 1) && (refstate == 0))
+        fprintf(fp2, "References: %s", userentry);
+      break;
+    }
+    if (strncmp(linebuf, "Message-ID:", 11) == 0) {
+      if (refstate == 2)
+        fprintf(fp2, &(linebuf[11]));
+      else
+        strncpy(userentry, &(linebuf[11]), 80);
+      idstate = 1;
+    } else if (strncmp(linebuf, "References:", 11) == 0) {
+      if (refstate == 0) {
+        fprintf(fp2, linebuf);
+        refstate = 1;
+      }
+    } else if (linebuf[0] == ' ') {
+      if (refstate == 1)
+        fprintf(fp2, "%s", linebuf);
+    } else {
+      if (refstate == 1) {
+        if (idstate == 1)
+          fprintf(fp2, "%s", userentry);
+        refstate = 2;
+      }
+    }
+  }
+  fprintf(fp2, a2_forever, "User-Agent", PROGNAME);
+  truncate_header(h->from, buf, 80);
+  fprintf(fp2, "%s wrote:\r\r", buf);
   fseek(fp1, h->skipbytes, SEEK_SET); // Skip headers when copying
   return 0;
 }
@@ -1542,50 +1720,51 @@ char prompt_okay(char *msg) {
  * For a MIME multipart email, we take the first Text/Plain section
  * Email file to read is expected to be already open using fp
  * f - File handle for destination file (also already open)
- * mode - 'R' if reply, 'F' if forward
+ * mode - 'R' if reply, 'F' if forward, 'N' if news follow-up
  */
 void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
-  uint32_t pos = 0;
-  uint8_t mime = 0;
-  const int8_t *b = b64dec - 43;
   uint16_t chars;
-  uint8_t  mime_enc, mime_binary;
   char c, *readp, *writep;
-  mime = 0;
-  pos = 0;
+  uint32_t pos = 0;
+  const int8_t *b = b64dec - 43;
+  uint8_t  mime = 0, mime_enc = ENC_7BIT, mime_binary = 0;
   fseek(fp, pos, SEEK_SET);
-  get_line(fp, 1, linebuf, &pos); // Reset buffer
+  get_line(fp, 1, linebuf, LINEBUFSZ, &pos); // Reset buffer
   do {
     spinner();
-    get_line(fp, 0, linebuf, &pos);
-    if (!strncasecmp(linebuf, "MIME-Version: 1.0", 17))
+    get_line(fp, 0, linebuf, LINEBUFSZ, &pos);
+    if (!strncasecmp(linebuf, mime_ver, 17))
       mime = 1;
-    if (!strncasecmp(linebuf, "Content-Transfer-Encoding: ", 27)) {
+    if (!strncasecmp(linebuf, ct, 14))
+      mime = 4;
+    if (!strncasecmp(linebuf, cte, 27)) {
       mime = 4;
       if (!strncmp(linebuf + 27, "7bit", 4))
         mime_enc = ENC_7BIT;
-      else if (!strncmp(linebuf + 27, "quoted-printable", 16))
+      else if (!strncmp(linebuf + 27, "8bit", 4))
+        mime_enc = ENC_7BIT;
+      else if (!strncmp(linebuf + 27, qp, 16))
         mime_enc = ENC_QP;
-      else if (!strncmp(linebuf + 27, "base64", 6))
+      else if (!strncmp(linebuf + 27, b64, 6))
         mime_enc = ENC_B64;
       else {
-        error(ERR_NONFATAL, "Unsupp encoding %s\n", linebuf + 27);
+        error(ERR_NONFATAL, unsupp_enc, linebuf + 27);
         return;
       }
-      break;
     }
   } while (linebuf[0] != '\r');
   pos = h->skipbytes;
   fseek(fp, pos, SEEK_SET);
   readp = linebuf;
   writep = linebuf;
-  get_line(fp, 1, linebuf, &pos); // Reset buffer
+  mime_binary = 0;
+  get_line(fp, 1, linebuf, LINEBUFSZ, &pos); // Reset buffer
   while (1) {
     if (!readp)
       readp = linebuf;
     if (!writep)
       writep = linebuf;
-    if (get_line(fp, 0, writep, &pos) == -1)
+    if (get_line(fp, 0, writep, (LINEBUFSZ - (writep - linebuf)), &pos) == 0)
       break;
     if ((mime >= 1) && (!strncmp(writep, "--", 2))) {
       if ((mime == 4) && !mime_binary) // End of Text/Plain MIME section
@@ -1595,7 +1774,7 @@ void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
       mime_binary = 0;
       readp = writep = NULL;
     } else if ((mime < 4) && (mime >= 2)) {
-      if (!strncasecmp(writep, "Content-Type: ", 14)) {
+      if (!strncasecmp(writep, ct, 14)) {
         if (!strncmp(writep + 14, "text/plain", 10)) {
           mime = 3;
         } else if (!strncmp(writep + 14, "text/html", 9)) {
@@ -1605,16 +1784,18 @@ void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
           mime_binary = 1;
           mime = 3;
         }
-      } else if (!strncasecmp(writep, "Content-Transfer-Encoding: ", 27)) {
+      } else if (!strncasecmp(writep, cte, 27)) {
         mime = 3;
         if (!strncmp(writep + 27, "7bit", 4))
           mime_enc = ENC_7BIT;
-        else if (!strncmp(writep + 27, "quoted-printable", 16))
+        else if (!strncmp(writep + 27, "8bit", 4))
+          mime_enc = ENC_7BIT;
+        else if (!strncmp(writep + 27, qp, 16))
           mime_enc = ENC_QP;
-        else if (!strncmp(writep + 27, "base64", 6))
+        else if (!strncmp(writep + 27, b64, 6))
           mime_enc = ENC_B64;
         else {
-          printf("** Unsupp encoding %s\n", writep + 27);
+          printf(unsupp_enc, writep + 27);
           mime = 1;
         }
       } else if ((mime == 3) && (!strncmp(writep, "\r", 1))) {
@@ -1678,12 +1859,19 @@ void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
  * mbox is the name of the destination mailbox
  * delete - if set to 1 then the message will be marked as deleted in the
  *          source mbox
- * mode - 'R' for reply, 'F' for forward, otherwise ' '
+ * mode - 'R' for reply, 'F' for forward, 'N' for news follow-up, otherwise ' '
  */
 void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
                      char *mbox, uint8_t delete, char mode) {
   uint16_t num, buflen, l, written;
   FILE *fp2;
+
+  if (mode == 'N') {
+    if (strncmp(h->to, "News:", 5) != 0) {
+      error(ERR_NONFATAL, "Not a news article");
+      return;
+    }
+  }
 
   if (mode == 'F') {
     if (prompt_for_name("Fwd to", 0) == 255)
@@ -1697,43 +1885,49 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
     return;
 
   // Open source email file
-  snprintf(filename, 80, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, h->emailnum);
+  snprintf(filename, 80, email_file, cfg_emaildir, curr_mbox, h->emailnum);
   fp = fopen(filename, "rb");
   if (!fp) {
-    error(ERR_NONFATAL, "Can't open %s", filename);
+    error(ERR_NONFATAL, cant_open, filename);
     return;
   }
 
   // Open destination email file
-  snprintf(filename, 80, "%s/%s/EMAIL.%u", cfg_emaildir, mbox, num);
+  snprintf(filename, 80, email_file, cfg_emaildir, mbox, num);
   _filetype = PRODOS_T_TXT;
   _auxtype = 0;
   fp2 = fopen(filename, "wb");
   if (!fp2) {
     fclose(fp);
-    error(ERR_NONFATAL, "Can't open %s", filename);
+    error(ERR_NONFATAL, cant_open, filename);
     return;
   }
 
-  if (mode != ' ')
+  l = 0;
+  if ((mode == 'R') || (mode == 'F')) {
     l = write_email_headers(fp, fp2, h, mode, userentry);
     if (l == 1)
       error(ERR_NONFATAL, "Invalid email header");
-    if ((l == 1) || (l == 255)) {
-      fclose(fp);
-      fclose(fp2);
-      return;
-    }
+  } else if (mode == 'N') {
+    l = write_news_headers(fp, fp2, h, num);
+    if (l == 1)
+      error(ERR_NONFATAL, "Invalid article header");
+  }
+  if (l > 0) {
+    fclose(fp);
+    fclose(fp2);
+    return;
+  }
 
   // Make sure spinner is in the right place
-  if ((mode == 'R') || (mode == 'F'))
+  if ((mode == 'R') || (mode == 'F') || (mode == 'N'))
     goto_prompt_row();
 
   // Copy email body
   putchar(' '); // For spinner
-  if (mode == 'R')
+  if ((mode == 'R') || (mode == 'N'))
     fputc('>', fp2);
-  if ((mode == 'R') || (mode == 'F')) {
+  if ((mode == 'R') || (mode == 'F') || (mode == 'N')) {
     get_email_body(h, fp2, mode);
   } else {
     while (1) {
@@ -1761,12 +1955,12 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
   // Update dest/EMAIL.DB unless this is R)eply or F)orward
   // The upshot of this is we never create EMAIL.DB in OUTBOX
   if (mode == ' ') {
-    snprintf(filename, 80, "%s/%s/EMAIL.DB", cfg_emaildir, mbox);
+    snprintf(filename, 80, email_db, cfg_emaildir, mbox);
     _filetype = PRODOS_T_BIN;
     _auxtype = 0;
     fp = fopen(filename, "ab");
     if (!fp) {
-      error(ERR_NONFATAL, "Can't open %s/EMAIL.DB", mbox);
+      error(ERR_NONFATAL, cant_open, filename);
       return;
     }
     buflen = h->emailnum; // Just reusing buflen as a temporary
@@ -1791,8 +1985,8 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
   email_summary_for(selection);
 
   if (mode != ' ') {
-    snprintf(filename, 80, "%s/OUTBOX/EMAIL.%u", cfg_emaildir, num);
-    load_editor(1);
+    snprintf(filename, 80, email_file, cfg_emaildir, mbox, num);
+    load_editor(mode == 'N' ? 2 : 1);
   }
 }
 
@@ -1827,17 +2021,17 @@ uint8_t copy_to_mailbox_tagged(char *mbox, uint8_t delete) {
   if (!h)
     error(ERR_FATAL, "Can't malloc()");
   while (1) {
-    snprintf(filename, 80, "%s/%s/EMAIL.DB", cfg_emaildir, curr_mbox);
+    snprintf(filename, 80, email_db, cfg_emaildir, curr_mbox);
     _filetype = PRODOS_T_BIN;
     _auxtype = 0;
     fp = fopen(filename, "rb+");
     if (!fp) {
       free(h);
-      error(ERR_NONFATAL, "Can't open %s", filename);
+      error(ERR_NONFATAL, cant_open, filename);
       return 1;
     }
     if (fseek(fp, count * EMAILHDRS_SZ_ON_DISK, SEEK_SET)) {
-      error(ERR_NONFATAL, "Can't seek in %s", filename);
+      error(ERR_NONFATAL, cant_seek, filename);
       goto err;
     }
     l = fread(h, 1, EMAILHDRS_SZ_ON_DISK, fp);
@@ -1867,24 +2061,19 @@ err:
  * Create a blank outgoing message and put it in OUTBOX.
  * OUTBOX is not a 'proper' mailbox (no EMAIL.DB)
  */
-void create_blank_outgoing() {
+void create_blank_outgoing(void) {
   struct datetime dt;
   uint16_t num;
-
-  // Read next number from dest/NEXT.EMAIL
-  if (get_next_email("OUTBOX", &num))
+  if (get_next_email(outbox, &num))
     return;
-
-  // Open destination email file
-  snprintf(filename, 80, "%s/OUTBOX/EMAIL.%u", cfg_emaildir, num);
+  snprintf(filename, 80, email_file, cfg_emaildir, outbox, num);
   _filetype = PRODOS_T_TXT;
   _auxtype = 0;
   fp = fopen(filename, "wb");
   if (!fp) {
-    error(ERR_NONFATAL, "Can't open %s", filename);
+    error(ERR_NONFATAL, cant_open, filename);
     return;
   }
-
   fprintf(fp, "From: %s\r", cfg_emailaddr);
   if (prompt_for_name("To", 0) == 255)
     goto done; // ESC pressed
@@ -1901,14 +2090,51 @@ void create_blank_outgoing() {
     goto done; // ESC pressed
   if (strlen(userentry) > 0)
     fprintf(fp, "cc: %s\r", userentry);
-  fprintf(fp, "X-Mailer: %s - Apple II Forever!\r\r", PROGNAME);
+  fprintf(fp, a2_forever, "X-Mailer", PROGNAME);
   fclose(fp);
-
-  // Update dest/NEXT.EMAIL, incrementing count by 1
-  if (update_next_email("OUTBOX", num + 1))
+  if (update_next_email(outbox, num + 1))
     return;
+  snprintf(filename, 80, email_file, cfg_emaildir, outbox, num);
+  load_editor(1);
+done:
+  fclose(fp);
+}
 
-  snprintf(filename, 80, "%s/OUTBOX/EMAIL.%u", cfg_emaildir, num);
+/*
+ * Create a blank news article and put it in NEWS.OUTBOX
+ * NEWS.OUTBOX is not a 'proper' mailbox (no EMAIL.DB)
+ */
+void create_blank_news(void) {
+  struct datetime dt;
+  uint16_t num;
+  if (get_next_email(news_outbox, &num))
+    return;
+  snprintf(filename, 80, email_file, cfg_emaildir, news_outbox, num);
+  _filetype = PRODOS_T_TXT;
+  _auxtype = 0;
+  fp = fopen(filename, "wb");
+  if (!fp) {
+    error(ERR_NONFATAL, cant_open, filename);
+    return;
+  }
+  fprintf(fp, "From: %s\r", cfg_emailaddr);
+  if (prompt_for_name("Newsgroup(s)", 0) == 255)
+    goto done; // ESC pressed
+  if (strlen(userentry) == 0)
+    goto done;
+  fprintf(fp, "Newsgroups: %s\r", userentry);
+  if (prompt_for_name("Subject", 0) == 255)
+    goto done; // ESC pressed
+  fprintf(fp, "Subject: %s\r", userentry);
+  readdatetime((unsigned char*)(SYSTEMTIME), &dt);
+  datetimelong(&dt, userentry);
+  fprintf(fp, "Date: %s\r", userentry);
+  fprintf(fp, "Message-ID: <%05d-%s>\r", num, cfg_emailaddr);
+  fprintf(fp, a2_forever, "User-Agent", PROGNAME);
+  fclose(fp);
+  if (update_next_email(news_outbox, num + 1))
+    return;
+  snprintf(filename, 80, email_file, cfg_emaildir, news_outbox, num);
   load_editor(1);
 done:
   fclose(fp);
@@ -1917,36 +2143,37 @@ done:
 /*
  * Display help screen
  */
-#pragma code-name (push, "LC")
-void help(void) {
+void help(uint8_t num) {
+  char *p;
+  char c;
+  uint16_t i, s;
+  uint8_t cont;
+  revers(0);
+  cursor(0);
   clrscr2();
-  printf("%c%s HELP%c\n", INVERSE, PROGNAME, NORMAL);
-  puts("------------------------------------------+------------------------------------");
-  puts("Email Summary Screen                      | Email Pager");
-  puts("  [Up]   / K        Previous message      |   [Space]   Page forward");
-  puts("  [Down] / J        Next message          |   B         Page back");
-  puts("  [Space] / [Ret]   Read current message  |   T         Go to top");
-  puts("  Q                 Quit to ProDOS        |   M         MIME mode");
-  puts("------------------------------------------+   H         Show email headers");
-  puts("Message Management                        |   Q         Return to summary");     
-  puts("  S   Switch mailbox                      +------------------------------------");
-  puts("  N   Create new mailbox");
-  puts("  T   Tag current message for group Archive/Move/Copy");
-  puts("  A   Archive current/tagged message to 'received' mailbox");
-  puts("  C   Copy current/tagged message to another mailbox");
-  puts("  M   Move current/tagged message to another mailbox");
-  puts("  D   Mark current message deleted");
-  puts("  U   Undelete current message if marked deleted");
-  puts("  P   Purge messages marked as deleted");
-  puts("------------------------------------------+------------------------------------");
-  puts("Message Composition                       | Invoke Helper Programs");
-  printf("  W   Write an email message              |   %s-R     Retrieve messages\n", openapple);
-  printf("  R   Reply to current message            |   %s-S     Send outbox\n", openapple);
-  printf("  F   Forward current message             |   %s-D     Set date using NTP\n", openapple);
-  fputs("------------------------------------------+------------------------------------", stdout);
-  cgetc();
+  snprintf(filename, 80, "%s/EMAILHELP%u.TXT", cfg_instdir, num);
+  fp = fopen(filename, "rb");
+  if (!fp) {
+    printf("Can't open help file\n\n");
+    goto done;
+  }
+  p = buf;
+  do {
+    s = fread(p, 1, READSZ, fp);
+    cont = (s == READSZ ? 1 : 0);
+    for (i = 0; i < s; ++i) {
+      c = p[i];
+      if (c == '{')
+        printf("%s", openapple);
+      else if (c == '}')
+        printf("%s", closedapple);
+      else if ((c != '\r') && (c != '\n'))
+        putchar(c);
+    }
+  } while (cont);
+done:
+  fclose(fp);
 }
-#pragma code-name (pop)
 
 /*
  * Keyboard handler
@@ -1957,6 +2184,28 @@ void keyboard_hdlr(void) {
   while (1) {
     h = get_headers(selection);
     c = cgetc();
+    if (*(uint8_t*)0xc062 & 0x80) { // Closed Apple depressed
+      switch (c) {
+      case 'r':    // CA-R "Retrieve news via NNTP"
+      case 'R':
+        load_nntp65();
+        break;
+      case 's':    // CA-S "Sent news via NNTP"
+      case 'S':
+        load_nntp65up();
+        break;
+      case 'p':    // CA-P "Post news article"
+      case 'P':
+        create_blank_news();
+        break;
+      case 'f':    // CA-F "Follow-up news article"
+      case 'F':
+        if (h)
+          copy_to_mailbox(h, get_db_index(), news_outbox, 0, 'N');
+        break;
+      }
+      continue;
+    }
     switch (c) {
     case 'k':
     case 'K':
@@ -2067,12 +2316,12 @@ void keyboard_hdlr(void) {
     case 'r':
     case 'R':
       if (h)
-        copy_to_mailbox(h, get_db_index(), "OUTBOX", 0, 'R');
+        copy_to_mailbox(h, get_db_index(), outbox, 0, 'R');
       break;
     case 'f':
     case 'F':
       if (h)
-        copy_to_mailbox(h, get_db_index(), "OUTBOX", 0, 'F');
+        copy_to_mailbox(h, get_db_index(), outbox, 0, 'F');
       break;
     // Everything above here needs a selected message (h != NULL)
     // Everything below here does NOT need a selected message
@@ -2110,7 +2359,7 @@ void keyboard_hdlr(void) {
       break;
     case 0x80 + 'e': // OA-E "Open message in editor"
     case 0x80 + 'E':
-      snprintf(filename, 80, "%s/%s/EMAIL.%u", cfg_emaildir, curr_mbox, h->emailnum);
+      snprintf(filename, 80, email_file, cfg_emaildir, curr_mbox, h->emailnum);
       load_editor(0);
       break;
     case 0x80 + 'r': // OA-R "Retrieve messages from server"
@@ -2122,7 +2371,8 @@ void keyboard_hdlr(void) {
       load_smtp65();
       break;
     case 0x80 + '?': // OA-? "Help"
-      help();
+      help(1);
+      c = cgetc();
       email_summary();
       break;
     case 'q':
@@ -2132,7 +2382,6 @@ void keyboard_hdlr(void) {
         exit(0);
       }
     default:
-      //printf("[%02x]", c);
       putchar(BELL);
     }
   }
