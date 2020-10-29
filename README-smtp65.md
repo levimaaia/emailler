@@ -10,11 +10,11 @@
 
 <p align="center"><img src="img/SMTP65.jpg" alt="SMTP65" height="400px"></p>
 
-SMTP65 is a Simple Mail Transport Protocol (SMTP65) client for the Apple II.  It requires an Uthernet-II ethernet card and will not work with other interfaces without modification, because it uses the W5100 hardware TCP/IP stack.  POP65 is used to send outgoing email messages to an SMTP email server.  (I use Postfix on the Raspberry Pi as my SMTP server, but other SMTP servers should work too.)
+`SMTP65.SYSTEM` is a Simple Mail Transport Protocol (SMTP65) client for the Apple II.  It requires an Uthernet-II ethernet card and will not work with other interfaces without modification, because it uses the W5100 hardware TCP/IP stack.  `SMTP65.SYSTEM` is used to send outgoing email messages to an SMTP email server.  (I use Postfix on the Raspberry Pi as my SMTP server, but other SMTP servers should work too.)
 
-Before running SMTP65 for the first time, be sure to have created the `SENT` mailbox.  This must be a 'proper' mailbox, not just a directory.  You may create a mailbox using the `N` (new mailbox) command in `EMAIL.SYSTEM`.
+Before running `SMTP65.SYSTEM` for the first time, be sure to have created the `SENT` mailbox.  This must be a 'proper' mailbox, not just a directory.  You may create a mailbox using the `N` (new mailbox) command in `EMAIL.SYSTEM`.
 
-SMTP65 performs the following tasks:
+`SMTP65.SYSTEM` performs the following tasks:
 
  - Detect Uthernet-II
  - Obtain IP address using DHCP
