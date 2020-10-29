@@ -207,16 +207,6 @@ Main menu commands:
 
 By using the `Open Apple`+`R` command to retrieve messages and the `Open Apple`-`S` command to transmit messages to the server, it is possible to retreive, review, respond, compose and transmit messages all without leaving the `EMAIL.SYSTEM` environment.
 
-#### Plain Text View `T)op`
-<p align="center"><img src="img/raw-text.png" alt="Email Pager" height="400px"></p>
-
-#### Headers View `H)drs`
-<p align="center"><img src="img/headers-view.png" alt="Email Pager" height="400px"></p>
-
-#### MIME View `M)IME`
-<p align="center"><img src="img/mime-view.png" alt="Email Pager" height="400px">
-</p>
-
 ### Mail Pager
 
 Pressing space or return will open the currently-selected message in the mail pager.  The mail pager provides a comfortable interface for reading email, allowing rapid forwards and backwards paging through the email body.  This is done by saving the formatted email text to a `SCROLLBACK` file in the email root directory.
@@ -237,6 +227,32 @@ There are three separate viewing modes:
  - MIME view - This mode is entered using the `M)IME` option.  Many email providers encode even simple text-only messages in a MIME envelope (using Quoted-Printable encoding).  Although these messages are readable in the plain text views, they are far more pleasant to read in MIME view.
 
 Long lines are word-wrapped at 80 columns in all three views.
+
+#### Plain Text View `T)op`
+
+Here the selected message is shown in plain text. This is the default view mode, when selecting a message from the email summary with `RET`.  In this particular case, we can see that the email is encoded in *Quoted-Printable* format (the `=` signs at the end of each line are a give away).
+
+<p align="center"><img src="img/email-plain-1.png" alt="Page 1 Plain Text" height="400px"></p>
+
+Here is the next page of plain text.  The *Quoted-Printable* formatting is even more obvious now:
+
+<p align="center"><img src="img/email-plain-2.png" alt="Page 2 Plain Text" height="400px"></p>
+
+#### MIME View `M)IME`
+
+Hitting the `M` key switches to MIME mode which will decode the *Quoted-Printable* text. If there are MIME attachements, MIME mode will offer to decode them and save them to file.
+
+<p align="center"><img src="img/email-mime-1.png" alt="Page 1 MIME" height="400px"></p>
+
+Here is the second page, decoded:
+
+<p align="center"><img src="img/email-mime-2.png" alt="Page 2 MIME"  height="400px"></p>
+
+#### Headers View `H)drs`
+
+The third view mode is 'headers' mode which shows all email header fields. Hitting the `H` key shows the headers for this message:
+
+<p align="center"><img src="img/email-headers.png" alt="Email Headers" height="400px"></p>
 
 ### MIME Support
 
@@ -401,7 +417,37 @@ If you use this tool for bulk import, be sure that all the `EMAIL.nnn` files are
 
 ### Configuration File
 
-...
+The news configuration file is called `NEWS.CFG`.  It is a straightforward ProDOS text file, with one parameter per line.  You may edit this file using the provided editor, `EDIT.SYSTEM` (or any other ProDOS text editor).  When editing the file be careful not to add or delete any lines - this file has no grammar and the lines *must* appear in the expected order.
+
+To edit the file using `EDIT.SYSTEM`:
+
+  - Run `EDIT.SYSTEM` using Bitsy Bye or your usual ProDOS launcher.
+  - Press Open Apple-O to open a file, then enter `NEWS.CFG` at the prompt, followed by return.
+  - Editing is fairly intuitive.  Use the arrow keys to move around and type to insert text.  Open Apple-Delete deletes to the right.
+  - When you are satisfied, save the file using Open Apple-S.
+  - Quit the editor using Open Apple-Q.
+
+All three of the programs that handle news: `EMAIL.SYSTEM`, `NNTP65.SYSTEM` and `NNTP65UP.SYSTEM` share this configuration file.
+
+Here is an example config file (with passwords replaced with `****` for obvious reasons):
+
+```
+144.76.35.198:119
+Bobbi
+****
+/H1/IP65
+/DATA/EMAIL
+bobbi.8bit@gmail.com
+```
+
+The lines are as follows, in order:
+
+ 1) IP address of the NNTP server, optionally followed by a colon and then the TCP port number.  If the colon and port number are omitted, port 119 is the default.
+ 2) Username to use when connecting to NNTP.
+ 3) Password to use when connecting to NNTP.
+ 4) ProDOS path of the directory where the email executables are installed.
+ 5) ProDOS path to the root of the email folder tree.  Mailboxes will be created and managed under this root path.
+ 6) Your email address.  Used as the sender's address in outgoing messages.
 
 ### Creating Directories
 
