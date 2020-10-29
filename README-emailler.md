@@ -6,8 +6,8 @@ Emai//er is an email and usenet news software package for the Apple //e Enhanced
 
 Emai//er is implemented as a number of ProDOS executables, each of which performs one distinct function.  `EMAIL.SYSTEM` provides the main user interface, and invokes the other executables as needed.  `EMAIL.SYSTEM` is automatically reloaded when the helper program completes its function.
 
- - `EMAIL.SYSTEM` is a simple user interface for reading and managing email.  It works together with `POP65` and `SMTP65`.
- - `EDIT.SYSTEM` is a full screen editor, used for composing email and news messages.  It may also be used as a general purpose ProDOS text file editor.
+ - `EMAIL.SYSTEM` is a simple user interface for reading and managing email.
+ - `EDIT.SYSTEM` is a full screen editor, used for composing email and news messages. It may also be used as a general purpose ProDOS text file editor.
  - `POP65.SYSTEM` is a Post Office Protocol version 3 (POP3) client for the Apple II with Uthernet-II card.  This is used to retrieving incoming email messages.
  - `SMTP65.SYSTEM` is a Simple Mail Transport Protocol (SMTP) client for the Apple II with Uthernet-II card.  This is used for sending outgoing email messages.
  - `NNTP65.SYSTEM` is a Network News Transport Protocol (NNTP) client for the Apple II with Uthernet-II card.  This is used to retrieving Usenet news messages.
@@ -16,11 +16,13 @@ Emai//er is implemented as a number of ProDOS executables, each of which perform
  - `REBUILD.SYSTEM` is a utility for rebuilding mailbox databases, should they become corrupted.  This can also be used for bulk import of messages.
  - `DATE65.SYSTEM` is a Network Time Protocol (NTP) client which can be used for setting the system time and date if you do not have a real time clock.
 
-<p align="center"><img src="img/emailler-apps.png" alt="Emai//er Executables" height="400px"></p>
+The following diagram shows the various executables that form the emai//er suite and how they execute one another.  Note how `EMAIL.SYSTEM` serves as the hub from which all the other programs may be invoked.
+
+<p align="center"><img src="img/emailler-apps.png" alt="Emai//er Executables" height="300px"></p>
 
 ## Overview
 
-The software has been designed to be modular, which allows new protocols to be added later for handling incoming and outgoing mail.  POP3 was selected as the email download/ingest protocol because it is simple and there are many available server implementations.  SMTP was chosen as the outgoing protocol due to its almost universal adoption for this purpose.  Once again, there are many server-side implementations to choose from.  It may be possible, for example, to add an NNTP module to allow reading and posting of Usenet articles.
+The software has been designed to be modular, which allows new protocols to be added later for handling incoming and outgoing mail.  POP3 was selected as the email download/ingest protocol because it is simple and there are many available server implementations.  SMTP was chosen as the outgoing protocol due to its almost universal adoption for this purpose.  Once again, there are many server-side implementations to choose from.
 
 One problem faced by any retrocomputing project of this type is that Transport Layer Security (TLS) is endemic on today's Internet.  While this is great for security, the encryption algorithms are not feasible to implement on a 6502-based system.  In order to bridge the plain text world of the Apple II to today's encrypted Internet, I have set up a Raspberry Pi using several common open source packages as a gateway.  The Raspberry Pi uses Fetchmail to download messages from Gmail's servers using the IMAPS protocol (with TLS) and hands them off to Postfix, which is used at the system mailer (MTA) on the Pi.  I use Dovecot as a POP3 server to offer a plain text connection to the `POP65.SYSTEM` application on the Apple II.  For outgoing messages, I configured Postfix to accept plain text SMTP connections from `SMTP65.SYSTEM` on the Apple II and to relay the messages to Gmail's servers using secure SMTPS.  The configuration of the Raspberry Pi (which was originally set up as a gateway for SAM2 email under GSOS on the Apple IIgs) is documented [here](README-gmail-gateway.md).
 
@@ -96,7 +98,7 @@ You can create these directories in ProDOS `BASIC.SYSTEM` as follows:
 ] CREATE /H1/DOCUMENTS/EMAIL/ATTACHMENTS
 ```
 
-You will also want to create a couple of mailboxes such as `RECEIVED` and `SENT`.  If you do not create a `SENT` mailbox then SMTP65 will be unable to complete the sending of messages and will give an error.  To create these mailboxes, run `EMAIL.SYSTEM` and press `N` for N)ew mailbox.  At the prompt, enter the name of the mailbox to be created: `RECEIVED`, and press return.  Repeat this to create the `SENT` mailbox.
+You will also want to create a couple of mailboxes such as `RECEIVED` and `SENT`.  If you do not create a `SENT` mailbox then `SMTP65.SYSTEM` will be unable to complete the sending of messages and will give an error.  To create these mailboxes, run `EMAIL.SYSTEM` and press `N` for N)ew mailbox.  At the prompt, enter the name of the mailbox to be created: `RECEIVED`, and press return.  Repeat this to create the `SENT` mailbox.
 
 These are the minimum mailboxes you need to get started.  You may create more mailboxes to organize your mail at any time.
 
@@ -160,9 +162,11 @@ POP65 runs without any user interaction and performs the following tasks:
 
 EMAIL is a simple mail user agent for reading and managing email.
 
-<p align="center"><img src="img/inbox-zero.png" alt="Inbox Zero" height="400px"></p>
+<p align="center"><img src="img/email-startup.png" alt="Empty Inbox" height="400px"></p>
 
-<p align="center"><img src="img/summary-screen.png" alt="Summary Screen" height="400px"></p>
+<p align="center"><img src="img/email-help.png" alt="Email Help Screen" height="400px"></p>
+
+<p align="center"><img src="img/email-summary.png" alt="Summary Screen" height="400px"></p>
 
 When the EMAIL application is started it will show the `INBOX` in the summary screen.  This shows the following important information for each message:
 
@@ -170,7 +174,7 @@ When the EMAIL application is started it will show the `INBOX` in the summary sc
   - Read/Unread/Deleted - Shows `*` if the message is new (unread).  Shows `D` if the message is marked to be deleted.
   - From, Date and Subject headers
 
-18 messages may be shown on the summary screen.  If the mailbox has more than 18 messages there will be multiple screens.
+19 messages may be shown on the summary screen.  If the mailbox has more than 19 messages there will be multiple screens.
 
 Main menu commands:
 
@@ -197,6 +201,8 @@ Main menu commands:
  - `Open Apple`+`E` - Edit message in `EDIT.SYSTEM`.  From `EDIT.SYSTEM` `Open Apple`-`Q` will return you to `EMAIL.SYSTEM`.
  - `Open Apple`+`R` - Retreive messages from email server.  This runs `POP65.SYSTEM`, which in turn will return you to the `EMAIL.SYSTEM` main menu.
  - `Open Apple`+`S` - Send outbox messages to email server.  This runs `SMTP65.SYSTEM`, which in turn will return you to the `EMAIL.SYSTEM` main menu.
+ - `Closed Apple`+`R` - Retreive news artcles from news server.  This runs `NNTP65.SYSTEM`, which in turn will return you to the `EMAIL.SYSTEM` main menu.
+ - `Open Apple`+`S` - Send queued outgoing news messages to news server.  This runs `NNTP65UP.SYSTEM`, which in turn will return you to the `EMAIL.SYSTEM` main menu.
  - `Q)uit` - Quit from the EMAIL user interface.
 
 By using the `Open Apple`+`R` command to retrieve messages and the `Open Apple`-`S` command to transmit messages to the server, it is possible to retreive, review, respond, compose and transmit messages all without leaving the `EMAIL.SYSTEM` environment.
@@ -375,6 +381,10 @@ SMTP65 runs without any user interaction and performs the following tasks:
    - Remove the sent message from `OUTBOX`.
    - Iterate until all messages in `OUTBOX` have been sent, and copied to `SENT`.  Rejected messages are left in `OUTBOX` where they may be edited and retransmitted.
 
+## `DATE65.SYSTEM`
+
+...
+
 ## `REBUILD.SYSTEM`
 
 REBUILD is a utility for converting a folder of email messages (text files named `EMAIL.nnn` where `nnn` is an integer) into a mailbox.  It will erase any existing `EMAIL.DB` and `NEXT.EMAIL` files, parse the message files and create new `EMAIL.DB` and `NEXT.EMAIL` files.  This tool may be used for bulk import of messages or for recreating the `EMAIL.DB` file for a mailbox which has become corrupted.
@@ -382,4 +392,26 @@ REBUILD is a utility for converting a folder of email messages (text files named
 REBUILD simply prompts for the path of the directory to process.
 
 If you use this tool for bulk import, be sure that all the `EMAIL.nnn` files are in Apple II text format with carriage return line endings (not MS-DOS or UNIX style.)
+
+## Usenet News
+
+### Overview of Usenet News Support
+
+...
+
+### Configuration File
+
+...
+
+### Creating Directories
+
+...
+
+## `NNTP65.SYSTEM`
+
+...
+
+## `NNTP65UP.SYSTEM`
+
+...
 
