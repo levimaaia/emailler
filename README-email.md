@@ -38,8 +38,8 @@ The command `Open Apple`-? will show the help screen, with a summary of all the 
 `EMAIL.SYSTEM` uses single character commands for most functions. Commands that involve invoking other helper applications use either the `Open Apple` or `Closed Apple` key as a modifier.  The `Open Apple` key modifier is used for invoking helper applications that handle email, while the `Closed Apple` key is used for operations related to Usenet news.
 
  - Message Summary Screen:
-   - Up arrow / `K` - Move the selection to the previous message. If this is the first message on the summary screen but this is not the first page, then load the previous page of messages and select the last item.
-   - Down arrow / `J` - Move the selection to the next message.  If this is the last message on the summary screen but there are further messages on subsequent pages, then load the next page of messages and select the first item.
+   - `Up arrow` / `K` - Move the selection to the previous message. If this is the first message on the summary screen but this is not the first page, then load the previous page of messages and select the last item.
+   - `Down arrow` / `J` - Move the selection to the next message.  If this is the last message on the summary screen but there are further messages on subsequent pages, then load the next page of messages and select the first item.
    - `Space` / `Return` - View the currently selected message in the message pager.
    - `<` - Switch the order of the email summary to show the most recently added messages first.  The indicator in the status bar will change to `>` to indicate the order.
    - `>` - Switch the order of the email summary to show the most recently added messages last.  The indicator in the status bar will change to `<` to indicate the order.
@@ -198,7 +198,7 @@ The message state is persisted in the `EMAIL.DB` file:
 
 ### Sending of Email Messages
 
-The EMAIL system currently includes a basic screen editor for message composition.  This editor is currently under development and may be a little rough.  It is also possible to use an external editor of your choice for composing emails.  The advantage to this is you can choose whichever editor you prefer, provided it can handle plain Apple II text files.  I find the editor which is built into the Proterm 3.1 communications program to be quite satisfactory for this purpose.
+The EMAIL system includes a screen editor, `EDIT.SYSTEM`, for message composition. It is also possible to use an external editor of your choice for composing emails.
 
 Sending of an email message is a three step process:
 
@@ -219,6 +219,10 @@ There are three ways to write an email:
  - `F)wd` forwards the selected email.  You will be prompted for the recipient and cc (you can leave the cc blank, if desired.)
 
 However you create your template email, take note of the filename which is displayed in the status line.  The file will be created in the `OUTBOX` directory (`/H1/DOCUMENTS/EMAIL/OUTBOX` with our example settings.)
+
+### Sending of News Articles
+
+...
 
 [Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-email-functions)
 
