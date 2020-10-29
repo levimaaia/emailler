@@ -2,7 +2,7 @@
 
 <p align="center"><img src="img/emailler-logo.png" alt="emai//er-logo" height="200px"></p>
 
-Emai//er is an email and usenet news software package for the Apple //e Enhanced or Apple IIgs.  An Uthernet-II ethernet card is required for sending and receiving messages.
+Emai//er is an email and Usenet news software package for the Apple //e Enhanced or Apple IIgs.  An Uthernet-II ethernet card is required for sending and receiving messages.
 
 Emai//er is implemented as a number of ProDOS executables, each of which performs one distinct function.  `EMAIL.SYSTEM` provides the main user interface, and invokes the other executables as needed.  `EMAIL.SYSTEM` is automatically reloaded when the helper program completes its function.
 
@@ -24,8 +24,6 @@ The following diagram shows the various executables that form the emai//er suite
 
 The software has been designed to be modular, which allows new protocols to be added later for handling incoming and outgoing mail.  POP3 was selected as the email download/ingest protocol because it is simple and there are many available server implementations.  SMTP was chosen as the outgoing protocol due to its almost universal adoption for this purpose.  Once again, there are many server-side implementations to choose from.
 
-One problem faced by any retrocomputing project of this type is that Transport Layer Security (TLS) is endemic on today's Internet.  While this is great for security, the encryption algorithms are not feasible to implement on a 6502-based system.  In order to bridge the plain text world of the Apple II to today's encrypted Internet, I have set up a Raspberry Pi using several common open source packages as a gateway.  The Raspberry Pi uses Fetchmail to download messages from Gmail's servers using the IMAPS protocol (with TLS) and hands them off to Postfix, which is used at the system mailer (MTA) on the Pi.  I use Dovecot as a POP3 server to offer a plain text connection to the `POP65.SYSTEM` application on the Apple II.  For outgoing messages, I configured Postfix to accept plain text SMTP connections from `SMTP65.SYSTEM` on the Apple II and to relay the messages to Gmail's servers using secure SMTPS.  The configuration of the Raspberry Pi (which was originally set up as a gateway for SAM2 email under GSOS on the Apple IIgs) is documented [here](README-gmail-gateway.md).
-
 A few design principles that I have tried to apply:
 
   - *Simplicity* This software runs on the Apple //e and currently fits within 64KB of RAM (although I may use the 64KB of aux memory for future enhancements.)  It is important that it be as simple and small as possible.  The code is written in C using cc65, which allows more rapid evolution when compared to writing in assembly language, at the expense of larger code which uses more memory.
@@ -36,7 +34,27 @@ A few design principles that I have tried to apply:
 
 `POP65.SYSTEM` and `SMTP65.SYSTEM` are based on Oliver Schmitd's excellent IP65 TCP/IP framework (in particular they follow the design of `WGET65.SYSTEM`.)  Without IP65, this software would not have been possible.
 
-### Mailboxes
+## System Requirements
+
+The minimum system requirements are as follows:
+
+ - Apple //e Enhanced or Apple IIgs computer (ROM01 and ROM03 supported)
+ - Uthernet-II ethernet card
+ - Mass storage device such as CFFA3000, MicroDrive/Turbo or BOOTI
+
+A CPU accelerator is recommended if you plan to handle large volumes of email or Usenet messages.
+
+emai//er has been extensively tested using ProDOS 2.4.2. However, it should not be a problem to run it under other versions of ProDOS.
+
+## Transport Level Security (TLS)
+
+One problem faced by any retrocomputing project of this type is that Transport Layer Security (TLS) is endemic on today's Internet.  While this is great for security, the encryption algorithms are not feasible to implement on a 6502-based system.  In order to bridge the plain text world of the Apple II to today's encrypted Internet, I have set up a Raspberry Pi using several common open source packages as a gateway.
+
+The Raspberry Pi uses Fetchmail to download messages from Gmail's servers using the IMAPS protocol (with TLS) and hands them off to Postfix, which is used at the system mailer (MTA) on the Pi.  I use Dovecot as a POP3 server to offer a plain text connection to the `POP65.SYSTEM` application on the Apple II.  For outgoing messages, I configured Postfix to accept plain text SMTP connections from `SMTP65.SYSTEM` on the Apple II and to relay the messages to Gmail's servers using secure SMTPS.  
+
+  - [The configuration of the Raspberry Pi is documented here.](README-gmail-gateway.md).
+
+## Mailboxes
 
 Each mailbox consists of the following:
 
@@ -53,13 +71,13 @@ Note that `SPOOL` is not a mailbox, just a directory.  `OUTBOX` is also not a 'p
 
 If the `EMAIL.DB` file for a mailbox gets corrupted, it will no longer possible to browse the summary and read the messages in `EMAIL.SYSTEM`.  The utility `REBUILD.SYSTEM` can be used to rebuild the `EMAIL.DB` and `NEXT.EMAIL` files for an existing mailbox (see below.)
 
-### Detailed Documentation
+## Detailed Documentation
 
  - [Initial Setup and Configuration](README-emailler-setup.md)
  - [Main Emai//er user interface `EMAIL.SYSTEM`](README-email.md)
- - [Setting System Date and Time with `DATE64.SYSTEM`](README-date65.md)
+ - [Setting System Date and Time with `DATE65.SYSTEM`](README-date65.md)
  - [Text Editor `EDIT.SYSTEM`](README-edit.md)
- - [Attaching files with `ATTACHER.SYSTEM`](README-attacher.md)
+ - [Attaching Files with `ATTACHER.SYSTEM`](README-attacher.md)
  - [Receiving Email with `POP65.SYSTEM`](README-pop65.md)
  - [Sending Email with `SMTP65.SYSTEM`](README-smtp65.md)
  - [Rebuilding Mailboxes with `REBUILD.SYSTEM`](README-rebuild.md)
