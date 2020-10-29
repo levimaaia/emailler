@@ -6,54 +6,78 @@
 
 ## `EMAIL.SYSTEM`
 
-EMAIL is a simple mail user agent for reading and managing email.
+`EMAIL.SYSTEM` is a simple mail user agent for reading and managing email and news articles. It serves as the main user interface for the entire Emai//er suite.
+
+### Message Summary
+
+When the `EMAIL.SYSTEM` application is started it will show the `INBOX` in the summary screen.  The first time `EMAIL.SYSTEM` is started, `INBOX` will be empty:
 
 <p align="center"><img src="img/email-startup.png" alt="Empty Inbox" height="400px"></p>
 
-<p align="center"><img src="img/email-help.png" alt="Email Help Screen" height="400px"></p>
+Here is a view of the first page of my `RECEIVED` mailbox, showing the first 19 messages out of a total of 185:
 
 <p align="center"><img src="img/email-summary.png" alt="Summary Screen" height="400px"></p>
 
-When the EMAIL application is started it will show the `INBOX` in the summary screen.  This shows the following important information for each message:
+The summary screen shows the status of each message in the two left hand columns:
 
-  - Tag - Shows `T` if the message is tagged.
-  - Read/Unread/Deleted - Shows `*` if the message is new (unread).  Shows `D` if the message is marked to be deleted.
-  - From, Date and Subject headers
+  - Column One shows the tag status: Shows `T` if the message is tagged blank otherwise.
+  - Column Two shows the Read/Unread/Deleted status: Shows `*` if the message is new (unread).  Shows `D` if the message is marked to be deleted.
+
+The rest of the line shows the From, Date and Subject headers of the message.
 
 19 messages may be shown on the summary screen.  If the mailbox has more than 19 messages there will be multiple screens.
 
-Main menu commands:
+### Online Help
 
- - Up arrow / `K` - Move the selection to the previous message. If this is the first message on the summary screen but this is not the first page, then load the previous page of messages and select the last item.
- - Down arrow / `J` - Move the selection to the next message.  If this is the last message on the summary screen but there are further messages on subsequent pages, then load the next page of messages and select the first item.
- - `SPC` / `RET` - View the currently selected message in the message pager.
- - `E)ditor` - Open the currently selected message in `EDIT.SYSTEM`.
- - `S)witch` mbox - Switch to viewing a different mailbox. Press `S` then enter the name of the mailbox to switch to at the prompt.  The mailbox must already exist or an error message will be shown.  You may enter `.` as a shortcut to switch back to `INBOX`.
- - `N)ew mbox` - Create a new mailbox.  Press 'N' then enter the name of the mailbox to be created.  It will be created as a directory within the email root directory and `NEXT.EMAIL` and `EMAIL.DB` files will be created for the new mailbox.
- - `C)opy` - Copy message(s) to another mailbox.  If no messages are tagged (see below) then the copy operation will apply to the current message only.  If messages are tagged then the copy operation will apply to the tagged messages.
- - `M)ove` - Move message(s) to another mailbox. If no messages are tagged (see below) then the move operation will apply to the current message only.  If messages are tagged then the copy operation will
- apply to the tagged messages.  Moving a message involves two steps - first the message is copied to the destination mailbox and then it is marked as deleted in the source mailbox.
- - `A)rchive` - This is a shortcut for moving messages to the `RECEIVED` mailbox.
- - `D)el` - Mark message as deleted.
- - `U)ndel` - Remove deleted mark from a message.
- - `P)urge` - Purge deleted messages from the mailbox.  This command iterates through all the messages marked for deletion and removes their files from the mailbox.  A new `EMAIL.DB` is created, compacting any 'holes' where files have been deleted.
- - `T)ag` - Toggle tag on message for collective `C)opy`, `M)ove` and `A)rchive` operations.  Moves to the next message automatically to allow rapid tagging of messages.
- - `W)rite` - Prepare a new blank outgoing email and place it in `OUTBOX` ready for editing.
- - `R)eply` - Prepare a reply to the selected email and place it in `OUTBOX` ready for editing.
- - `F)orward` - Prepare a forwarded copy of the selected email and place it in `OUTBOX` ready for editing.
- - `<` - Switch the order of the email summary to show the most recently added messages first.  The indicator in the status bar will change to `>` to indicate the order.
- - `>` - Switch the order of the email summary to show the most recently added messages last.  The indicator in the status bar will change to `<` to indicate the order.
- - `Open Apple`+`D` - Run `DATE65.SYSTEM` to set the system date using NTP (if you don't have a real time clock.)
- - `Open Apple`+`E` - Edit message in `EDIT.SYSTEM`.  From `EDIT.SYSTEM` `Open Apple`-`Q` will return you to `EMAIL.SYSTEM`.
- - `Open Apple`+`R` - Retreive messages from email server.  This runs `POP65.SYSTEM`, which in turn will return you to the `EMAIL.SYSTEM` main menu.
- - `Open Apple`+`S` - Send outbox messages to email server.  This runs `SMTP65.SYSTEM`, which in turn will return you to the `EMAIL.SYSTEM` main menu.
- - `Closed Apple`+`R` - Retreive news articles from news server.  This runs `NNTP65.SYSTEM`, which in turn will return you to the `EMAIL.SYSTEM` main menu.
- - `Open Apple`+`S` - Send queued outgoing news messages to news server.  This runs `NNTP65UP.SYSTEM`, which in turn will return you to the `EMAIL.SYSTEM` main menu.
- - `Q)uit` - Quit from the EMAIL user interface.
+The command Open Apple-? will show the help screen, with a summary of all the keyboard commands:
 
-By using the `Open Apple`+`R` command to retrieve messages and the `Open Apple`-`S` command to transmit messages to the server, it is possible to retreive, review, respond, compose and transmit messages all without leaving the `EMAIL.SYSTEM` environment.
+<p align="center"><img src="img/email-help.png" alt="Email Help Screen" height="400px"></p>
 
-### Mail Pager
+### Main Menu Commands
+
+ - Message Summary Screen:
+   - Up arrow / `K` - Move the selection to the previous message. If this is the first message on the summary screen but this is not the first page, then load the previous page of messages and select the last item.
+   - Down arrow / `J` - Move the selection to the next message.  If this is the last message on the summary screen but there are further messages on subsequent pages, then load the next page of messages and select the first item.
+   - `Space` / `Return` - View the currently selected message in the message pager.
+   - `<` - Switch the order of the email summary to show the most recently added messages first.  The indicator in the status bar will change to `>` to indicate the order.
+   - `>` - Switch the order of the email summary to show the most recently added messages last.  The indicator in the status bar will change to `<` to indicate the order.
+   - `Q` - Quit to ProDOS.
+
+ - Message Management: 
+   - `S` - Switch` mbox - Switch to viewing a different mailbox. Press `S` then enter the name of the mailbox to switch to at the prompt.  The mailbox must already exist or an error message will be shown.  You may enter `.` as a shortcut to switch back to `INBOX`.
+   - `N` - New mbox` - Create a new mailbox.  Press 'N' then enter the name of the mailbox to be created.  It will be created as a directory within the email root directory and `NEXT.EMAIL` and `EMAIL.DB` files will be created for the new mailbox.
+   - `T` - Tag current message - Toggle tag on message for collective `C)opy`, `M)ove` and `A)rchive` operations.  Moves to the next message automatically to allow rapid tagging of messages.
+   - `A` - Archive current message (or tagged messages) - This is a shortcut for moving messages to the `RECEIVED` mailbox.
+   - `C` - Copy current message (or tagged messages) - Copy message(s) to another mailbox.  If no messages are tagged (see below) then the copy operation will apply to the current message only.  If messages are tagged then the copy operation will apply to the tagged messages.
+   - `M` - Move current message (or tagged messages) - Move message(s) to another mailbox. If no messages are tagged (see below) then the move operation will apply to the current message only.  If messages are tagged then the copy operation will apply to the tagged messages.  Moving a message involves two steps - first the message is copied to the destination mailbox and then it is marked as deleted in the source mailbox.
+   - `D` - Delete - Mark current message as deleted.
+   - `U` - Undelete - Remove deleted mark from a message.
+   - `P` - Purge messages - Purge deleted messages from the mailbox.  This command iterates through all the messages marked for deletion and removes their files from the mailbox.  A new `EMAIL.DB` is created, compacting any 'holes' where files have been deleted.
+
+ - Email Composition:
+   - `W` - Write an email message - Prepare a new blank outgoing email and place it in `OUTBOX` ready for editing.
+   - `R` - Reply to current message - Prepare a reply to the selected email and place it in `OUTBOX` ready for editing.
+   - `F` - Forward current message - Prepare a forwarded copy of the selected email and place it in `OUTBOX` ready for editing.
+
+ - News Article Composition:
+   - Closed Apple-`P` - Post news article - Prepare a new news article.
+   - Closed Apple-`F` - Post a follow-up - Prepares a new news article following up on the currently selected news article.
+
+ - emai//er Suite: 
+   - Open Apple+`D` - Run `DATE65.SYSTEM` to set the system date using NTP (if you don't have a real time clock.)
+   - Open Apple+`R` - Run `POP65.SYSTEM` to retreive messages from email server.
+   - Open Apple+`S` - Run `SMTP65.SYSTEM` to send any messages in `OUTBOX` to the email server.
+   - Open Apple+`E` - Edit message in `EDIT.SYSTEM`.  From `EDIT.SYSTEM` `Open Apple`-`Q` will return you to `EMAIL.SYSTEM`.  The message is opened in read-only mode to prevent accidental corruption of stored messages. If you want to save your changes, first choose a new file name using the `Open Apple`-`N` command in `EDIT.SYSTEM`, the `Open Apple`-`S` to save.
+   - Closed Apple+`R` - Run `NNTP65.SYSTEM` to retreive news articles from news server.
+   - Closed Apple+`S` - Run `NNTP65UP.SYSTEM` to send any news articles in `NEWS.OUTBOX` to the news server.
+
+### Integrated Environment
+
+By using the `Open Apple`+`R` command to retrieve email messages and the `Open Apple`-`S` command to transmit email messages to the server, it is possible to retreive, review, respond, compose and transmit emails all without leaving the `EMAIL.SYSTEM` environment.
+
+Similarly, by using the `Closed Apple`+`R` command to retrieve news articles and the `Open Apple`-`S` command to transmit news articles to the server, it is possible to retreive, review, follow-up, compose and transmit articles all without leaving the `EMAIL.SYSTEM` environment.
+
+### Message Pager
 
 Pressing space or return will open the currently-selected message in the mail pager.  The mail pager provides a comfortable interface for reading email, allowing rapid forwards and backwards paging through the email body.  This is done by saving the formatted email text to a `SCROLLBACK` file in the email root directory.
 
@@ -76,7 +100,7 @@ Long lines are word-wrapped at 80 columns in all three views.
 
 #### Plain Text View `T)op`
 
-Here the selected message is shown in plain text. This is the default view mode, when selecting a message from the email summary with `RET`.  In this particular case, we can see that the email is encoded in *Quoted-Printable* format (the `=` signs at the end of each line are a give away).
+Here the selected message is shown in plain text. This is the default view mode, when selecting a message from the email summary with `Return`.  In this particular case, we can see that the email is encoded in *Quoted-Printable* format (the `=` signs at the end of each line are a give away).
 
 <p align="center"><img src="img/email-plain-1.png" alt="Page 1 Plain Text" height="400px"></p>
 
@@ -170,7 +194,7 @@ The message state is persisted in the `EMAIL.DB` file:
  - Deleted flag
  - Tag
 
-### Sending of Messages
+### Sending of Email Messages
 
 The EMAIL system currently includes a basic screen editor for message composition.  This editor is currently under development and may be a little rough.  It is also possible to use an external editor of your choice for composing emails.  The advantage to this is you can choose whichever editor you prefer, provided it can handle plain Apple II text files.  I find the editor which is built into the Proterm 3.1 communications program to be quite satisfactory for this purpose.
 

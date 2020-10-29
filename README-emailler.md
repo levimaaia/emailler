@@ -12,7 +12,7 @@ Emai//er is an email and Usenet news software package for the Apple //e Enhanced
  - Email reception using POP3 protocol.
  - Email transmission using SMTP protocol.
  - Gateway to allow access to encrypted services such as GMail.
- - Decoding of MIME encoded message bodies and attached files.
+ - Decoding of Multipurpose Internet Mail Extension (MIME) encoded message bodies and attached files.
  - Composing MIME emails with attached files.
  - Usenet newgroup subscription.
  - Posting of Usenet news articles.
