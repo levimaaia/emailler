@@ -24,13 +24,13 @@ Before running `NNTP65.SYSTEM` for the first time, be sure you have performed th
  - For each newsgroup listed in `NEWSGROUPS.CFG`:
    - Issue `GROUP` command to select the newsgroup.
    - Parse the respond from the server which indicates the message number of the first and last messages available in the newsgroup. 
-   - If the article number in `NEWSGROUPS.CFG` is zero, set the current article number to the last available article number minus 100 (so that up to 100 articles are retrieved when the newgroup is retrieved for the first time.) Otherwise, set the current article number to the first article number recorded in `NEWSGROUPS.CFG`.
+   - If the article number in `NEWSGROUPS.CFG` is zero, set the current article number to the last available article number minus 100 (so that up to 100 articles are retrieved when the newsgroup is retrieved for the first time.) Otherwise, set the current article number to the first article number recorded in `NEWSGROUPS.CFG`.
    - Issue the `STAT` command to the NNTP server for the current article number.
    - If the article does not exist, increment the current article number and loop to the previous step.
    - For each article to be retrieved from the selected newsgroup:
      - Issue the `NEXT` command to the NNTP server to advance to the next article.
      - Issue to `ARTICLE` command to retrieve the news article, writing it to a file in the `NEWS.SPOOL` directory (eg: `/H1/DOCUMENTS/EMAIL/NEWS.SPOOL/NEWS.1234`).
-   - Write an updated newsgroup line to the file `NEWSGROUPS.NEW`. This will be identical to the line read from `NEWSGROUPS.CFG` except with the last article number updated.
+   - Once all articles have been retrieved for this newsgroup, write an updated newsgroup line to the file `NEWSGROUPS.NEW`. This will be identical to the line read from `NEWSGROUPS.CFG` except with the last article number updated.
    - Copy the messages just retrieved from the `NEWS.SPOOL` directory to the mailbox for the newsgroup in question.
  - Once all newsgroups have been retrieved, rename `NEWSGROUPS.NEW` to replace `NEWSGROUPS.CFG`.
  - Issue the `QUIT` command to disconnect from the NNTP server.
