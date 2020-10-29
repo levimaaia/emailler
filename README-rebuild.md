@@ -2,7 +2,7 @@
 
 <p align="center"><img src="img/emailler-logo.png" alt="emai//er-logo" height="200px"></p>
 
-[Back to Main emai//er Docs](README-emailler.md)
+[Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-email-functions)
 
 ## `REBUILD.SYSTEM`
 
@@ -13,5 +13,5 @@ REBUILD simply prompts for the path of the directory to process.
 If you use this tool for bulk import, be sure that all the `EMAIL.nnn` files are in Apple II text format with carriage return line endings (not MS-DOS or UNIX style.)
 
 
-[Back to Main emai//er Docs](README-emailler.md)
+[Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-email-functions)
 

@@ -2,7 +2,7 @@
 
 <p align="center"><img src="img/emailler-logo.png" alt="emai//er-logo" height="200px"></p>
 
-[Back to Main emai//er Docs](README-emailler.md)
+[Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-email-functions)
 
 ## Setup and Configuration for Email
 
@@ -82,5 +82,5 @@ Once you have correctly configured `EMAIL.CFG` with the correct POP3 server, use
 
 Once messages have been downloaded and the `INBOX` initialized, you may run `EMAIL.SYSTEM` to browse and read the new messages.
 
-[Back to Main emai//er Docs](README-emailler.md)
+[Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-email-functions)
 

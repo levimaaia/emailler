@@ -2,7 +2,7 @@
 
 <p align="center"><img src="img/emailler-logo.png" alt="emai//er-logo" height="200px"></p>
 
-[Back to Main emai//er Docs](README-emailler.md)
+[Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-usenet-functions)
 
 ## Setup and Configuration for Usenet
 
@@ -80,5 +80,5 @@ You must set up a `NEWS.SENT` mailbox, otherwise `NNTP65UP.SYSTEM` will be unabl
 To create these mailboxes, run `EMAIL.SYSTEM` and press `N` for N)ew mailbox.  At the prompt, enter the name of the mailbox to be created: `RECEIVED`, and press return.  Repeat this to create the `SENT` mailbox.
 
 
-[Back to Main emai//er Docs](README-emailler.md)
+[Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-usenet-functions)
 

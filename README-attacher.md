@@ -2,7 +2,7 @@
 
 <p align="center"><img src="img/emailler-logo.png" alt="emai//er-logo" height="200px"></p>
 
-[Back to Main emai//er Docs](README-emailler.md)
+[Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-email-functions)
 
 ## `ATTACHER.SYSTEM`
 
@@ -20,5 +20,5 @@ When `EDIT.SYSTEM` invokes `ATTACHER.SYSTEM`, the following operations occur:
  - `ATTACHER.SYSTEM` will terminate the MIME document, erase the original email file from `OUTBOX` and rename the temporary file to replace the original.
  - `ATTACHER.SYSTEM` will reload `EMAIL.SYSTEM` once it is done.
 
-[Back to Main emai//er Docs](README-emailler.md)
+[Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-email-functions)
 

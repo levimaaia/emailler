@@ -2,7 +2,7 @@
 
 <p align="center"><img src="img/emailler-logo.png" alt="emai//er-logo" height="200px"></p>
 
-[Back to Main emai//er Docs](README-emailler.md)
+[Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-email-functions)
 
 ## `POP65.SYSTEM`
 
@@ -35,5 +35,5 @@ POP65 runs without any user interaction and performs the following tasks:
    - Update `INBOX/EMAIL.nn`, incrementing the number by one.
    - Iterate until all messages in `SPOOL` are ingested into `INBOX`.
 
-[Back to Main emai//er Docs](README-emailler.md)
+[Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-email-functions)
 

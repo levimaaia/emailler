@@ -2,7 +2,7 @@
 
 <p align="center"><img src="img/emailler-logo.png" alt="emai//er-logo" height="200px"></p>
 
-[Back to Main emai//er Docs](README-emailler.md)
+[Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-email-functions)
 
 ## `EDIT.SYSTEM`
 
@@ -19,5 +19,5 @@ If RamWorks-style memory expansion is available, `EDIT.SYSTEM` can use it as add
 <p align="center"><img src="img/edit-help2.png" alt="Editor help page 2" height="400px"></p>
 
 
-[Back to Main emai//er Docs](README-emailler.md)
+[Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-email-functions)
 
