@@ -6,7 +6,7 @@
 
 ## `DATE65.SYSTEM`
 
-*Run using Open Apple-D in `EMAIL.SYSTEM`*
+*Run using `Open Apple`-`D` in `EMAIL.SYSTEM`*
 
 <p align="center"><img src="img/DATE65.jpg" alt="POP65" height="400px"></p>
 
@@ -27,7 +27,7 @@ The first line is for Standard Time (ie: winter time).  This has an offset of -1
 
 The Daylight Saving Time rules are hard coded in `date65.c` using the current North American rules.  The code will have to edited if you wish to implement Daylight Saving Time rules for any other area of the world.
 
-When `DATE65.SYSTEM` is run (either directly or using the Open Apple-D shortcut in `EMAIL.SYSTEM`) it will:
+When `DATE65.SYSTEM` is run (either directly or using the `Open Apple`-`D` shortcut in `EMAIL.SYSTEM`) it will:
 
  - Show the current ProDOS date and time (or `---------- --:--` if it is not set.)
  - Obtain the current UTC time using NTP server `pool.ntp.org`

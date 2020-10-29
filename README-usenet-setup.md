@@ -13,10 +13,10 @@ The news configuration file is called `NEWS.CFG`.  It is a straightforward ProDO
 To edit the file using `EDIT.SYSTEM`:
 
   - Run `EDIT.SYSTEM` using Bitsy Bye or your usual ProDOS launcher.
-  - Press Open Apple-O to open a file, then enter `NEWS.CFG` at the prompt, followed by return.
-  - Editing is fairly intuitive.  Use the arrow keys to move around and type to insert text.  Open Apple-Delete deletes to the right.
-  - When you are satisfied, save the file using Open Apple-S.
-  - Quit the editor using Open Apple-Q.
+  - Press `Open Apple`-`O` to open a file, then enter `NEWS.CFG` at the prompt, followed by return.
+  - Editing is fairly intuitive.  Use the arrow keys to move around and type to insert text.  `Open Apple`-`Delete` deletes to the right.
+  - When you are satisfied, save the file using `Open Apple`-`S`.
+  - Quit the editor using `Open Apple`-`Q`.
 
 All three of the programs that handle news: `EMAIL.SYSTEM`, `NNTP65.SYSTEM` and `NNTP65UP.SYSTEM` share this configuration file.
 

@@ -6,7 +6,7 @@
 
 ## `POP65.SYSTEM`
 
-*Run using Open Apple-R in `EMAIL.SYSTEM`*
+*Run using `Open Apple`-`R` in `EMAIL.SYSTEM`*
 
 <p align="center"><img src="img/POP65.jpg" alt="POP65" height="400px"></p>
 

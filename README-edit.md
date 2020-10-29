@@ -8,7 +8,7 @@
 
 *Automatically invoked when using W)rite, F)orward or R)eply in `EMAIL.SYSTEM`*
 
-*Run manually using Open Apple-E in `EMAIL.SYSTEM`*
+*Run manually using `Open Apple`-`E` in `EMAIL.SYSTEM`*
 
 `EDIT.SYSTEM` is a simple full-screen editor.  It uses Apple //e auxiliary memory to store the text buffer, allowing files up to 46KB to be edited.  The command keys are similar to the popular AppleWorks word processor.
 

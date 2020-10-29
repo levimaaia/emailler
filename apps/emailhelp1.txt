@@ -1,24 +1,24 @@
 ------------------------------------------+-------------------------------------
  Message Summary Screen                   | Message Pager                       
-  [Up]   / K        Previous message      |  [Space]   Page forward             
-  [Down] / J        Next message          |  B         Page back                
+  [Up]    / K       Previous message      |  [Space]   Page forward             
+  [Down]  / J       Next message          |  B         Page back                
   [Space] / [Ret]   Read current message  |  T         Go to top                
-  Q                 Quit to ProDOS        |  M         MIME mode                
-------------------------------------------+  H         Show email headers       
- Message Management                       |  Q         Return to summary        
-  S   Switch mailbox                      +-------------------------------------
-  N   Create new mailbox                  | emai//er Suite                      
-  T   Tag current message                 |  {-D  Set date using DATE65 (NTP)   
-  A   Archive current/tagged message      |  {-R  Receive email using POP65     
-  C   Copy current/tagged message         |  {-S  Send OUTBOX using SMTP65      
-  M   Move current/tagged message         |  {-E  Open current message in EDIT  
-  D   Mark current message deleted        |  }-R  Receive news using NNTP65     
-  U   Remove deletion mark                |  }-S  Sent NEWS.OUTBOX with NNTP65UP
-  P   Purge messages marked as deleted    |                                     
+  >                 Sort newest last      |  M         MIME mode                
+  <                 Sort newest first     |  H         Show email headers       
+  Q                 Quit to ProDOS        |  Q         Return to summary        
 ------------------------------------------+-------------------------------------
- Email Composition                        | News Composition                    
-  W   Write an email message              |  }-P  Post news article             
-  R   Reply to current message            |  }-F  Follow-up to current article  
-  F   Forward current message             |                                     
-------------------------------------------+-------------------------------------
-                                                       [ Any Key to Exit Help ]
+ Message Management                       | emai//er Suite                      
+  S   Switch mailbox                      |  {-D  Set date using DATE65 (NTP)   
+  N   Create new mailbox                  |  {-R  Receive email using POP65     
+  T   Tag current message                 |  {-S  Send OUTBOX using SMTP65      
+  A   Archive current/tagged message      |  {-E  Open current message in EDIT  
+  C   Copy current/tagged message         |  }-R  Receive news using NNTP65     
+  M   Move current/tagged message         |  }-S  Sent NEWS.OUTBOX with NNTP65UP
+  D   Mark current message deleted        |                                     
+  U   Remove deletion mark                +-------------------------------------
+  P   Purge messages marked as deleted    | News Composition                    
+------------------------------------------|  }-P  Post news article             
+ Email Composition                        |  }-F  Follow-up to current article  
+  W   Write an email message              |                                     
+  R   Reply to current message            +-------------------------------------
+  F   Forward current message             |            [ Any Key to Exit Help ]

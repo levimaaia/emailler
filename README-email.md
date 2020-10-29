@@ -29,11 +29,13 @@ The rest of the line shows the From, Date and Subject headers of the message.
 
 ### Online Help
 
-The command Open Apple-? will show the help screen, with a summary of all the keyboard commands:
+The command `Open Apple`-? will show the help screen, with a summary of all the keyboard commands:
 
 <p align="center"><img src="img/email-help.png" alt="Email Help Screen" height="400px"></p>
 
 ### Main Menu Commands
+
+`EMAIL.SYSTEM` uses single character commands for most functions. Commands that involve invoking other helper applications use either the `Open Apple` or `Closed Apple` key as a modifier.  The `Open Apple` key modifier is used for invoking helper applications that handle email, while the `Closed Apple` key is used for operations related to Usenet news.
 
  - Message Summary Screen:
    - Up arrow / `K` - Move the selection to the previous message. If this is the first message on the summary screen but this is not the first page, then load the previous page of messages and select the last item.
@@ -60,16 +62,16 @@ The command Open Apple-? will show the help screen, with a summary of all the ke
    - `F` - Forward current message - Prepare a forwarded copy of the selected email and place it in `OUTBOX` ready for editing.
 
  - News Article Composition:
-   - Closed Apple-`P` - Post news article - Prepare a new news article.
-   - Closed Apple-`F` - Post a follow-up - Prepares a new news article following up on the currently selected news article.
+   - `Closed Apple`-`P` - Post news article - Prepare a new news article.
+   - `Closed Apple`-`F` - Post a follow-up - Prepares a new news article following up on the currently selected news article.
 
  - emai//er Suite: 
-   - Open Apple+`D` - Run `DATE65.SYSTEM` to set the system date using NTP (if you don't have a real time clock.)
-   - Open Apple+`R` - Run `POP65.SYSTEM` to retreive messages from email server.
-   - Open Apple+`S` - Run `SMTP65.SYSTEM` to send any messages in `OUTBOX` to the email server.
-   - Open Apple+`E` - Edit message in `EDIT.SYSTEM`.  From `EDIT.SYSTEM` `Open Apple`-`Q` will return you to `EMAIL.SYSTEM`.  The message is opened in read-only mode to prevent accidental corruption of stored messages. If you want to save your changes, first choose a new file name using the `Open Apple`-`N` command in `EDIT.SYSTEM`, the `Open Apple`-`S` to save.
-   - Closed Apple+`R` - Run `NNTP65.SYSTEM` to retreive news articles from news server.
-   - Closed Apple+`S` - Run `NNTP65UP.SYSTEM` to send any news articles in `NEWS.OUTBOX` to the news server.
+   - `Open Apple`+`D` - Run `DATE65.SYSTEM` to set the system date using NTP (if you don't have a real time clock.)
+   - `Open Apple`+`R` - Run `POP65.SYSTEM` to retreive messages from email server.
+   - `Open Apple`+`S` - Run `SMTP65.SYSTEM` to send any messages in `OUTBOX` to the email server.
+   - `Open Apple`+`E` - Edit message in `EDIT.SYSTEM`.  From `EDIT.SYSTEM` `Open Apple`-`Q` will return you to `EMAIL.SYSTEM`.  The message is opened in read-only mode to prevent accidental corruption of stored messages. If you want to save your changes, first choose a new file name using the `Open Apple`-`N` command in `EDIT.SYSTEM`, the `Open Apple`-`S` to save.
+   - `Closed Apple`+`R` - Run `NNTP65.SYSTEM` to retreive news articles from news server.
+   - `Closed Apple`+`S` - Run `NNTP65UP.SYSTEM` to send any news articles in `NEWS.OUTBOX` to the news server.
 
 ### Integrated Environment
 

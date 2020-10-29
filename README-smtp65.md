@@ -6,7 +6,7 @@
 
 ## `SMTP65.SYSTEM`
 
-*Run using Open Apple-S in `EMAIL.SYSTEM`*
+*Run using `Open Apple`-`S` in `EMAIL.SYSTEM`*
 
 <p align="center"><img src="img/SMTP65.jpg" alt="SMTP65" height="400px"></p>
 

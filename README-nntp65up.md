@@ -6,7 +6,7 @@
 
 ## `NNTP65UP.SYSTEM`
 
-*Run using Closed Apple-S in `EMAIL.SYSTEM`*
+*Run using `Closed Apple`-`S` in `EMAIL.SYSTEM`*
 
 [Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-usenet-functions)
 
