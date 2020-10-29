@@ -2,6 +2,8 @@
 
 <p align="center"><img src="img/emailler-logo.png" alt="emai//er-logo" height="200px"></p>
 
+[Back to Main emai//er Docs](README-emailler.md)
+
 ## System Setup and Configuration
 
 ### Configuration File `EMAIL.CFG`
@@ -79,4 +81,6 @@ Note: If you try to run `EMAIL.SYSTEM` before the `POP65.SYSTEM` has initialized
 Once you have correctly configured `EMAIL.CFG` with the correct POP3 server, username and password, start `POP65.SYSTEM` using Bitsy Bye or your favourite ProDOS launcher.  It should connect to your POP3 server, download any messages in your email inbox and copy them to your `INBOX`.
 
 Once messages have been downloaded and the `INBOX` initialized, you may run `EMAIL.SYSTEM` to browse and read the new messages.
+
+[Back to Main emai//er Docs](README-emailler.md)
 
