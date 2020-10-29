@@ -203,16 +203,12 @@ The EMAIL system includes a screen editor, `EDIT.SYSTEM`, for message compositio
 Sending of an email message is a three step process:
 
  - Use the `W)rite`, `R)eply` or `F)wd` functions in EMAIL to create an email template file and store it in `OUTBOX`.
- - The system will display the full pathname of the template file created. And prompt `Open in editor - sure? (y/n)`
- - If you enter 'y', `EMAIL.SYSTEM` will load `EDIT.SYSTEM`, the integrated editor, passing the filename of the template file as a parameter, so the file is automatically opened for editing.
- - You may edit the file in `EDIT.SYSTEM` using the editing keys shown below.  The editor's keys are based upon Apple's Appleworks word processor, so if you are familiar with that package you should feel at home.  Press `Open Apple`-`S` to save the file to disk and `Open Apple`-`Q` to return to `EMAIL.SYSTEM`.
- - Upon exit, `EDIT.SYSTEM` will prompt `Add attachments - Sure? (y/n)`.  If you enter 'n' then `EDIT.SYSTEM` will simply reload `EMAIL.SYSTEM`.  If you enter 'y', then `EDIT.SYSTEM` will instead load `ATTACHER.SYSTEM`, which allows you to add one or more file attachments to the email message.  Once the attachments have been added, `ATTACHER.SYSTEM` will reload `EMAIL.SYSTEM`.  `ATTACHER.SYSTEM` is discussed in more detail below.
+ - The system will automatically open the email template file in the editor, `EDIT.SYSTEM`.
+ - You may edit the file in `EDIT.SYSTEM` using the editing keys shown [here](README-edit.md).  Press `Open Apple`-`S` to save the file to disk and `Open Apple`-`Q` to return to `EMAIL.SYSTEM`.
+ - Upon exit, `EDIT.SYSTEM` will prompt `Add attachments - Sure? (y/n)`.  If you enter 'n' then `EDIT.SYSTEM` will simply reload `EMAIL.SYSTEM`.  If you enter 'y', then `EDIT.SYSTEM` will instead load `ATTACHER.SYSTEM`, which allows you to add one or more file attachments to the email message.  Once the attachments have been added, `ATTACHER.SYSTEM` will reload `EMAIL.SYSTEM`.  `ATTACHER.SYSTEM` is discussed in more detail [here](README-attacher.md).
  - Once you are back in the `EMAIL.SYSTEM` UI, you can choose to send the messages in `OUTBOX` to your mail server at any time.  To do this, press `Open Apple`-`S` at the `EMAIL.SYSTEM` main menu.  This will start `SMTP65.SYSTEM`, which sends each message to the SMTP server and moves it to the `SENT` mailbox.
- - If you answer `n` to the `Open in editor - sure? (y/n)` prompt:
-   - The template file will simply be placed in the `OUTBOX` where you can use your favourite text editor to add the email body.  You may also modify the `To:`, `cc:`, `Subject:` or `Date:` headers.
-   - Once you are satisfied with your edits and have saved the file, run `SMTP65.SYSTEM` to send the file to your mail server and copy it to the `SENT` mailbox.
 
-There are three ways to write an email:
+There are three ways to create the template email ready for editing:
 
  - `W)rite` starts a blank email.  You will be prompted for the recipient, cc and subject line.  The date is automatically filled in.  Note that you may leave the cc entry blank, if no carbon copies are to be sent.
  - `R)eply` creates a reply to the selected email, with the email included inline.  You will be prompted for the cc only (you can leave this blank).

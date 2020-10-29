@@ -13,7 +13,7 @@ The system configuration file is called `EMAIL.CFG`.  It is a straightforward Pr
 To edit the file using `EDIT.SYSTEM`:
 
   - Run `EDIT.SYSTEM` using Bitsy Bye or your usual ProDOS launcher.
-  - Press `Open Apple`-O to open a file, then enter `EMAIL.CFG` at the prompt, followed by return.
+  - Press `Open Apple`-`O` to open a file, then enter `EMAIL.CFG` at the prompt, followed by return.
   - Editing is fairly intuitive.  Use the arrow keys to move around and type to insert text.  `Open Apple`-`Delete` deletes to the right.
   - When you are satisfied, save the file using `Open Apple`-`S`.
   - Quit the editor using `Open Apple`-`Q`.
