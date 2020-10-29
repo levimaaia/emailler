@@ -62,6 +62,8 @@ The minimum system requirements are as follows:
 
 A CPU accelerator is recommended if you plan to handle large volumes of email or Usenet messages.
 
+If using an Apple //e, a real time clock such as No Slot Clock (NSC) or Thunderclock is recommended.  The Apple IIgs has a built in real time clock.  If no RTC is available, `DATE65.SYSTEM` may be used to set the ProDOS date and time.
+
 emai//er has been extensively tested using ProDOS 2.4.2. However, it should not be a problem to run it under other versions of ProDOS.
 
 ## Transport Level Security (TLS)
