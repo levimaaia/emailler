@@ -6,10 +6,19 @@
 
 ## Subscribing to a Newsgroup
 
-Suppose you want to subscribe to newsgroup `comp.sys.pdp11`.
+This section outlines the steps for subscribing to a newsgroup.
 
-1) Add a new line to `/H1/DOCUMENTS/EMAIL/NEWSGROUPS.CFG` as follows: `alt.sys.pdp11 ASP11 0`
-2) Run `EMAIL.SYSTEM` and using `N)ew` command to create mailbox `ASP11`, matching the line in `NEWSGROUPS.CFG`.  You may use any name you choose.
+For example, suppose you want to subscribe to newsgroup `comp.sys.pdp11`.
+
+1) The first step is to add a new line to `NEWSGROUPS.CFG` for the newgroup subscription. `NEWSGROUPS.CFG` is found in the email root directory (`/H1/DOCUMENTS/EMAIL` using the example settings.)  Start `EDIT.SYSTEM` and use the `Open Apple`-`O` command to open the file `/H1/DOCUMENTS/EMAIL/NEWSGROUPS.CFG`.
+2) Using `EDIT.SYSTEM` add a line to the file consisting of the newsgroup name, a space, the name of the mailbox you want to use to store messages, another space, and finally the digit zero. For example, we may decide to use mailbox name `ASP11` for this newsgroup:
+
+```
+alt.sys.pdp11 ASP11 0
+```
+
+3) Save the file with `Open Apple`-`S` and quit `EDIT.SYSTEM` with `Open Apple`-`Q`.
+4) Run `EMAIL.SYSTEM` and use the `N` (new mailbox) command to create the mailbox your chose in step 2 above (`ASP11` in this case.)
 3) Use the `Closed Apple`-`R` command to run `NNTP65.SYSTEM` and retreive messages from the newly-subscribed newsgroup.
 
 When the 'last message' field of the newgroup is zero, `NNTP65.SYSTEM` will download the most recent 100 articles from the newsgroup.  It will then set the most recent article counter in `NEWSGROUPS.CFG` so that subsequent runs will retrieve new messages only.

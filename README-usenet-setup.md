@@ -77,7 +77,7 @@ You can create these directories in ProDOS `BASIC.SYSTEM` as follows:
 
 You must set up a `NEWS.SENT` mailbox, otherwise `NNTP65UP.SYSTEM` will be unable to complete the sending of messages and will give an error.  You will also need to create a mailbox for each newsgroup you wish to subscribe to.  The name of the newsgroup mailboxes must match that given in `NEWSGROUPS.CFG` or `NNTP65.SYSTEM` will give an error when downloading news articles.
 
-To create these mailboxes, run `EMAIL.SYSTEM` and press `N` for N)ew mailbox.  At the prompt, enter the name of the mailbox to be created: `NEWS.SENT`, and press return.  Repeat this to create a mailbox for each newsgroup you are subscribed to (matching the values in the `NEWSGROUPS.CFG` file.)
+To create these mailboxes, run `EMAIL.SYSTEM` and press `N` for new mailbox.  At the prompt, enter the name of the mailbox to be created: `NEWS.SENT`, and press return.  Repeat this to create a mailbox for each newsgroup you are subscribed to (matching the values in the `NEWSGROUPS.CFG` file.)
 
 
 [Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-usenet-functions)
