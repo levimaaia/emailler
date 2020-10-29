@@ -2,14 +2,21 @@
 
 <p align="center"><img src="img/emailler-logo.png" alt="emai//er-logo" height="200px"></p>
 
-The AppleII Email Suite consists of the following six ProDOS programs:
+Emai//er is an email and usenet news software package for the Apple //e Enhanced or Apple IIgs.  An Uthernet-II ethernet card is required for sending and receiving messages.
 
- - `POP65.SYSTEM` is a Post Office Protocol version 3 (POP3) client for the Apple II with Uthernet-II card.
+Emai//er is implemented as a number of ProDOS executables, each of which performs one distinct function.  `EMAIL.SYSTEM` provides the main user interface, and invokes the other executables as needed.  `EMAIL.SYSTEM` is automatically reloaded when the helper program completes its function.
+
  - `EMAIL.SYSTEM` is a simple user interface for reading and managing email.  It works together with `POP65` and `SMTP65`.
- - `EDIT.SYSTEM` is a simple screen editor, integrated with `EMAIL.SYSTEM`.
+ - `EDIT.SYSTEM` is a full screen editor, used for composing email and news messages.  It may also be used as a general purpose ProDOS text file editor.
+ - `POP65.SYSTEM` is a Post Office Protocol version 3 (POP3) client for the Apple II with Uthernet-II card.  This is used to retrieving incoming email messages.
+ - `SMTP65.SYSTEM` is a Simple Mail Transport Protocol (SMTP) client for the Apple II with Uthernet-II card.  This is used for sending outgoing email messages.
+ - `NNTP65.SYSTEM` is a Network News Transport Protocol (NNTP) client for the Apple II with Uthernet-II card.  This is used to retrieving Usenet news messages.
+ - `NNTP65UP.SYSTEM` is a Network News Transport Protocol (NNTP) client for the Apple II with Uthernet-II card.  This is used for transmitting outgoing Usenet news messages.
  - `ATTACHER.SYSTEM` is used for creating multi-part MIME messages with attached files.
- - `SMTP65.SYSTEM` is a Simple Mail Transport Protocol (SMTP) client for the Apple II with Uthernet-II card.
  - `REBUILD.SYSTEM` is a utility for rebuilding mailbox databases, should they become corrupted.  This can also be used for bulk import of messages.
+ - `DATE65.SYSTEM` is a Network Time Protocol (NTP) client which can be used for setting the system time and date if you do not have a real time clock.
+
+<p align="center"><img src="img/emailler-apps.png" alt="Emai//er Executables" height="400px"></p>
 
 ## Overview
 
