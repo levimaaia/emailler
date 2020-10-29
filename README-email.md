@@ -200,7 +200,7 @@ The message state is persisted in the `EMAIL.DB` file:
 
 Emai//er includes a screen editor, `EDIT.SYSTEM`, for message composition. It is also possible to use an external editor of your choice for composing emails.
 
-Sending of an email message is a three step process (four steps if you also add attachements to the outgoing message):
+Sending of an email message is a three step process (four steps if you also add attachments to the outgoing message):
 
  1) Use the `W` (write), `R` (Reply) or `F` (Forward) functions in `EMAIL.SYSTEM` to create an email template file and store it in `OUTBOX`.
  2) The system will automatically open the email template file in the editor, `EDIT.SYSTEM`. You may edit the file in `EDIT.SYSTEM` using the editing keys shown [here](README-edit.md).  Press `Open Apple`-`S` to save the file to disk and `Open Apple`-`Q` to return to `EMAIL.SYSTEM`.
@@ -209,19 +209,25 @@ Sending of an email message is a three step process (four steps if you also add 
 
 There are three ways to create the template email ready for editing:
 
- - `W)rite` starts a blank email.  You will be prompted for the recipient, cc and subject line.  The date is automatically filled in.  Note that you may leave the cc entry blank, if no carbon copies are to be sent.
- - `R)eply` creates a reply to the selected email, with the email included inline.  You will be prompted for the cc only (you can leave this blank).
- - `F)wd` forwards the selected email.  You will be prompted for the recipient and cc (you can leave the cc blank, if desired.)
+ - `W` (write) starts a blank email.  You will be prompted for the recipient, cc and subject line.  The date is automatically filled in.  Note that you may leave the cc entry blank, if no carbon copies are to be sent.
+ - `R` (reply) creates a reply to the selected email, with the email included inline.  You will be prompted for the cc only (you can leave this blank).
+ - `F` (forward) forwards the selected email.  You will be prompted for the recipient and cc (you can leave the cc blank, if desired.)
 
 ### Sending of News Articles
 
 Emai//er includes a screen editor, `EDIT.SYSTEM`, for message composition. It is also possible to use an external editor of your choice for composing emails.
 
-Sending of an news article message is a three step process, very similar to that for sending an email:
+Sending of an news article is a three step process (four steps if you also add attachments to the outgoing message):
 
  1) Use the `Closed Apple`-`P` (post news article), or `Closed Apple`-`F` (follow-up to current article) functions in `EMAIL.SYSTEM` to create an article template file and store it in `NEWS.OUTBOX`.
  2) The system will automatically open the article template file in the editor, `EDIT.SYSTEM`. You may edit the file in `EDIT.SYSTEM` using the editing keys shown [here](README-edit.md).  Press `Open Apple`-`S` to save the file to disk and `Open Apple`-`Q` to return to `EMAIL.SYSTEM`.
- 3) Once you are back in the `EMAIL.SYSTEM` UI, you can choose to send the messages in `NEWS.OUTBOX` to your news server at any time.  To do this, press `Closed Apple`-`S` at the `EMAIL.SYSTEM` main menu.  This will start `NNTP65UP.SYSTEM`, which sends each message to the NNTP server and moves it to the `NEWS.SENT` mailbox.
+ 3) Upon exit, `EDIT.SYSTEM` will prompt `Add attachments - Sure? (y/n)`.  If you enter 'n' then `EDIT.SYSTEM` will simply reload `EMAIL.SYSTEM`.  If you enter 'y', then `EDIT.SYSTEM` will instead load `ATTACHER.SYSTEM`, which allows you to add one or more file attachments to the article.  Once the attachments have been added, `ATTACHER.SYSTEM` will reload `EMAIL.SYSTEM`.  `ATTACHER.SYSTEM` is discussed in more detail [here](README-attacher.md). *NOTE: It is usually considered poor form to include MIME attachments in Usenet articles. Please refrain from doing this in public newsgroups!*
+ 4) Once you are back in the `EMAIL.SYSTEM` UI, you can choose to send the messages in `NEWS.OUTBOX` to your news server at any time.  To do this, press `Closed Apple`-`S` at the `EMAIL.SYSTEM` main menu.  This will start `NNTP65UP.SYSTEM`, which sends each message to the NNTP server and moves it to the `NEWS.SENT` mailbox.
+
+There are two ways to create the template news article ready for editing:
+
+ - `Closed Apple`-`P` (post news article) starts a blank article. You will be prompted for the name of the newsgroup or newsgroups to publish the article to and the subject line.  The date is automatically filled in.
+ - `Closed Apple`-`F` (follow up to current article) creates a response to the currently selected news article. The newsgroup name and the subject line are automatically composed.
 
 [Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-email-functions)
 
