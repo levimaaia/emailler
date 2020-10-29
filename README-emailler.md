@@ -110,6 +110,6 @@ Please refer to the linked documents for information about the Usenet functional
 
  - [Initial Setup and Configuration](README-usenet-setup.md)
  - [Subscribing to a Newsgroup](README-usenet-subscribe.md)
- - [Receiving News with `NNTP65.SYSTEM`](README-nntp65.system)
- - [Publishing News with `NNTP65UP.SYSTEM`](README-nntp65up.system)
+ - [Receiving News with `NNTP65.SYSTEM`](README-nntp65.md)
+ - [Publishing News with `NNTP65UP.SYSTEM`](README-nntp65up.md)
 
