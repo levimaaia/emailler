@@ -29,10 +29,12 @@ The Daylight Saving Time rules are hard coded in `date65.c` using the current No
 
 When `DATE65.SYSTEM` is run (either directly or using the Open Apple-D shortcut in `EMAIL.SYSTEM`) it will:
 
+ - Show the current ProDOS date and time (or `---------- --:--` if it is not set.)
  - Obtain the current UTC time using NTP server `pool.ntp.org`
  - Display the dates when DST starts and ends in the current year.
  - Examine today's date to determine if Daylight Saving Time is in effect or not.
  - Convert the time to the correct local time.
+ - Show the new ProDOS date and time.
  - Store the date and time in the reserved memory locations ProDOS uses for this information.
 
 Note that if the system has a real-time clock (RTC) the date and time information obtained from `DATE65.SYSTEM` will be overwritten.  Otherwise the date and time information remain constant until the next time `DATE65.SYSTEM` is run.
