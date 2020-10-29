@@ -1,4 +1,4 @@
-# Apple II Email Suite
+# Apple II Email and Usenet News Suite
 
 <p align="center"><img src="img/emailler-logo.png" alt="emai//er-logo" height="200px"></p>
 
@@ -205,7 +205,7 @@ Main menu commands:
  - `Open Apple`+`E` - Edit message in `EDIT.SYSTEM`.  From `EDIT.SYSTEM` `Open Apple`-`Q` will return you to `EMAIL.SYSTEM`.
  - `Open Apple`+`R` - Retreive messages from email server.  This runs `POP65.SYSTEM`, which in turn will return you to the `EMAIL.SYSTEM` main menu.
  - `Open Apple`+`S` - Send outbox messages to email server.  This runs `SMTP65.SYSTEM`, which in turn will return you to the `EMAIL.SYSTEM` main menu.
- - `Closed Apple`+`R` - Retreive news artcles from news server.  This runs `NNTP65.SYSTEM`, which in turn will return you to the `EMAIL.SYSTEM` main menu.
+ - `Closed Apple`+`R` - Retreive news articles from news server.  This runs `NNTP65.SYSTEM`, which in turn will return you to the `EMAIL.SYSTEM` main menu.
  - `Open Apple`+`S` - Send queued outgoing news messages to news server.  This runs `NNTP65UP.SYSTEM`, which in turn will return you to the `EMAIL.SYSTEM` main menu.
  - `Q)uit` - Quit from the EMAIL user interface.
 
@@ -260,8 +260,6 @@ The third view mode is 'headers' mode which shows all email header fields. Hitti
 
 ### MIME Support
 
-<p align="center"><img src="img/attachment.png" alt="Downloading Attachment" height="400px"></p>
-
 EMAIL is able to decode messages encoded with the Multipurpose Internet Mail Extensions (MIME).  This allows email bodies which are encoded as anything other than plain text email to be extracted and formatted for the screen, and also provides support for extracting and saving to disk email attachments.
 
 EMAIL can also compose MIME messages with attached files, using `ATTACHER.SYSTEM` as a helper application.
@@ -285,6 +283,8 @@ Unicode UTF-8 characters are not supported and will either be omitted or display
 EMAIL will not display objects of type `text/html` but will instead show a placeholder, so the user is aware the HTML was omitted.
 
 #### Attachments
+
+<p align="center"><img src="img/attachment.png" alt="Downloading Attachment" height="400px"></p>
 
 Objects of any other type will be treated as attachments and offered for download.
 
@@ -392,7 +392,7 @@ SMTP65 is a Simple Mail Transport Protocol (SMTP65) client for the Apple II.  It
 
 Before running SMTP65 for the first time, be sure to have created the `SENT` mailbox.  This must be a 'proper' mailbox, not just a directory.  You may create a mailbox using the `N)ew` command in `EMAIL.SYSTEM`.
 
-SMTP65 runs without any user interaction and performs the following tasks:
+SMTP65 performs the following tasks:
 
  - Detect Uthernet-II
  - Obtain IP address using DHCP
@@ -402,11 +402,16 @@ SMTP65 runs without any user interaction and performs the following tasks:
      - `To:`
      - `From:`
      - `cc:`
-   - Notify the SMTP server of our email address (from `EMAIL.CFG`). (`MAIL FROM:` command)
-   - Notify the SMTP server of each recipient listed in `To:` and `From:` headers (`RCPT TO:` command)
-   - Send the email body to the SMTP sender. (`DATA` command)
-   - If the message was successfully sent, copy it to the `SENT` mailbox.
-   - Remove the sent message from `OUTBOX`.
+   - Prompt `S)end message | H)old message in OUTBOX | D)elete message from OUTBOX`
+   - If the user chooses `D` then delete the message from `OUTBOX` and contine to the next message (if any).
+   - If the user chooses `H` then retain the message in `OUTBOX` and contine to the next message (if any).
+   - If the user chooses `S` then proceed to send the message to the SMTP server, as follows:
+
+     - Notify the SMTP server of our email address (from `EMAIL.CFG`). (`MAIL FROM:` command)
+     - Notify the SMTP server of each recipient listed in `To:` and `From:` headers (`RCPT TO:` command)
+     - Send the email body to the SMTP sender. (`DATA` command)
+     - If the message was successfully sent, copy it to the `SENT` mailbox.
+     - Remove the sent message from `OUTBOX`.
    - Iterate until all messages in `OUTBOX` have been sent, and copied to `SENT`.  Rejected messages are left in `OUTBOX` where they may be edited and retransmitted.
 
 ## `DATE65.SYSTEM`
@@ -427,7 +432,7 @@ If you use this tool for bulk import, be sure that all the `EMAIL.nnn` files are
 
 ### Overview of Usenet News Support
 
-...
+Emai//er supports receiving and sending of Usenet news articles. It has been tested extensively using the Eternal September NNTP server.  Usenet newsgroups are mapped to mailboxes within `EMAIL.SYSTEM`.  A new mailbox is created for each subscribed newsgroup.
 
 ### Configuration File `NEWS.CFG`
 
