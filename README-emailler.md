@@ -38,7 +38,7 @@ A few design principles that I have tried to apply:
 
 ## System Setup and Configuration
 
-### Configuration File
+### Configuration File `EMAIL.CFG`
 
 The system configuration file is called `EMAIL.CFG`.  It is a straightforward ProDOS text file, with one parameter per line.  You may edit this file using the provided editor, `EDIT.SYSTEM` (or any other ProDOS text editor).  When editing the file be careful not to add or delete any lines - this file has no grammar and the lines *must* appear in the expected order.
 
@@ -98,6 +98,8 @@ You can create these directories in ProDOS `BASIC.SYSTEM` as follows:
 ] CREATE /H1/DOCUMENTS/EMAIL/ATTACHMENTS
 ```
 
+### Creating Mailboxes
+
 You will also want to create a couple of mailboxes such as `RECEIVED` and `SENT`.  If you do not create a `SENT` mailbox then `SMTP65.SYSTEM` will be unable to complete the sending of messages and will give an error.  To create these mailboxes, run `EMAIL.SYSTEM` and press `N` for N)ew mailbox.  At the prompt, enter the name of the mailbox to be created: `RECEIVED`, and press return.  Repeat this to create the `SENT` mailbox.
 
 These are the minimum mailboxes you need to get started.  You may create more mailboxes to organize your mail at any time.
@@ -130,6 +132,8 @@ Note that `SPOOL` is not a mailbox, just a directory.  `OUTBOX` is also not a 'p
 If the `EMAIL.DB` file for a mailbox gets corrupted, it will no longer possible to browse the summary and read the messages in `EMAIL.SYSTEM`.  The utility `REBUILD.SYSTEM` can be used to rebuild the `EMAIL.DB` and `NEXT.EMAIL` files for an existing mailbox (see below.)
 
 ## `POP65.SYSTEM`
+
+*Run using Open Apple-R in `EMAIL.SYSTEM`*
 
 <p align="center"><img src="img/POP65.jpg" alt="POP65" height="400px"></p>
 
@@ -350,6 +354,10 @@ However you create your template email, take note of the filename which is displ
 
 ## `EDIT.SYSTEM`
 
+*Automatically invoked when using W)rite, F)orward or R)eply in `EMAIL.SYSTEM`*
+
+*Run manually using Open Apple-E in `EMAIL.SYSTEM`*
+
 `EDIT.SYSTEM` is a simple full-screen editor.  It uses Apple //e auxiliary memory to store the text buffer, allowing files up to 46KB to be edited.  The command keys are similar to the popular AppleWorks word processor.
 
 If RamWorks-style memory expansion is available, `EDIT.SYSTEM` can use it as additional editor buffers.  For each 64KB bank of RamWorks expansion, an additional 46KB buffer will be allocated.  With an 8MB RamWorks card, 128 buffers are available.  `EDIT.SYSTEM` is able to support editing of large files (>46KB) by splitting them across more than one buffer.
@@ -359,6 +367,8 @@ If RamWorks-style memory expansion is available, `EDIT.SYSTEM` can use it as add
 <p align="center"><img src="img/edit-help2.png" alt="Editor help page 2" height="400px"></p>
 
 ## `ATTACHER.SYSTEM`
+
+*Automatically invoked when exiting `EDIT.SYSTEM` when using W)rite, F)orward or R)eply in `EMAIL.SYSTEM`*
 
 `ATTACHER.SYSTEM` is used for attaching files to outgoing email messages.  This program is started automatically by `EDIT.SYSTEM` and is not normally invoked directly.
 
@@ -373,6 +383,8 @@ When `EDIT.SYSTEM` invokes `ATTACHER.SYSTEM`, the following operations occur:
  - `ATTACHER.SYSTEM` will reload `EMAIL.SYSTEM` once it is done.
 
 ## `SMTP65.SYSTEM`
+
+*Run using Open Apple-S in `EMAIL.SYSTEM`*
 
 <p align="center"><img src="img/SMTP65.jpg" alt="SMTP65" height="400px"></p>
 
@@ -399,6 +411,8 @@ SMTP65 runs without any user interaction and performs the following tasks:
 
 ## `DATE65.SYSTEM`
 
+*Run using Open Apple-D in `EMAIL.SYSTEM`*
+
 ...
 
 ## `REBUILD.SYSTEM`
@@ -415,7 +429,7 @@ If you use this tool for bulk import, be sure that all the `EMAIL.nnn` files are
 
 ...
 
-### Configuration File
+### Configuration File `NEWS.CFG`
 
 The news configuration file is called `NEWS.CFG`.  It is a straightforward ProDOS text file, with one parameter per line.  You may edit this file using the provided editor, `EDIT.SYSTEM` (or any other ProDOS text editor).  When editing the file be careful not to add or delete any lines - this file has no grammar and the lines *must* appear in the expected order.
 
@@ -449,15 +463,64 @@ The lines are as follows, in order:
  5) ProDOS path to the root of the email folder tree.  Mailboxes will be created and managed under this root path.
  6) Your email address.  Used as the sender's address in outgoing messages.
 
+### Configuration file `NEWSGROUPS.CFG`
+
+This configuration file is found in the email root directory (`/H1/DOCUMENTS/EMAIL` in our example).  This file records the list of Usenet news groups to which emai//er is subscribed.  `NNTP65.SYSTEM` will automatically update this file each time news articles are downloaded from the server in order to record the most recent article received.
+
+An example may look as follows:
+
+```
+comp.sys.apple2 CSA2 60260
+comp.sys.apple2.programmer CSA2P 7740
+comp.emulators.apple2 CEA2 4300
+comp.os.cpm COC 15964
+```
+
+Each line contains the following three fields, separated by a space:
+
+1) Name of newsgroup
+2) Name of Emai//er mailbox which will be used for this newsgroup
+3) Most recent message number downloaded
+
 ### Creating Directories
 
-...
+A number of additional subdirectories are required within the email root directory for handling Usenet news articles.  The email root directory is assumed to be `/H1/DOCUMENTS/EMAIL` in this example.  Special news directories are as follows:
+
+ - The `NEWS.SPOOL` directory is used by `NNTP65.SYSTEM` as a staging area for incoming news articles before they are copied to the mailbox which is configured for the newsgroup in question.  This will be `/H1/DOCUMENTS/EMAIL/NEWS.SPOOL` in our example.
+ - The `NEWS.OUTBOX` directory is used by `EMAIL.SYSTEM` for composing outgoing news articles. `NNTP65UP.SYSTEM` takes outgoing articles from this directory.  In our example this will be `/H1/DOCUMENTS/EMAIL/NEWS.OUTBOX`.
+
+You can create these directories in ProDOS `BASIC.SYSTEM` as follows:
+
+```
+] CREATE /H1/DOCUMENTS/EMAIL/NEWS.SPOOL
+] CREATE /H1/DOCUMENTS/EMAIL/NEWS.OUTBOX
+```
+
+### Creating Mailboxes
+
+You must set up a `NEWS.SENT` mailbox, otherwise `NNTP65UP.SYSTEM` will be unable to complete the sending of messages and will give an error.  You will also need to create a mailbox for each newsgroup you wish to subscribe to.  The name of the newsgroup mailboxes must match that given in `NEWSGROUPS.CFG` or `NNTP65.SYSTEM` will give an error when downloading news articles.
+
+To create these mailboxes, run `EMAIL.SYSTEM` and press `N` for N)ew mailbox.  At the prompt, enter the name of the mailbox to be created: `RECEIVED`, and press return.  Repeat this to create the `SENT` mailbox.
+
+### Subscribing to a Newsgroup
+
+Suppose you want to subscribe to newsgroup `comp.sys.pdp11`.
+
+1) Add a new line to `/H1/DOCUMENTS/EMAIL/NEWSGROUPS.CFG` as follows: `alt.sys.pdp11 ASP11 0`
+2) Run `EMAIL.SYSTEM` and using `N)ew` command to create mailbox `ASP11`, matching the line in `NEWSGROUPS.CFG`.  You may use any name you choose.
+3) Use the Closed Apple-R command to run `NNTP65.SYSTEM` and retreive messages from the newly-subscribed newsgroup.
+
+When the 'last message' field of the newgroup is zero, `NNTP65.SYSTEM` will download the most recent 100 articles from the newsgroup.  It will then set the most recent article counter in `NEWSGROUPS.CFG` so that subsequent runs will retrieve new messages only.
 
 ## `NNTP65.SYSTEM`
+
+*Run using Closed Apple-R in `EMAIL.SYSTEM`*
 
 ...
 
 ## `NNTP65UP.SYSTEM`
+
+*Run using Closed Apple-S in `EMAIL.SYSTEM`*
 
 ...
 
