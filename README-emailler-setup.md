@@ -4,7 +4,7 @@
 
 [Back to Main emai//er Docs](README-emailler.md)
 
-## System Setup and Configuration
+## Setup and Configuration for Email
 
 ### Configuration File `EMAIL.CFG`
 
