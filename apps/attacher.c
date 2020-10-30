@@ -631,6 +631,8 @@ void attach(char *fname) {
   if (!fp)
     error(ERR_FATAL, "Can't open %s", fname);
   snprintf(filename, 80, "%s/OUTBOX/TMPFILE", cfg_emaildir);
+  _filetype = PRODOS_T_TXT;
+  _auxtype = 0;
   destfp = fopen(filename, "wb");
   if (!destfp)
     error(ERR_FATAL, "Can't open TMPFILE");
