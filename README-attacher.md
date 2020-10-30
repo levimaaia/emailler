@@ -15,10 +15,14 @@ Here is how it looks when it first starts up - there are no attachments yet:
 
 Using the file selector to choose an attachment:
 <p align="center"><img src="img/attacher-fileui.png" alt="Attacher File UI" height="300px"></p>
+
+Navigate up the to the top level 'Volumes' by repeatedly selecting the `..` entry and hitting `Return`.
 <p align="center"><img src="img/attacher-fileui-vols.png" alt="Attacher File UI" height="300px"></p>
+
+The navigate down to the directory of interest, select the file to attach and hit `Return`.
 <p align="center"><img src="img/attacher-fileui-select.png" alt="Attacher File UI" height="300px"></p>
 
-After having attached a file:
+Now `ATTACHER.SYSTEM` shows there is a file attached.
 <p align="center"><img src="img/attacher-1.png" alt="Attacher with One File" height="300px"></p>
 
 When `EDIT.SYSTEM` invokes `ATTACHER.SYSTEM`, the following operations occur:

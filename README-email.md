@@ -152,19 +152,27 @@ EMAIL will not display objects of type `text/html` but will instead show a place
 
 #### Attachments
 
-<p align="center"><img src="img/attachment.png" alt="Downloading Attachment" height="400px"></p>
-
 Objects of any other type will be treated as attachments and offered for download.
 
 Any object which has a MIME `filename=` field, regardless of type, will be treated as an attachment and offered for download.
 
-When an attachment is encountered, while reading an email in `M)IME` mode, the following prompt will be shown:
+Whenever an attachment is encountered while reading an email in `M)IME` mode, `EMAIL.SYSTEM` will display the MIME filename (ie: the filename encoded in the email) and the ProDOS filename (which is the file to which the attachment will be downloaded). The default ProDOS filename is simply composed of the path to the `ATTACHMENTS` directory, followed by the MIME filename. This is followed by the prompt `A)ccept | S)kip | R)ename`, as seen in the following screenshot:	
 
-```
-Okay to download /H1/DOCUMENTS/EMAIL/ATTACHMENTS/filename.typ? (y/n) >
-```	
+<p align="center"><img src="img/email-attach1.png" alt="Downloading Attachment" height="300px"></p>
 
-If you respond in the affirmative, the attachment will be decoded (usually from Base64) and saved to the filename indicated.  If you are unable to download attachments, be sure the `ATTACHMENTS` directory exists and is writable.
+The options are as follows:
+
+ - `A)ccept` - The attachment will be decoded (usually from Base64) and saved to the ProDOS filename shown.
+ - `S)kip` - `EMAIL.SYSTEM` will skip over the MIME attachment without downloading it.
+ - `R)ename` - `EMAIL.SYSTEM` will prompt for a filename. This filename will replace the ProDOS filename. This function is useful because ProDOS is quite restricted in terms of the permissible characters in a filename compared to other more modern operating systems, so attachments may be received in an email whose filenames may not be created within ProDOS.
+
+After the first attachment has been downloaded, the display is as follows:
+<p align="center"><img src="img/email-attach2.png" alt="Downloading Attachment" height="300px"></p>
+
+Finally, after both attachments have been downloaded:
+<p align="center"><img src="img/email-attach3.png" alt="Downloading Attachment" height="300px"></p>
+
+If you are unable to download attachments, be sure the `ATTACHMENTS` directory exists and is writable.
 
 If you enter `n`, the attachment will be skipped.  Due to the large size of some attachments, even skipping over them may take several seconds.
 
