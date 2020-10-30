@@ -2135,7 +2135,7 @@ void create_blank_news(void) {
   if (update_next_email(news_outbox, num + 1))
     return;
   snprintf(filename, 80, email_file, cfg_emaildir, news_outbox, num);
-  load_editor(1);
+  load_editor(2);
 done:
   fclose(fp);
 }
