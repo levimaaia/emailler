@@ -35,6 +35,10 @@ Before running `SMTP65.SYSTEM` for the first time, be sure to have created the `
      - If the message was successfully sent, copy it to the `SENT` mailbox.
      - Remove the sent message from `OUTBOX`.
    - Iterate until all messages in `OUTBOX` have been sent, and copied to `SENT`.  Rejected messages are left in `OUTBOX` where they may be edited and retransmitted.
+   - Issue `QUIT` command to SMTP server to disconnect.
+ - If `SMTP65.SYSTEM` was invoked from `EMAIL.SYSTEM`, load and run `EMAIL.SYSTEM`. Otherwise quit t
+o ProDOS.
+
 
 [Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-email-functions)
 

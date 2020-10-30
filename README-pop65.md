@@ -16,10 +16,10 @@ Before running `POP65.SYSTEM` for the first time, be sure you have created the e
 
 `POP65.SYSTEM` runs without any user interaction and performs the following tasks:
 
- - Detect Uthernet-II
- - Obtain IP address using DHCP
- - Connect to POP3 server using parameters from first three lines of `EMAIL.CFG`. (`USER` and `PASS` commands)
- - Enquire how many email messages are waiting. (`STAT` command)
+ - Detect Uthernet-II.
+ - Obtain IP address using DHCP.
+ - Connect to POP3 server using parameters from first three lines of `EMAIL.CFG`. (`USER` and `PASS` commands).
+ - Enquire how many email messages are waiting. (`STAT` command).
  - Download each email in turn (`RETR` command) and store it in the `SPOOL` directory.
  - If configured to delete messages on the POP3 server, messages are deleted after successful download (`DELE` command)
  - Once all messages have been downloaded, disconnect from the POP3 server (`QUIT` command)
@@ -34,6 +34,9 @@ Before running `POP65.SYSTEM` for the first time, be sure you have created the e
    - Store all of the information obtained from scanning the message in `INBOX/EMAIL.DB`.
    - Update `INBOX/EMAIL.nn`, incrementing the number by one.
    - Iterate until all messages in `SPOOL` are ingested into `INBOX`.
+ - If `POP65.SYSTEM` was invoked from `EMAIL.SYSTEM`, load and run `EMAIL.SYSTEM`. Otherwise quit t
+o ProDOS.
+
 
 [Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-email-functions)
 

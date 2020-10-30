@@ -14,13 +14,15 @@
 
 `NNTP65.SYSTEM` is a Network News Transport Protocol (NNTP) client for the Apple II. It requires an Uthernet-II ethernet card and will not work with other interfaces without modification, because it uses the W5100 hardware TCP/IP stack.
 
+`NNTP65.SYSTEM` handles downloading of news articles. Transmission is handled by [`NNTP65UP.SYSTEM`](README-nntp65up.md).
+
 Before running `NNTP65.SYSTEM` for the first time, be sure you have performed the basic Emai//er setup described [here](README-emailler-setup.md) and have also performed the initialization specific to Usenet discussed in [this page](README-usenet-setup.md).  In particular, the `NEWS.SPOOL` directory must have been created, otherwise `NNTP65.SYSTEM` will be unable to download news articles.
 
 `NNTP65.SYSTEM` runs without any user interaction and performs the following tasks:
 
- - Detect Uthernet-II
- - Obtain IP address using DHCP
- - Connect to NNTP server using parameters from first three lines of `NEWS.CFG`. (`AUTHINFO USER` and `AUTHINFO PASS` commands)
+ - Detect Uthernet-II.
+ - Obtain IP address using DHCP.
+ - Connect to NNTP server using parameters from first three lines of `NEWS.CFG`. (`AUTHINFO USER` and `AUTHINFO PASS` commands).
  - For each newsgroup listed in `NEWSGROUPS.CFG`:
    - Issue `GROUP` command to select the newsgroup.
    - Parse the respond from the server which indicates the message number of the first and last messages available in the newsgroup. 
@@ -34,6 +36,8 @@ Before running `NNTP65.SYSTEM` for the first time, be sure you have performed th
    - Copy the messages just retrieved from the `NEWS.SPOOL` directory to the mailbox for the newsgroup in question.
  - Once all newsgroups have been retrieved, rename `NEWSGROUPS.NEW` to replace `NEWSGROUPS.CFG`.
  - Issue the `QUIT` command to disconnect from the NNTP server.
+ - If `NNTP65.SYSTEM` was invoked from `EMAIL.SYSTEM`, load and run `EMAIL.SYSTEM`. Otherwise quit t
+o ProDOS.
 
 [Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-usenet-functions)
 
