@@ -8,9 +8,7 @@
 
 *Run using `Closed Apple`-`R` in `EMAIL.SYSTEM`*
 
-<p align="center"><img src="img/NNTP65_1.jpg" alt="NNTP65" height="400px"></p>
-
-<p align="center"><img src="img/NNTP65_2.jpg" alt="NNTP65" height="400px"></p>
+<p align="center"><img src="img/NNTP65.jpg" alt="NNTP65" height="400px"></p>
 
 `NNTP65.SYSTEM` is a Network News Transport Protocol (NNTP) client for the Apple II. It requires an Uthernet-II ethernet card and will not work with other interfaces without modification, because it uses the W5100 hardware TCP/IP stack.
 

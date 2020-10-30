@@ -6,9 +6,20 @@
 
 ## `ATTACHER.SYSTEM`
 
-*Automatically invoked when exiting `EDIT.SYSTEM` when using W)rite, F)orward or R)eply in `EMAIL.SYSTEM`*
+*Automatically invoked when exiting `EDIT.SYSTEM` when using the `W` (write email), `F` (forward email) or `R` (reply) commands in `EMAIL.SYSTEM`*
 
 `ATTACHER.SYSTEM` is used for attaching files to outgoing email messages.  This program is started automatically by `EDIT.SYSTEM` and is not normally invoked directly.
+
+Here is how it looks when it first starts up - there are no attachments yet:
+<p align="center"><img src="img/attacher-0.png" alt="Attacher Startup" height="400px"></p>
+
+Using the file selector to choose an attachment:
+<p align="center"><img src="img/attacher-fileui.png" alt="Attacher File UI" height="300px"></p>
+<p align="center"><img src="img/attacher-vols.png" alt="Attacher File UI" height="300px"></p>
+<p align="center"><img src="img/attacher-select.png" alt="Attacher File UI" height="300px"></p>
+
+After having attached a file:
+<p align="center"><img src="img/attacher-1.png" alt="Attacher with One File" height="300px"></p>
 
 When `EDIT.SYSTEM` invokes `ATTACHER.SYSTEM`, the following operations occur:
 
@@ -23,6 +34,10 @@ When `EDIT.SYSTEM` invokes `ATTACHER.SYSTEM`, the following operations occur:
    - The selected file is loaded from disk and encoded using the Base64 algorithm. A MIME section is created in the outgoing email and the Base64-encoded file data is appended.
  - `ATTACHER.SYSTEM` will terminate the MIME document, erase the original email file from `OUTBOX` and rename the temporary file to replace the original.
  - `ATTACHER.SYSTEM` will reload `EMAIL.SYSTEM` once it is done.
+
+Here is how the Base64-encoded email attachment is encoded:
+<p align="center"><img src="img/edit-email-base64.png" alt="Base64 Encoded" height="400px"></p>
+
 
 [Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-email-functions)
 
