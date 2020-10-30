@@ -225,12 +225,11 @@ There are three ways to create the template email ready for editing:
 
 Emai//er includes a screen editor, `EDIT.SYSTEM`, for message composition. It is also possible to use an external editor of your choice for composing emails.
 
-Sending of an news article is a three step process (four steps if you also add attachments to the outgoing message):
+Sending of an news article is a three step process:
 
  1) Use the `Closed Apple`-`P` (post news article), or `Closed Apple`-`F` (follow-up to current article) functions in `EMAIL.SYSTEM` to create an article template file and store it in `NEWS.OUTBOX`.
  2) The system will automatically open the article template file in the editor, `EDIT.SYSTEM`. You may edit the file in `EDIT.SYSTEM` using the editing keys shown [here](README-edit.md).  Press `Open Apple`-`S` to save the file to disk and `Open Apple`-`Q` to return to `EMAIL.SYSTEM`.
- 3) Upon exit, `EDIT.SYSTEM` will prompt `Add attachments - Sure? (y/n)`.  If you enter 'n' then `EDIT.SYSTEM` will simply reload `EMAIL.SYSTEM`.  If you enter 'y', then `EDIT.SYSTEM` will instead load `ATTACHER.SYSTEM`, which allows you to add one or more file attachments to the article.  Once the attachments have been added, `ATTACHER.SYSTEM` will reload `EMAIL.SYSTEM`.  `ATTACHER.SYSTEM` is discussed in more detail [here](README-attacher.md). *NOTE: It is usually considered poor form to include MIME attachments in Usenet articles. Please refrain from doing this in public newsgroups!*
- 4) Once you are back in the `EMAIL.SYSTEM` UI, you can choose to send the messages in `NEWS.OUTBOX` to your news server at any time.  To do this, press `Closed Apple`-`S` at the `EMAIL.SYSTEM` main menu.  This will start `NNTP65UP.SYSTEM`, which sends each message to the NNTP server and moves it to the `NEWS.SENT` mailbox.
+ 3) Once you are back in the `EMAIL.SYSTEM` UI, you can choose to send the messages in `NEWS.OUTBOX` to your news server at any time.  To do this, press `Closed Apple`-`S` at the `EMAIL.SYSTEM` main menu.  This will start `NNTP65UP.SYSTEM`, which sends each message to the NNTP server and moves it to the `NEWS.SENT` mailbox.
 
 There are two ways to create the template news article ready for editing:
 
