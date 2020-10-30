@@ -15,8 +15,8 @@ Here is how it looks when it first starts up - there are no attachments yet:
 
 Using the file selector to choose an attachment:
 <p align="center"><img src="img/attacher-fileui.png" alt="Attacher File UI" height="300px"></p>
-<p align="center"><img src="img/attacher-vols.png" alt="Attacher File UI" height="300px"></p>
-<p align="center"><img src="img/attacher-select.png" alt="Attacher File UI" height="300px"></p>
+<p align="center"><img src="img/attacher-fileui-vols.png" alt="Attacher File UI" height="300px"></p>
+<p align="center"><img src="img/attacher-fileui-select.png" alt="Attacher File UI" height="300px"></p>
 
 After having attached a file:
 <p align="center"><img src="img/attacher-1.png" alt="Attacher with One File" height="300px"></p>
