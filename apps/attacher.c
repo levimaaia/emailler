@@ -685,7 +685,7 @@ ask:
       beep();
       goto ask;
     }
-    snprintf(userentry, 80, "Attachment #%u : Select a File to Attach", attachcount);
+    snprintf(userentry, 80, "Attachment #%u : Select a File to Attach", attachcount + 1);
     file_ui(userentry,
             "",
             " Select file from tree browser, or [Tab] to enter filename. [Esc] cancels.");
