@@ -91,7 +91,7 @@ The easiest way to create additional mailboxes is using the `N)ew` command in `E
 
 Note that `SPOOL` is not a mailbox, just a directory. `OUTBOX` is also not a 'proper' mailbox - it has `NEXT.EMAIL` but not `EMAIL.DB`.
 
-If the `EMAIL.DB` file for a mailbox gets corrupted, it will no longer possible to browse the summary and read the messages in `EMAIL.SYSTEM`.  The utility `REBUILD.SYSTEM` can be used to rebuild the `EMAIL.DB` and `NEXT.EMAIL` files for an existing mailbox (see below.)
+If the `EMAIL.DB` file for a mailbox gets corrupted, it will no longer be possible to browse the summary and read the messages in `EMAIL.SYSTEM`.  The utility `REBUILD.SYSTEM` can be used to rebuild the `EMAIL.DB` and `NEXT.EMAIL` files for an existing mailbox (see below.)
 
 ## Detailed Documentation for Email Functions
 
