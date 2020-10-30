@@ -14,7 +14,7 @@ Emai//er is an email and Usenet news software package for the Apple //e Enhanced
  - Gateway to allow access to encrypted services such as GMail.
  - Decoding of Multipurpose Internet Mail Extension (MIME) encoded message bodies and attached files.
  - Composing MIME emails with attached files.
- - Usenet newgroup subscription.
+ - Usenet newsgroup subscription.
  - Posting of Usenet news articles.
  - Includes a fully-featured full screen text editor for message composition.
 
@@ -23,10 +23,10 @@ Emai//er is an email and Usenet news software package for the Apple //e Enhanced
 Emai//er is implemented as a number of ProDOS executables, each of which performs one distinct function.  `EMAIL.SYSTEM` provides the main user interface, and invokes the other executables as needed.  `EMAIL.SYSTEM` is automatically reloaded when the helper program completes its function.
 
  - `EMAIL.SYSTEM` is a simple user interface for reading and managing email.
- - `EDIT.SYSTEM` is a full screen editor, used for composing email and news messages. It may also be used as a general purpose ProDOS text file editor.
- - `POP65.SYSTEM` is a Post Office Protocol version 3 (POP3) client for the Apple II with Uthernet-II card.  This is used to retrieving incoming email messages.
+ - `EDIT.SYSTEM` is a full screen editor for composing email and news messages. It may also be used as a general purpose ProDOS text file editor.
+ - `POP65.SYSTEM` is a Post Office Protocol version 3 (POP3) client for the Apple II with Uthernet-II card.  This is used for retrieving incoming email messages.
  - `SMTP65.SYSTEM` is a Simple Mail Transport Protocol (SMTP) client for the Apple II with Uthernet-II card.  This is used for sending outgoing email messages.
- - `NNTP65.SYSTEM` is a Network News Transport Protocol (NNTP) client for the Apple II with Uthernet-II card.  This is used to retrieving Usenet news messages.
+ - `NNTP65.SYSTEM` is a Network News Transport Protocol (NNTP) client for the Apple II with Uthernet-II card.  This is used for retrieving Usenet news messages.
  - `NNTP65UP.SYSTEM` is a Network News Transport Protocol (NNTP) client for the Apple II with Uthernet-II card.  This is used for transmitting outgoing Usenet news messages.
  - `ATTACHER.SYSTEM` is used for creating multi-part MIME messages with attached files.
  - `REBUILD.SYSTEM` is a utility for rebuilding mailbox databases, should they become corrupted.  This can also be used for bulk import of messages.
@@ -43,7 +43,7 @@ The software has been designed to be modular, which allows new protocols to be a
 A few design principles that I have tried to apply:
 
   - *Simplicity* This software runs on the Apple //e enhanced with 128KB of total system memory. It is important that it be as simple and small as possible. The code is written in C using cc65, which allows more rapid evolution when compared to writing in assembly language, at the expense of larger code which uses more memory.
-  - *Modularity* Where it makes sense to split the functionality into separate modules it makes sense to do so in order to make the best use of available memory.
+  - *Modularity* Where it makes sense to do so, I split the functionality into separate modules in order to make the best use of available memory.
   - *Speed* The software should make the most of the limited hardware of the Apple //e in order to allow speedy browsing of emails without needing much processor or disk activity.
   - *Avoidance of Limits* I tried to avoid the imposition of arbitrary limits to message length or the number of messages in a folder.
   - *Veracity* The software should never modify or discard information. Incoming emails are saved to disk verbatim, including all headers. The system hides the headers when displaying the emails, but they are available for inspection or further processing. The only change that is made to incoming messages is to convert the CR+LF line endings to Apple II CR-only line endings.
@@ -66,7 +66,7 @@ Recommended optional hardware:
   - If using an Apple //e, a real time clock such as No Slot Clock (NSC) or Thunderclock is recommended.  The Apple IIgs has a built in real time clock.  If no RTC is available, `DATE65.SYSTEM` may be used to set the ProDOS date and time.
   - If using an Apple //e, adding a RamWorks style memory expansion will allow `EDIT.SYSTEM` to open many files simultaneously and also to handle very large files.  Without the RamWorks expansion, `EDIT.SYSTEM` can handle a maximum file size of around 46KB.
 
-emai//er has been extensively tested using ProDOS 2.4.2. However, it should not be a problem to run it under other versions of ProDOS.
+Emai//er has been extensively tested using ProDOS 2.4.2. However, it should not be a problem to run it under other versions of ProDOS.
 
 ## Transport Level Security (TLS)
 
