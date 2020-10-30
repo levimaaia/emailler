@@ -2,7 +2,7 @@
 
 <p align="center"><img src="img/emailler-logo.png" alt="emai//er-logo" height="200px"></p>
 
-[Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-email-functions)
+[Back to Main emai//er Docs](README.md#detailed-documentation-for-email-functions)
 
 ## `REBUILD.SYSTEM`
 
@@ -12,5 +12,5 @@
 
 If you use this tool for bulk import, be sure that all the `EMAIL.nnn` files are in Apple II text format with carriage return (CR) line endings (not MS-DOS (CRLF) or UNIX style (LF).)
 
-[Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-email-functions)
+[Back to Main emai//er Docs](README.md#detailed-documentation-for-email-functions)
 

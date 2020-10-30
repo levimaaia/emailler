@@ -2,7 +2,7 @@
 
 <p align="center"><img src="img/emailler-logo.png" alt="emai//er-logo" height="200px"></p>
 
-[Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-usenet-functions)
+[Back to Main emai//er Docs](README.md#detailed-documentation-for-usenet-functions)
 
 ## `NNTP65UP.SYSTEM`
 
@@ -39,5 +39,5 @@ Before running `NNTP65UP.SYSTEM` for the first time, be sure to have created the
  - Issue `QUIT` command to NNTP server to disconnect.
  - If `NNTP65UP.SYSTEM` was invoked from `EMAIL.SYSTEM`, load and run `EMAIL.SYSTEM`. Otherwise quit to ProDOS.
 
-[Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-usenet-functions)
+[Back to Main emai//er Docs](README.md#detailed-documentation-for-usenet-functions)
 

@@ -2,7 +2,7 @@
 
 <p align="center"><img src="img/emailler-logo.png" alt="emai//er-logo" height="200px"></p>
 
-[Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-email-functions)
+[Back to Main emai//er Docs](README.md#detailed-documentation-for-email-functions)
 
 ## `EDIT.SYSTEM`
 
@@ -154,5 +154,5 @@ The `Closed Apple`-`T` (truncate file) command is the counterpoint to the extend
  - `Ctrl`-`L` - Redraw screen
  - `Esc` - Cancel file selection or search/replace operations
 
-[Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-email-functions)
+[Back to Main emai//er Docs](README.md#detailed-documentation-for-email-functions)
 

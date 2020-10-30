@@ -2,7 +2,7 @@
 
 <p align="center"><img src="img/emailler-logo.png" alt="emai//er-logo" height="200px"></p>
 
-[Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-usenet-functions)
+[Back to Main emai//er Docs](README.md#detailed-documentation-for-usenet-functions)
 
 ## Setup and Configuration for Usenet
 
@@ -80,5 +80,5 @@ You must set up a `NEWS.SENT` mailbox, otherwise `NNTP65UP.SYSTEM` will be unabl
 To create these mailboxes, run `EMAIL.SYSTEM` and press `N` for new mailbox.  At the prompt, enter the name of the mailbox to be created: `NEWS.SENT`, and press return.  Repeat this to create a mailbox for each newsgroup you are subscribed to (matching the values in the `NEWSGROUPS.CFG` file.)
 
 
-[Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-usenet-functions)
+[Back to Main emai//er Docs](README.md#detailed-documentation-for-usenet-functions)
 

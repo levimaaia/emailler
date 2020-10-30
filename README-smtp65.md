@@ -2,7 +2,7 @@
 
 <p align="center"><img src="img/emailler-logo.png" alt="emai//er-logo" height="200px"></p>
 
-[Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-email-functions)
+[Back to Main emai//er Docs](README.md#detailed-documentation-for-email-functions)
 
 ## `SMTP65.SYSTEM`
 
@@ -40,5 +40,5 @@ Before running `SMTP65.SYSTEM` for the first time, be sure to have created the `
 o ProDOS.
 
 
-[Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-email-functions)
+[Back to Main emai//er Docs](README.md#detailed-documentation-for-email-functions)
 

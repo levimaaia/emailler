@@ -2,7 +2,7 @@
 
 <p align="center"><img src="img/emailler-logo.png" alt="emai//er-logo" height="200px"></p>
 
-[Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-usenet-functions)
+[Back to Main emai//er Docs](README.md#detailed-documentation-for-usenet-functions)
 
 ## `NNTP65.SYSTEM`
 
@@ -37,5 +37,5 @@ Before running `NNTP65.SYSTEM` for the first time, be sure you have performed th
  - If `NNTP65.SYSTEM` was invoked from `EMAIL.SYSTEM`, load and run `EMAIL.SYSTEM`. Otherwise quit t
 o ProDOS.
 
-[Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-usenet-functions)
+[Back to Main emai//er Docs](README.md#detailed-documentation-for-usenet-functions)
 

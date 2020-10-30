@@ -2,7 +2,7 @@
 
 <p align="center"><img src="img/emailler-logo.png" alt="emai//er-logo" height="200px"></p>
 
-[Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-email-functions)
+[Back to Main emai//er Docs](README.md#detailed-documentation-for-email-functions)
 
 ## `ATTACHER.SYSTEM`
 
@@ -43,5 +43,5 @@ Here is how the Base64-encoded email attachment is encoded:
 <p align="center"><img src="img/edit-email-base64.png" alt="Base64 Encoded" height="400px"></p>
 
 
-[Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-email-functions)
+[Back to Main emai//er Docs](README.md#detailed-documentation-for-email-functions)
 

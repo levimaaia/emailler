@@ -2,7 +2,7 @@
 
 <p align="center"><img src="img/emailler-logo.png" alt="emai//er-logo" height="200px"></p>
 
-[Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-usenet-functions)
+[Back to Main emai//er Docs](README.md#detailed-documentation-for-usenet-functions)
 
 ## Subscribing to a Newsgroup
 
@@ -23,5 +23,5 @@ alt.sys.pdp11 ASP11 0
 
 When the 'last message' field of the newgroup is zero, `NNTP65.SYSTEM` will download the most recent 100 articles from the newsgroup.  It will then set the most recent article counter in `NEWSGROUPS.CFG` so that subsequent runs will retrieve new messages only.
 
-[Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-usenet-functions)
+[Back to Main emai//er Docs](README.md#detailed-documentation-for-usenet-functions)
 

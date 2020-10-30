@@ -2,7 +2,7 @@
 
 <p align="center"><img src="img/emailler-logo.png" alt="emai//er-logo" height="200px"></p>
 
-[Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-email-functions)
+[Back to Main emai//er Docs](README.md#detailed-documentation-for-email-functions)
 
 ## `EMAIL.SYSTEM`
 
@@ -237,5 +237,5 @@ There are two ways to create the template news article ready for editing:
  - `Closed Apple`-`P` (post news article) starts a blank article. You will be prompted for the name of the newsgroup or newsgroups to publish the article to and the subject line.  The date is automatically filled in.
  - `Closed Apple`-`F` (follow up to current article) creates a response to the currently selected news article. The newsgroup name and the subject line are automatically composed.
 
-[Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-email-functions)
+[Back to Main emai//er Docs](README.md#detailed-documentation-for-email-functions)
 

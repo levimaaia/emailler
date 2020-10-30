@@ -2,7 +2,7 @@
 
 <p align="center"><img src="img/emailler-logo.png" alt="emai//er-logo" height="200px"></p>
 
-[Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-email-functions)
+[Back to Main emai//er Docs](README.md#detailed-documentation-for-email-functions)
 
 ## `DATE65.SYSTEM`
 
@@ -39,5 +39,5 @@ When `DATE65.SYSTEM` is run (either directly or using the `Open Apple`-`D` short
 
 Note that if the system has a real-time clock (RTC) the date and time information obtained from `DATE65.SYSTEM` will be overwritten.  Otherwise the date and time information remain constant until the next time `DATE65.SYSTEM` is run.
 
-[Back to Main emai//er Docs](README-emailler.md#detailed-documentation-for-email-functions)
+[Back to Main emai//er Docs](README.md#detailed-documentation-for-email-functions)
 
