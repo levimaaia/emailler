@@ -8,13 +8,15 @@
 
 *Run using `Closed Apple`-`S` in `EMAIL.SYSTEM`*
 
-<p align="center"><img src="img/NNTP65UP.jpg" alt="SMTP65" height="400px"></p>
+<p align="center"><img src="img/NNTP65UP_1.jpg" alt="NNTP65UP" height="400px"></p>
 
 `NNTP65UP.SYSTEM` is a Network News Transport Protocol (NNTP) client for the Apple II.  It requires an Uthernet-II ethernet card and will not work with other interfaces without modification, because it uses the W5100 hardware TCP/IP stack.
 
 `NNTP65UP.SYSTEM` handles transmission of news articles to the NNTP server. Reception of news articles is handled by [`NNTP65.SYSTEM`](README-nntp65.md).
 
 Before running `NNTP65UP.SYSTEM` for the first time, be sure to have created the `NEWS.SENT` mailbox.  This must be a 'proper' mailbox, not just a directory.  You may create a mailbox using the `N` (new mailbox) command in `EMAIL.SYSTEM`.
+
+<p align="center"><img src="img/NNTP65UP_2.jpg" alt="NNTP65UP" height="400px"></p>
 
 `NNTP65UP.SYSTEM` performs the following tasks:
 
