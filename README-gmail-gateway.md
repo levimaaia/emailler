@@ -22,12 +22,19 @@ Linux operating system version 10.
 
 ## Prerequisites
 
- - An Apple IIgs.  Mine is a ROM01.
- - Enough memory  I have a 4MB RAM card.
- - Enough disk space.  I have a MicroDrive/Turbo with 32MB volumes.
- - A compatible ethernet card.  I used an Uthernet II.
- - GSOS 6.0.1 or 6.0.4 installed.
- - Marinetti 3.0 installed.  I used 3.0b11.
+ - For Emai//er on the //e or GS:
+   - An Apple //e enhanced or Apple IIgs system (ROM01 or ROM03)
+   - At least 128KB of system memory.
+   - Enough disk space.  I have a MicroDrive/Turbo with 32MB volumes.
+   - Uthernet II ethernet card.  No other cards are supported.
+   - ProDOS.  I am using version 2.4.2.
+ - or, for SAM2 email on the GS:
+   - An Apple IIgs.  Mine is a ROM01.
+   - Enough memory  I have a 4MB RAM card.
+   - Enough disk space.  I have a MicroDrive/Turbo with 32MB volumes.
+   - A compatible ethernet card.  I used an Uthernet II.
+   - GSOS 6.0.1 or 6.0.4 installed.
+   - Marinetti 3.0 installed.  I used 3.0b11.
  - A Raspberry Pi running Raspbian 10
 
 I don't cover any of the above in this README.  You can find information
