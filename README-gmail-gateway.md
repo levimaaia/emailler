@@ -2,12 +2,15 @@
 
 ## Motivation
 
-To connect an Apple IIGS to Gmail, allowing messages to be sent and received.
+To connect an Apple II to Gmail, allowing messages to be sent and received.
 
-I used Ewen Wannop (aka Speccie)'s SAM2 email client, running under GSOS 6.0.4.
-This should also work with GSOS 6.0.1.
+I originally set up this gateway to use Ewen Wannop (aka Speccie)'s SAM2 email
+client, running on the Apple IIgs under GSOS 6.0.4. Speccie's website is
+[here](https://speccie.uk/software/)
 
-Speccie's website is [here](https://speccie.uk/software/)
+The same gateway setup also works for my very own Emai//er suite for the
+Apple //e and IIgs.  You can find Emai//er
+[here](https://github.com/bobbimanners/emailler)
 
 In order to communicate on today's Internet Transport Layer Security (TLS)
 is necessary.  Retro machines such as the Apple II series lack the processor
@@ -329,7 +332,7 @@ service pop3-login {
 ```
 ### Fetchmail
 
-Fetchmail's configuration is in the file `/etc/fetchmail`.  It should look
+Fetchmail's configuration is in the file `/etc/fetchmailrc`.  It should look
 like this:
 
 ```
