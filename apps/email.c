@@ -530,7 +530,7 @@ const int8_t b64dec[] =
 uint16_t decode_base64(char *p) {
   uint16_t i = 0, j = 0;
   const int8_t *b = b64dec - 43;
-  while (p[i] && (p[i] != '\r')) {
+  while (p[i] && (p[i] != '\r') && (p[i] != '?')) {
     p[j++] = b[p[i]] << 2 | b[p[i + 1]] >> 4;
     if (p[i + 2] != '=')
       p[j++] = b[p[i + 1]] << 4 | b[p[i + 2]] >> 2;
@@ -538,6 +538,7 @@ uint16_t decode_base64(char *p) {
       p[j++] = b[p[i + 2]] << 6 | b[p[i + 3]];
     i += 4;
   }
+  p[j] = '\0';
   return j;
 }
 
@@ -569,6 +570,9 @@ uint16_t decode_quoted_printable(uint8_t *p) {
       c = 16 * hexdigit(p[i + 1]) + hexdigit(p[i + 2]);
       p[j++] = c;
       i += 3;
+    } else if (c == '?') {
+      p[j] = '\0';
+      return j;
     } else {
       p[j++] = c;
       ++i;
@@ -599,6 +603,22 @@ void printfield(char *s, uint8_t start, uint8_t end) {
 #pragma code-name (pop)
 
 /*
+ * Decode Subject header which may be encoded Quoted-Printable or Base64
+ * p - pointer to subject header content
+ * Decoded text is returned in linebuf[]
+ */
+void decode_subject(char *p) {
+  if (strncasecmp(p, "=?utf-8?", 8) == 0) {
+    strcpy(linebuf, p + 10); // Skip '=?UTF-8?x?'
+    if (p[8] == 'B')
+      decode_base64(linebuf);
+    else
+      decode_quoted_printable(linebuf);
+  } else
+    strcpy(linebuf, p);
+}
+
+/*
  * Print one line summary of email headers for one message
  */
 void print_one_email_summary(struct emailhdrs *h, uint8_t inverse) {
@@ -620,17 +640,8 @@ void print_one_email_summary(struct emailhdrs *h, uint8_t inverse) {
   putchar('|');
   printfield(h->from, 0, 20);
   putchar('|');
-
-  // Hacky handling of UTF-8 encoded subject lines
-  if (strncasecmp(h->subject, "=?utf-8?", 8) == 0) {
-    strcpy(linebuf, &(h->subject[10])); // Skip '=?UTF-8?x?'
-    if (h->subject[8] == 'B')
-      decode_base64(linebuf);
-    else
-      decode_quoted_printable(linebuf);
-    printfield(linebuf, 0, 39);
-  } else
-    printfield(h->subject, 0, 39);
+  decode_subject(h->subject);
+  printfield(linebuf, 0, 39);
   putchar(NORMAL);
 }
 
@@ -1068,7 +1079,8 @@ restart:
     }
   }
   fputs("\nSubject: ", stdout);
-  printfield(hh.subject, 0, 70);
+  decode_subject(hh.subject);
+  printfield(linebuf, 0, 70);
   fputs("\n\n", stdout);
   get_line(fp, 1, linebuf, LINEBUFSZ, &pos); // Reset buffer
   while (1) {
