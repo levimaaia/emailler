@@ -605,15 +605,21 @@ void printfield(char *s, uint8_t start, uint8_t end) {
 /*
  * Decode Subject header which may be encoded Quoted-Printable or Base64
  * p - pointer to subject header content
- * Decoded text is returned in linebuf[]
+ * Decoded (and sanitized) text is returned in linebuf[]
  */
 void decode_subject(char *p) {
+  uint8_t i = 0;
   if (strncasecmp(p, "=?utf-8?", 8) == 0) {
     strcpy(linebuf, p + 10); // Skip '=?UTF-8?x?'
     if (p[8] == 'B')
       decode_base64(linebuf);
     else
       decode_quoted_printable(linebuf);
+    while (linebuf[i]) {
+      if ((linebuf[i] < 32) || (linebuf[i] > 127))
+        linebuf[i] = '#';
+      ++i;
+    }
   } else
     strcpy(linebuf, p);
 }
@@ -1575,7 +1581,8 @@ esc_pressed:
  * Adds 'Re: ' to subject line unless it is already there
  */
 void subject_response(FILE *f, char *s) {
-  fprintf(f, "Subject: %s%s\r", (strncmp(s, "Re: ", 3) ? "Re: " : ""), s);
+  decode_subject(s);
+  fprintf(f, "Subject: %s%s\r", (strncmp(s, "Re: ", 3) ? "Re: " : ""), linebuf);
 }
 
 /*
@@ -1585,7 +1592,8 @@ void subject_response(FILE *f, char *s) {
  * Adds 'Fwd: ' to subject line unless it is already there
  */
 void subject_forward(FILE *f, char *s) {
-  fprintf(f, "Subject: %s%s\r", (strncmp(s, "Fwd: ", 3) ? "Fwd: " : ""), s);
+  decode_subject(s);
+  fprintf(f, "Subject: %s%s\r", (strncmp(s, "Fwd: ", 3) ? "Fwd: " : ""), linebuf);
 }
 
 /*
@@ -1628,7 +1636,8 @@ uint8_t write_email_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h,
     fprintf(fp2, "%s wrote:\r\r", buf);
   } else {
     fprintf(fp2, "-------- Forwarded Message --------\r");
-    truncate_header(h->subject, buf, 80);
+    decode_subject(h->subject);
+    truncate_header(linebuf, buf, 80);
     fprintf(fp2, "Subject: %s\r", buf);
     truncate_header(h->date, buf, 40);
     fprintf(fp2, "Date: %s\r", buf);
