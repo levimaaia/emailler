@@ -1,7 +1,7 @@
 /////////////////////////////////////////////////////////////////
 // emai//er - Simple Email User Agent vaguely inspired by Elm
 // Handles INBOX in the format created by POP65
-// Bobbi June-September 2020
+// Bobbi June 2020 - May 2021
 /////////////////////////////////////////////////////////////////
 
 // TODO: Scrunch memory. Move strings to string table to avoid duplication.
@@ -45,6 +45,7 @@
 // Addresses
 #define CURSORROW     0x0025
 #define SYSTEMTIME    0xbf90
+#define KEYBOARD      0xc000
 
 char closedapple[]  = "\x0f\x1b""@\x18\x0e";
 char openapple[]    = "\x0f\x1b""A\x18\x0e";
@@ -187,6 +188,25 @@ void clrscr2(void) {
 }
 #pragma code-name (pop)
 
+void status_bar(void); // Forward declaration
+
+/*
+ * Check for key pressed. If so, call cgetc().
+ * Otherwise spin and update the status line waiting for a keypress.
+ */
+char cgetc_update_status() {
+  uint16_t ctr = 0;
+  while (*((char*)KEYBOARD) < 128) {
+    ++ctr;
+    if (ctr == 20000) {
+      status_bar();
+      goto_prompt_row();
+      ctr = 0;
+    }
+  }
+  return cgetc();
+}
+
 /*
  * Show non fatal error in PROMPT_ROW
  * Fatal errors are shown on a blank screen
@@ -316,9 +336,12 @@ void readconfigfile(void) {
  * Convert date/time bytes into struct datetime format.
  */
 #pragma code-name (push, "LC")
-void readdatetime(unsigned char time[4], struct datetime *dt) {
-    unsigned int d = time[0] + 256U * time[1];
-    unsigned int t = time[2] + 256U * time[3];
+void readdatetime(struct datetime *dt) {
+    unsigned char *time = (unsigned char*)SYSTEMTIME;
+    unsigned int d, t;
+    __asm__("jsr $bf06"); // ProDOS DATETIME call: Updates vals at SYSTEMTIME
+    d = time[0] + 256U * time[1];
+    t = time[2] + 256U * time[3];
     if ((d == 0) && (t == 0)) {
         dt->nodatetime = 1;
         return;
@@ -387,7 +410,7 @@ void datetimelong(struct datetime *dt, char *s) {
 #pragma code-name (push, "LC")
 void printsystemdate(void) {
   struct datetime dt;
-  readdatetime((unsigned char*)(SYSTEMTIME), &dt);
+  readdatetime(&dt);
   printdatetime(&dt);
 }
 #pragma code-name (pop)
@@ -665,19 +688,27 @@ struct emailhdrs *get_headers(uint16_t n) {
 /*
  * Print status bar at the top
  */
+#define MAXSTATLEN 62
 void status_bar(void) {
-  putchar(HOME);
-  putchar(INVERSE);
-  fputs("                                                                ", stdout);
-  printsystemdate();
-  putchar(HOME);
+  uint8_t i;
   if (num_msgs == 0) {
-    printf("%c%s [%s] No messages ", INVERSE, PROGNAME, curr_mbox);
+    sprintf(linebuf, "%s [%s] No messages ", PROGNAME, curr_mbox);
     //envelope();
   } else
-    printf("%c[%s] %u msgs, %u new, %u tagged. Showing %u-%u. %c ",
-           INVERSE, curr_mbox, total_msgs, total_new, total_tag, first_msg,
+    sprintf(linebuf, "[%s] %u msgs, %u new, %u tagged. Showing %u-%u. %c ",
+           curr_mbox, total_msgs, total_new, total_tag, first_msg,
            first_msg + num_msgs - 1, (reverse ? '<' : '>'));
+  if (strlen(linebuf) > MAXSTATLEN) {
+    linebuf[MAXSTATLEN] = '\0';
+    linebuf[MAXSTATLEN-3] = linebuf[MAXSTATLEN-2] = linebuf[MAXSTATLEN-1] = '.';
+  }
+  putchar(HOME);
+  putchar(INVERSE);
+  fputs(linebuf, stdout);
+  for (i = 0; i < MAXSTATLEN+2 - strlen(linebuf); ++i)
+    fputc(' ', stdout);
+  printsystemdate();
+  putchar(HOME);
   putchar(NORMAL);
   putchar(CURDOWN);
   printf("\n");
@@ -1616,7 +1647,7 @@ uint8_t write_email_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h,
     subject_forward(fp2, buf);
   else
     subject_response(fp2, buf);
-  readdatetime((unsigned char*)(SYSTEMTIME), &dt);
+  readdatetime(&dt);
   datetimelong(&dt, buf);
   fprintf(fp2, "Date: %s\r", buf);
   if (mode == 'R') {
@@ -1668,7 +1699,7 @@ uint8_t write_news_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h, uint16_t n
   fprintf(fp2, "Newsgroups: %s\r", buf);
   truncate_header(h->subject, buf, 80);
   subject_response(fp2, buf);
-  readdatetime((unsigned char*)(SYSTEMTIME), &dt);
+  readdatetime(&dt);
   datetimelong(&dt, userentry);
   fprintf(fp2, "Date: %s\r", userentry);
   fprintf(fp2, "Message-ID: <%05d-%s>\r", num, cfg_emailaddr);
@@ -1719,7 +1750,7 @@ char prompt_okay(char *msg) {
   goto_prompt_row();
   printf("%sSure? (y/n/ESC)", msg);
   while (1) {
-    c = cgetc();
+    c = cgetc_update_status();
     if ((c == 'y') || (c == 'Y') || (c == 'n') || (c == 'N') || (c == ESC))
       break;
     putchar(BELL);
@@ -2089,7 +2120,7 @@ void create_blank_outgoing(void) {
   if (prompt_for_name("Subject", 0) == 255)
     goto done; // ESC pressed
   fprintf(fp, "Subject: %s\r", userentry);
-  readdatetime((unsigned char*)(SYSTEMTIME), &dt);
+  readdatetime(&dt);
   datetimelong(&dt, userentry);
   fprintf(fp, "Date: %s\r", userentry);
   if (prompt_for_name("cc", 0) == 255)
@@ -2132,7 +2163,7 @@ void create_blank_news(void) {
   if (prompt_for_name("Subject", 0) == 255)
     goto done; // ESC pressed
   fprintf(fp, "Subject: %s\r", userentry);
-  readdatetime((unsigned char*)(SYSTEMTIME), &dt);
+  readdatetime(&dt);
   datetimelong(&dt, userentry);
   fprintf(fp, "Date: %s\r", userentry);
   fprintf(fp, "Message-ID: <%05d-%s>\r", num, cfg_emailaddr);
@@ -2189,7 +2220,7 @@ void keyboard_hdlr(void) {
   char c;
   while (1) {
     h = get_headers(selection);
-    c = cgetc();
+    c = cgetc_update_status();
     if (*(uint8_t*)0xc062 & 0x80) { // Closed Apple depressed
       switch (c) {
       case 'r':    // CA-R "Retrieve news via NNTP"
