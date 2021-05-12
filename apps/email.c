@@ -583,32 +583,6 @@ uint16_t decode_quoted_printable(uint8_t *p) {
 }
 
 /*
- * Do fputc() but replace unprintable chars with '#'
- */
-void filter_fputc(uint8_t c, FILE *f) {
-  fputc((((c < 32) || (c > 127)) ? '#' : c), f);
-}
-
-/*
- * Filter out UTF-8 multibyte sequences and replace with '#'
- * s is pointer to input string
- * Filtered string written to linebuf[]
- */
-#if 0
-void filter_utf8(char *s) {
-  uint8_t i = 0, j = 0;
-  while (s[i]) {
-    if ((s[i] <= 127) && (s[i] >= 32))
-      linebuf[j++] = s[i];
-    else if (s[i] > 191)     // 11xxxxxx
-      linebuf[j++] = '#';
-    ++i;
-  }
-  linebuf[j] = '\0';
-}
-#endif
-
-/*
  * Print a header field from char postion start to end,
  * padding with spaces as needed
  */
@@ -796,7 +770,10 @@ done:
  */
 void putline(FILE *f, char *s) {
   while ((*s != NULL) && (*s != '\r')) {
-    filter_fputc(*s, f);
+    if ((*s <= 127) && (*s >= 32))
+      fputc(*s, f);
+    else if (*s > 191)   // 11xxxxxx
+      fputc('#', f);
     ++s;
   }
 }
@@ -850,9 +827,12 @@ uint8_t word_wrap_line(FILE *fp, char **s, uint8_t cols, char mode) {
     if (i == 0) {                  // No space character found
       if (col == 0) {              // Doesn't fit on full line
         for (i = 0; i <= cols; ++i) { // Truncate @cols chars
-          filter_fputc(ss[i], fp);
-          *s = ss + l + 1;
+          if ((ss[i] <= 127) && (ss[i] >= 32))
+            fputc(ss[i], fp);
+          else if (ss[i] > 191)    // 11xxxxxx
+            fputc('#', fp);
         }
+        *s = ss + l + 1;
       } else {                     // There is stuff on this line already
         col = 0;
         fputc('\r', fp);           // Try a blank line
