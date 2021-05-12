@@ -590,6 +590,25 @@ void filter_fputc(uint8_t c, FILE *f) {
 }
 
 /*
+ * Filter out UTF-8 multibyte sequences and replace with '#'
+ * s is pointer to input string
+ * Filtered string written to linebuf[]
+ */
+#if 0
+void filter_utf8(char *s) {
+  uint8_t i = 0, j = 0;
+  while (s[i]) {
+    if ((s[i] <= 127) && (s[i] >= 32))
+      linebuf[j++] = s[i];
+    else if (s[i] > 191)     // 11xxxxxx
+      linebuf[j++] = '#';
+    ++i;
+  }
+  linebuf[j] = '\0';
+}
+#endif
+
+/*
  * Print a header field from char postion start to end,
  * padding with spaces as needed
  */
@@ -598,7 +617,7 @@ void printfield(char *s, uint8_t start, uint8_t end) {
   uint8_t i;
   uint8_t l = strlen(s);
   for (i = start; i < end; i++)
-    filter_fputc(i < l ? s[i] : ' ', stdout);
+    putchar(i < l ? s[i] : ' ');
 }
 #pragma code-name (pop)
 
@@ -608,7 +627,7 @@ void printfield(char *s, uint8_t start, uint8_t end) {
  * Decoded (and sanitized) text is returned in linebuf[]
  */
 void decode_subject(char *p) {
-  uint8_t i = 0;
+  uint8_t i = 0, j = 0;
   if (strncasecmp(p, "=?utf-8?", 8) == 0) {
     strcpy(linebuf, p + 10); // Skip '=?UTF-8?x?'
     if (p[8] == 'B')
@@ -616,10 +635,13 @@ void decode_subject(char *p) {
     else
       decode_quoted_printable(linebuf);
     while (linebuf[i]) {
-      if ((linebuf[i] < 32) || (linebuf[i] > 127))
-        linebuf[i] = '#';
+      if ((linebuf[i] <= 127) && (linebuf[i] >= 32))
+        linebuf[j++] = linebuf[i];
+      else if (linebuf[i] > 191)     // 11xxxxxx
+        linebuf[j++] = '#';
       ++i;
     }
+    linebuf[j] = '\0';
   } else
     strcpy(linebuf, p);
 }
