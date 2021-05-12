@@ -509,6 +509,83 @@ uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox)
 #pragma code-name (pop)
 
 /*
+ * Base64 decode table
+ */
+const int8_t b64dec[] =
+  {62,-1,-1,-1,63,52,53,54,55,56,
+   57,58,59,60,61,-1,-1,-1,-2,-1,
+   -1,-1, 0, 1, 2, 3, 4, 5, 6, 7,
+    8, 9,10,11,12,13,14,15,16,17,
+   18,19,20,21,22,23,24,25,-1,-1,
+   -1,-1,-1,-1,26,27,28,29,30,31,
+   32,33,34,35,36,37,38,39,40,41,
+   42,43,44,45,46,47,48,49,50,51};
+
+/*
+ * Decode Base64 format in place
+ * Each line of base64 has up to 76 chars, which decodes to up to 57 bytes
+ * p - Pointer to buffer to decode. Results written in place.
+ * Returns number of bytes decoded
+ */
+uint16_t decode_base64(char *p) {
+  uint16_t i = 0, j = 0;
+  const int8_t *b = b64dec - 43;
+  while (p[i] && (p[i] != '\r')) {
+    p[j++] = b[p[i]] << 2 | b[p[i + 1]] >> 4;
+    if (p[i + 2] != '=')
+      p[j++] = b[p[i + 1]] << 4 | b[p[i + 2]] >> 2;
+    if (linebuf[i + 3] != '=')
+      p[j++] = b[p[i + 2]] << 6 | b[p[i + 3]];
+    i += 4;
+  }
+  return j;
+}
+
+/*
+ * Convert hex char to value
+ */
+uint8_t hexdigit(char c) {
+  if ((c >= '0') && (c <= '9'))
+    return c - '0';
+  else
+    return c - 'A' + 10;
+}
+
+/*
+ * Decode buffer from quoted-printable format in place
+ * p - Pointer to buffer to decode. Results written in place.
+ * Returns number of bytes decoded
+ */
+uint16_t decode_quoted_printable(uint8_t *p) {
+  uint16_t i = 0, j = 0;
+  uint8_t c;
+  while (c = p[i]) {
+    if (c == '=') {
+      if (p[i + 1] == '\r') { // Trailing '=' is a soft '\r'
+        p[j] = '\0';
+        return j;
+      }
+      // Otherwise '=xx' where x is a hex digit
+      c = 16 * hexdigit(p[i + 1]) + hexdigit(p[i + 2]);
+      p[j++] = c;
+      i += 3;
+    } else {
+      p[j++] = c;
+      ++i;
+    }
+  }
+  p[j] = '\0';
+  return j;
+}
+
+/*
+ * Do fputc() but replace unprintable chars with '#'
+ */
+void filter_fputc(uint8_t c, FILE *f) {
+  fputc((((c < 32) || (c > 127)) ? '#' : c), f);
+}
+
+/*
  * Print a header field from char postion start to end,
  * padding with spaces as needed
  */
@@ -517,7 +594,7 @@ void printfield(char *s, uint8_t start, uint8_t end) {
   uint8_t i;
   uint8_t l = strlen(s);
   for (i = start; i < end; i++)
-    putchar(i < l ? s[i] : ' ');
+    filter_fputc(i < l ? s[i] : ' ', stdout);
 }
 #pragma code-name (pop)
 
@@ -543,7 +620,17 @@ void print_one_email_summary(struct emailhdrs *h, uint8_t inverse) {
   putchar('|');
   printfield(h->from, 0, 20);
   putchar('|');
-  printfield(h->subject, 0, 39);
+
+  // Hacky handling of UTF-8 encoded subject lines
+  if (strncasecmp(h->subject, "=?utf-8?", 8) == 0) {
+    strcpy(linebuf, &(h->subject[10])); // Skip '=?UTF-8?x?'
+    if (h->subject[8] == 'B')
+      decode_base64(linebuf);
+    else
+      decode_quoted_printable(linebuf);
+    printfield(linebuf, 0, 39);
+  } else
+    printfield(h->subject, 0, 39);
   putchar(NORMAL);
 }
 
@@ -663,86 +750,6 @@ uint16_t get_line(FILE *fp, uint8_t reset, char *writep, uint16_t n, uint32_t *p
 done:
   writep[i] = '\0';
   return i;
-}
-
-/*
- * Convert hex char to value
- */
-uint8_t hexdigit(char c) {
-  if ((c >= '0') && (c <= '9'))
-    return c - '0';
-  else
-    return c - 'A' + 10;
-}
-
-/*
- * Decode linebuf[] from quoted-printable format in place
- * p - Pointer to buffer to decode. Results written in place.
- * Returns number of bytes decoded
- */
-uint16_t decode_quoted_printable(uint8_t *p) {
-  uint16_t i = 0, j = 0;
-  uint8_t c;
-  while (c = p[i]) {
-    if (c == '=') {
-      if (p[i + 1] == '\r') { // Trailing '=' is a soft '\r'
-        p[j] = '\0';
-        return j;
-      }
-      // Otherwise '=xx' where x is a hex digit
-      c = 16 * hexdigit(p[i + 1]) + hexdigit(p[i + 2]);
-      p[j++] = c;
-      i += 3;
-    } else {
-      p[j++] = c;
-      ++i;
-    }
-  }
-  p[j] = '\0';
-  return j;
-}
-
-/*
- * Base64 decode table
- */
-const int8_t b64dec[] =
-  {62,-1,-1,-1,63,52,53,54,55,56,
-   57,58,59,60,61,-1,-1,-1,-2,-1,
-   -1,-1, 0, 1, 2, 3, 4, 5, 6, 7,
-    8, 9,10,11,12,13,14,15,16,17,
-   18,19,20,21,22,23,24,25,-1,-1,
-   -1,-1,-1,-1,26,27,28,29,30,31,
-   32,33,34,35,36,37,38,39,40,41,
-   42,43,44,45,46,47,48,49,50,51};
-
-
-/*
- * Decode Base64 format in place
- * Each line of base64 has up to 76 chars, which decodes to up to 57 bytes
- * p - Pointer to buffer to decode. Results written in place.
- * Returns number of bytes decoded
- */
-#if 0
-uint16_t decode_base64(char *p) {
-  uint16_t i = 0, j = 0;
-  const int8_t *b = b64dec - 43;
-  while (p[i] != '\r') {
-    p[j++] = b[p[i]] << 2 | b[p[i + 1]] >> 4;
-    if (p[i + 2] != '=')
-      p[j++] = b[p[i + 1]] << 4 | b[p[i + 2]] >> 2;
-    if (linebuf[i + 3] != '=')
-      p[j++] = b[p[i + 2]] << 6 | b[p[i + 3]];
-    i += 4;
-  }
-  return j;
-}
-#endif
-
-/*
- * Do fputc() but replace unprintable chars with '#'
- */
-void filter_fputc(uint8_t c, FILE *f) {
-  fputc((((c < 32) || (c > 127)) ? '#' : c), f);
 }
 
 /*
@@ -1149,19 +1156,7 @@ prompt_dl:
         chars = decode_quoted_printable(writep);
         break;
        case ENC_B64:
-        //chars = decode_base64(writep);
-        {
-        uint8_t i = 0, j = 0;
-        while (writep[i] != '\r') {
-          writep[j++] = b[writep[i]] << 2 | b[writep[i + 1]] >> 4;
-          if (writep[i + 2] != '=')
-            writep[j++] = b[writep[i + 1]] << 4 | b[writep[i + 2]] >> 2;
-          if (linebuf[i + 3] != '=')
-            writep[j++] = b[writep[i + 2]] << 6 | b[writep[i + 3]];
-          i += 4;
-        }
-        chars = j;
-        }
+        chars = decode_base64(writep);
         break;
        case ENC_SKIP:
         readp = writep = NULL;
@@ -1810,19 +1805,7 @@ void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
         chars = decode_quoted_printable(writep);
         break;
        case ENC_B64:
-        //chars = decode_base64(writep);
-        {
-        uint8_t i = 0, j = 0;
-        while (writep[i] != '\r') {
-          writep[j++] = b[writep[i]] << 2 | b[writep[i + 1]] >> 4;
-          if (writep[i + 2] != '=')
-            writep[j++] = b[writep[i + 1]] << 4 | b[writep[i + 2]] >> 2;
-          if (linebuf[i + 3] != '=')
-            writep[j++] = b[writep[i + 2]] << 6 | b[writep[i + 3]];
-          i += 4;
-        }
-        chars = j;
-        }
+        chars = decode_base64(writep);
         break;
        case ENC_SKIP:
         readp = writep = NULL;
