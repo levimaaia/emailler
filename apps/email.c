@@ -4,8 +4,6 @@
 // Bobbi June 2020 - May 2021
 /////////////////////////////////////////////////////////////////
 
-// TODO: Scrunch memory. Move strings to string table to avoid duplication.
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -95,12 +93,51 @@ uint16_t              total_new;   // Total number of new messages
 uint16_t              total_tag;   // Total number of tagged messages
 uint16_t              first_msg;   // Msg numr: first message current page
 uint8_t               reverse;     // 0 normal, 1 reverse order
-char                  curr_mbox[80] = "INBOX";
+char                  curr_mbox[80];
 unsigned char         buf[READSZ];
 
 
 #define ERR_NONFATAL 0
 #define ERR_FATAL    1
+
+/*
+ * Save preferences
+ */
+#pragma code-name (push, "LC")
+void save_prefs(void) {
+  _filetype = PRODOS_T_TXT;
+  _auxtype = 0;
+  fp = fopen(email_prefs, "wb");
+  if (!fp)
+    return;
+  fprintf(fp, "o:%c\n", (reverse ? '<' : '>'));
+  fprintf(fp, "m:%s\n", curr_mbox);
+  fprintf(fp, "f:%d\n", first_msg);
+  fprintf(fp, "s:%d\n", selection);
+  fclose(fp);
+}
+#pragma code-name (pop)
+
+/*
+ * Load preferences
+ */
+void load_prefs(void) {
+  char order = 'a';
+  fp = fopen(email_prefs, "rb");
+  if (!fp) {
+    reverse = 0;
+    strcpy(curr_mbox, "INBOX");
+    first_msg = 1;
+    selection = 1;
+    return;
+  }
+  fscanf(fp, "o:%c\n", &order);
+  fscanf(fp, "m:%s\n", curr_mbox);
+  fscanf(fp, "f:%d\n", &first_msg);
+  fscanf(fp, "s:%d\n", &selection);
+  fclose(fp);
+  reverse = (order == '<' ? 1 : 0);
+}
 
 /*
  * Load and run EDIT.SYSTEM
@@ -111,6 +148,7 @@ unsigned char         buf[READSZ];
  */
 #pragma code-name (push, "LC")
 void load_editor(uint8_t compose) {
+  save_prefs();
   snprintf(userentry, 80, "%s %s",
            (compose == 0 ? "-reademail" : (compose == 1 ? "-email" : "-news")),
            filename);
@@ -124,6 +162,7 @@ void load_editor(uint8_t compose) {
  */
 #pragma code-name (push, "LC")
 void load_nntp65(void) {
+  save_prefs();
   snprintf(filename, 80, "%s/NNTP65.SYSTEM", cfg_instdir);
   exec(filename, email);
 }
@@ -134,6 +173,7 @@ void load_nntp65(void) {
  */
 #pragma code-name (push, "LC")
 void load_nntp65up(void) {
+  save_prefs();
   snprintf(filename, 80, "%s/NNTP65UP.SYSTEM", cfg_instdir);
   exec(filename, email);
 }
@@ -144,6 +184,7 @@ void load_nntp65up(void) {
  */
 #pragma code-name (push, "LC")
 void load_pop65(void) {
+  save_prefs();
   snprintf(filename, 80, "%s/POP65.SYSTEM", cfg_instdir);
   exec(filename, email);
 }
@@ -154,6 +195,7 @@ void load_pop65(void) {
  */
 #pragma code-name (push, "LC")
 void load_smtp65(void) {
+  save_prefs();
   snprintf(filename, 80, "%s/SMTP65.SYSTEM", cfg_instdir);
   exec(filename, email);
 }
@@ -164,6 +206,7 @@ void load_smtp65(void) {
  */
 #pragma code-name (push, "LC")
 void load_date65(void) {
+  save_prefs();
   snprintf(filename, 80, "%s/DATE65.SYSTEM", cfg_instdir);
   exec(filename, email);
 }
@@ -243,36 +286,6 @@ void error(uint8_t fatal, const char *fmt, ...) {
 void pr_spc(uint8_t n) {
   while (n--)
     putchar(' ');
-}
-#pragma code-name (pop)
-
-/*
- * Save preferences
- */
-#pragma code-name (push, "LC")
-void save_prefs(void) {
-  _filetype = PRODOS_T_TXT;
-  _auxtype = 0;
-  fp = fopen(email_prefs, "wb");
-  if (!fp)
-    return;
-  fprintf(fp, "order:%s", (reverse ? "<" : ">"));
-  fclose(fp);
-}
-#pragma code-name (pop)
-
-/*
- * Load preferences
- */
-#pragma code-name (push, "LC")
-void load_prefs(void) {
-  char order = 'a';
-  fp = fopen(email_prefs, "rb");
-  if (!fp)
-    return;
-  fscanf(fp, "order:%s", &order);
-  fclose(fp);
-  reverse = (order == '<' ? 1 : 0);
 }
 #pragma code-name (pop)
 
@@ -2381,13 +2394,11 @@ void keyboard_hdlr(void) {
     case ',':
     case '<':
       reverse = 1;
-      save_prefs();
       switch_mailbox(curr_mbox);
       break;
     case '.':
     case '>':
       reverse = 0;
-      save_prefs();
       switch_mailbox(curr_mbox);
       break;
     case 0x80 + 'd': // OA-D "Update date using NTP"
@@ -2415,6 +2426,7 @@ void keyboard_hdlr(void) {
     case 'q':
     case 'Q':
       if (prompt_okay("Quit - ")) {
+        save_prefs();
         clrscr2();
         exit(0);
       }
@@ -2435,9 +2447,7 @@ void main(void) {
   videomode(VIDEOMODE_80COL);
   readconfigfile();
   load_prefs();
-  first_msg = 1;
   read_email_db(first_msg, 1, 0);
-  selection = 1;
   email_summary();
   keyboard_hdlr();
 }
