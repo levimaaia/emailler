@@ -334,6 +334,41 @@ void readconfigfile(void) {
   }
 }
 
+// Entry on kill-list
+struct killent {
+  char *address;
+  struct killent *next;
+};
+
+struct killent *killlist = NULL;
+
+/*
+ * Read email addresses from KILL.LIST.CFG
+ * Returns 0 if kill-list exists, 1 if it does not
+ */
+uint8_t readkilllist(void) {
+  struct killent *p, *q;
+  char *s;
+  fp = fopen("KILL.LIST.CFG", "r");
+  if (!fp)
+    return 1;
+  killlist = p = malloc(sizeof(struct killent));
+  killlist->address = NULL;
+  killlist->next = NULL;
+  while (!feof(fp)) {
+    fscanf(fp, "%s", linebuf);
+    s = malloc(strlen(linebuf) + 1);
+    strcpy(s, linebuf);
+    q = malloc(sizeof(struct killent));
+    q->address = s;
+    q->next = NULL;
+    p->next = q;
+    p = q;
+  }
+  fclose(fp);
+  return 0;
+}
+
 /*
  * Read a text file a line at a time
  * Returns number of chars in the line, or 0 if EOF.
@@ -419,6 +454,21 @@ void write_next_email(uint16_t num) {
 #endif
 
 /*
+ * Check if a sender is on the kill-list.
+ * sender - email address of sender
+ * Returns 1 if on kill-list, false otherwise.
+ */
+uint8_t sender_is_on_killlist(char *sender) {
+  struct killent *p = killlist;
+  while (p && p->next) {
+    if (strstr(sender, p->address))
+      return 1;
+    p = p->next;
+  }
+  return 0;
+}
+
+/*
  * Update mailbox
  * Copy messages from spool dir to mailbox and find headers of interest
  * (Date, From, Subject)
@@ -427,7 +477,7 @@ void update_mailbox(char *mbox) {
   static struct emailhdrs hdrs;
   struct dirent *d;
   uint16_t msg, chars, headerchars;
-  uint8_t headers;
+  uint8_t headers, kill;
   FILE *destfp;
   DIR *dp;
   sprintf(filename, "%s/NEWS.SPOOL", cfg_emaildir);
@@ -443,7 +493,7 @@ void update_mailbox(char *mbox) {
     }
     hdrs.emailnum = msg = atoi(&(d->d_name[5]));
     sprintf(filename, "%s/%s/EMAIL.%u", cfg_emaildir, mbox, msg);
-    puts(filename);
+    fputs(filename, stdout);
     _filetype = PRODOS_T_TXT;
     _auxtype = 0;
     destfp = fopen(filename, "wb");
@@ -452,6 +502,7 @@ void update_mailbox(char *mbox) {
       closedir(dp);
       error_exit();
     }
+    kill = 0;
     headers = 1;
     headerchars = 0;
     hdrs.skipbytes = 0; // Just in case it doesn't get set
@@ -472,6 +523,11 @@ void update_mailbox(char *mbox) {
         if (!strncmp(linebuf, "From: ", 6)) {
           copyheader(hdrs.from, linebuf + 6, 79);
           hdrs.from[79] = '\0';
+          if (sender_is_on_killlist(hdrs.from)) {
+            fputs(" - KILLED!", stdout);
+            kill = 1;
+            break;
+          }
         }
         // Store Organization in CC field
         if (!strncmp(linebuf, "Organization: ", 14)) {
@@ -491,7 +547,11 @@ void update_mailbox(char *mbox) {
     }
     fclose(fp);
     fclose(destfp);
-    update_email_db(mbox, &hdrs);
+    if (kill == 0)
+      update_email_db(mbox, &hdrs);
+    else
+      unlink(filename);
+    puts("");
 
     sprintf(filename, "%s/NEWS.SPOOL/NEWS.%u", cfg_emaildir, msg);
     if (unlink(filename))
@@ -516,7 +576,13 @@ void main(int argc, char *argv[]) {
   printf("\nReading NEWS.CFG             -");
   readconfigfile();
   printf(" Ok");
-
+  
+  printf("\nReading KILL.LIST.CFG        -");
+  if (readkilllist() == 0)
+    printf(" Ok");
+  else
+    printf(" None");
+  
   printf("\nReading NEWSGROUPS.CFG       - ");
   sprintf(filename, "%s/NEWSGROUPS.CFG", cfg_emaildir);
   newsgroupsfp = fopen(filename, "r");
