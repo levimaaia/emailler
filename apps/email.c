@@ -493,6 +493,7 @@ uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox)
   }
   num_msgs = 0;
   goto_prompt_row();
+  putchar(CLRLINE);
   fputs("Loading message headers  ", stdout);
   while (1) {
     spinner();
