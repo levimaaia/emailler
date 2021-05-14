@@ -2233,6 +2233,27 @@ done:
 }
 
 /*
+ * Move to the next message, if there is one.
+ * Called by the code that handles down arrow.
+ * Returns 1 if there are more messages below, 0 otherwise
+ */
+uint8_t go_to_next_message(void) {
+  if (selection < num_msgs) {
+    prevselection = selection;
+    ++selection;
+    update_highlighted();
+    return 1;
+  } else if (first_msg + selection - 1 < total_msgs) {
+    first_msg += MSGS_PER_PAGE;
+    read_email_db(first_msg, 0, 0);
+    selection = 1;
+    email_summary();
+    return 1;
+  } else
+    return 0;
+}
+
+/*
  * Keyboard handler
  */
 void keyboard_hdlr(void) {
@@ -2296,16 +2317,7 @@ void keyboard_hdlr(void) {
     case 'j':
     case 'J':
     case DOWNARROW:
-      if (selection < num_msgs) {
-        prevselection = selection;
-        ++selection;
-        update_highlighted();
-      } else if (first_msg + selection - 1 < total_msgs) {
-        first_msg += MSGS_PER_PAGE;
-        read_email_db(first_msg, 0, 0);
-        selection = 1;
-        email_summary();
-      }
+      go_to_next_message();
       break;
     case RETURN:
     case ' ':
@@ -2325,6 +2337,18 @@ void keyboard_hdlr(void) {
         h->status = 'D';
         write_updated_headers(h, get_db_index());
         email_summary_for(selection);
+      }
+      break;
+    case 0x04: // Ctrl-D
+      if (prompt_okay("Mark deleted from here down - ")) {
+        do {
+          h = get_headers(selection);
+          if (h) {
+            h->status = 'D';
+            write_updated_headers(h, get_db_index());
+            email_summary_for(selection);
+          }
+        } while(go_to_next_message() == 1);
       }
       break;
     case 'u':
