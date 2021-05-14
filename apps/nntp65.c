@@ -381,6 +381,11 @@ uint16_t get_line(FILE *fp, char *writep, uint16_t n) {
   static uint16_t rd = 0; // Read
   static uint16_t end = 0; // End of valid data in buf
   uint16_t i = 0;
+  // Special case, if fp is NULL then reset the state
+  if (!fp) {
+    rd = end = 0;
+    return 0;
+  }
   while (1) {
     if (rd == end) {
       end = fread(buf, 1, READSZ, fp);
@@ -477,7 +482,7 @@ void update_mailbox(char *mbox) {
   static struct emailhdrs hdrs;
   struct dirent *d;
   uint16_t msg, chars, headerchars;
-  uint8_t headers, kill;
+  uint8_t headers, onkilllist;
   FILE *destfp;
   DIR *dp;
   sprintf(filename, "%s/NEWS.SPOOL", cfg_emaildir);
@@ -485,6 +490,7 @@ void update_mailbox(char *mbox) {
   while (d = readdir(dp)) {
     strcpy(linebuf, "");
     sprintf(filename, "%s/NEWS.SPOOL/%s", cfg_emaildir, d->d_name);
+    get_line(NULL, NULL, 0); // Reset get_line() state
     fp = fopen(filename, "r");
     if (!fp) {
       printf("Can't open %s\n", filename);
@@ -502,7 +508,7 @@ void update_mailbox(char *mbox) {
       closedir(dp);
       error_exit();
     }
-    kill = 0;
+    onkilllist = 0;
     headers = 1;
     headerchars = 0;
     hdrs.skipbytes = 0; // Just in case it doesn't get set
@@ -510,9 +516,9 @@ void update_mailbox(char *mbox) {
     hdrs.tag = ' ';
     hdrs.date[0] = hdrs.from[0] = hdrs.cc[0] = hdrs.subject[0] = '\0';
     // Store News:newsgroup in TO field
-    strcpy(filename, "News:");
-    strcat(filename, newsgroup);
-    copyheader(hdrs.to, filename, 79);
+    strcpy(linebuf, "News:");
+    strcat(linebuf, newsgroup);
+    copyheader(hdrs.to, linebuf, 79);
     while ((chars = get_line(fp, linebuf, LINEBUFSZ)) != 0) {
       if (headers) {
         headerchars += chars;
@@ -525,7 +531,7 @@ void update_mailbox(char *mbox) {
           hdrs.from[79] = '\0';
           if (sender_is_on_killlist(hdrs.from)) {
             fputs(" - KILLED!", stdout);
-            kill = 1;
+            onkilllist = 1;
             break;
           }
         }
@@ -547,10 +553,10 @@ void update_mailbox(char *mbox) {
     }
     fclose(fp);
     fclose(destfp);
-    if (kill == 0)
-      update_email_db(mbox, &hdrs);
-    else
+    if (onkilllist == 1)
       unlink(filename);
+    else
+      update_email_db(mbox, &hdrs);
     puts("");
 
     sprintf(filename, "%s/NEWS.SPOOL/NEWS.%u", cfg_emaildir, msg);
