@@ -58,6 +58,9 @@ char outbox[]       = "OUTBOX";
 char news_outbox[]  = "NEWS.OUTBOX";
 char cant_open[]    = "Can't open %s";
 char cant_seek[]    = "Can't seek in %s";
+char cant_malloc[]  = "Can't allocate memory";
+char cant_delete[]  = "Can't delete %s";
+char cant_write[]   = "Can't write to %s";
 char mime_ver[]     = "MIME-Version: 1.0";
 char ct[]           = "Content-Type: ";
 char cte[]          = "Content-Transfer-Encoding: ";
@@ -489,10 +492,13 @@ uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox)
     }
   }
   num_msgs = 0;
+  goto_prompt_row();
+  fputs("Loading message headers  ", stdout);
   while (1) {
+    spinner();
     curr = (struct emailhdrs*)malloc(sizeof(struct emailhdrs));
     if (!curr)
-      error(ERR_FATAL, "Can't malloc()");
+      error(ERR_FATAL, cant_malloc);
     curr->next = NULL;
     curr->tag = ' ';
     l = fread(curr, 1, EMAILHDRS_SZ_ON_DISK, fp);
@@ -1366,7 +1372,7 @@ void write_updated_headers(struct emailhdrs *h, uint16_t pos) {
     error(ERR_FATAL, cant_seek, filename);
   l = fwrite(h, 1, EMAILHDRS_SZ_ON_DISK, fp);
   if (l != EMAILHDRS_SZ_ON_DISK)
-    error(ERR_FATAL, "Can't write to %s", filename);
+    error(ERR_FATAL, cant_write, filename);
   fclose(fp);
 }
 
@@ -1432,7 +1438,7 @@ void purge_deleted(void) {
   uint16_t l;
   h = (struct emailhdrs*)malloc(sizeof(struct emailhdrs));
   if (!h)
-    error(ERR_FATAL, "Can't malloc()");
+    error(ERR_FATAL, cant_malloc);
   snprintf(filename, 80, email_db, cfg_emaildir, curr_mbox);
   fp = fopen(filename, "rb");
   if (!fp) {
@@ -1456,7 +1462,7 @@ void purge_deleted(void) {
     if (h->status == 'D') {
       snprintf(filename, 80, email_file, cfg_emaildir, curr_mbox, h->emailnum);
       if (unlink(filename)) {
-        error(ERR_NONFATAL, "Can't delete %s", filename);
+        error(ERR_NONFATAL, cant_delete, filename);
       }
       goto_prompt_row();
       putchar(CLRLINE);
@@ -1464,7 +1470,7 @@ void purge_deleted(void) {
     } else {
       l = fwrite(h, 1, EMAILHDRS_SZ_ON_DISK, fp2);
       if (l != EMAILHDRS_SZ_ON_DISK) {
-        error(ERR_NONFATAL, "Can't write to %s", filename);
+        error(ERR_NONFATAL, cant_write, filename);
         free(h);
         fclose(fp);
         fclose(fp2);
@@ -1478,7 +1484,7 @@ done:
   fclose(fp2);
   snprintf(filename, 80, email_db, cfg_emaildir, curr_mbox);
   if (unlink(filename)) {
-    error(ERR_NONFATAL, "Can't delete %s", filename);
+    error(ERR_NONFATAL, cant_delete, filename);
     return;
   }
   snprintf(userentry, 80, email_db_new, cfg_emaildir, curr_mbox);
@@ -2069,7 +2075,7 @@ uint8_t copy_to_mailbox_tagged(char *mbox, uint8_t delete) {
     return 0;
   h = (struct emailhdrs*)malloc(sizeof(struct emailhdrs));
   if (!h)
-    error(ERR_FATAL, "Can't malloc()");
+    error(ERR_FATAL, cant_malloc);
   while (1) {
     snprintf(filename, 80, email_db, cfg_emaildir, curr_mbox);
     _filetype = PRODOS_T_BIN;
