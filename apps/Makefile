@@ -120,7 +120,7 @@ ATARI_CFG = atari.cfg
 	ld65 -o $*.prg -C c64.cfg -m $*.c64.map -vm $< $(IP65LIB) $(C64DRIVERLIB) c64.lib
 
 %.bin: %.s.o $(BUILDS)
-	ld65 -o $*.bin -C apple2.cfg -m $*.a2.map -vm $< $(IP65LIB) $(A2DRIVERLIB) apple2.lib
+	ld65 -o $*.bin -C apple2enh-loader.cfg -m $*.a2.map -vm $< $(IP65LIB) $(A2DRIVERLIB) apple2.lib
 
 %.com: %.s.o $(BUILDS)
 	ld65 -o $*.com -C $(ATARI_CFG) -m $*.atr.map -vm $< $(IP65LIB) $(ATRDRIVERLIB) atari.lib

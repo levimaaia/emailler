@@ -20,7 +20,7 @@
 #include "email_common.h"
 
 // Program constants
-#define MSGS_PER_PAGE 19     // Number of messages shown on summary screen
+#define MSGS_PER_PAGE 18 //19     // Number of messages shown on summary screen
 #define PROMPT_ROW    24     // Row that data entry prompt appears on
 #define LINEBUFSZ     1000   // According to RFC2822 Section 2.1.1 (998+CRLF)
 #define READSZ        512    // Size of buffer for copying files
@@ -574,7 +574,7 @@ uint16_t decode_base64(char *p) {
     p[j++] = b[p[i]] << 2 | b[p[i + 1]] >> 4;
     if (p[i + 2] != '=')
       p[j++] = b[p[i + 1]] << 4 | b[p[i + 2]] >> 2;
-    if (linebuf[i + 3] != '=')
+    if (p[i + 3] != '=')
       p[j++] = b[p[i + 2]] << 6 | b[p[i + 3]];
     i += 4;
   }
@@ -2465,6 +2465,7 @@ void main(void) {
     error(ERR_FATAL, "Need 128K");
 
   videomode(VIDEOMODE_80COL);
+  // printf("heapmemavail=%d heapmaxavail=%d\n", _heapmemavail(), _heapmaxavail());
   readconfigfile();
   load_prefs();
   read_email_db(first_msg, 1, 0);
