@@ -20,7 +20,7 @@
 #include "email_common.h"
 
 // Program constants
-#define MSGS_PER_PAGE 18 //19     // Number of messages shown on summary screen
+#define MSGS_PER_PAGE 19     // Number of messages shown on summary screen
 #define PROMPT_ROW    24     // Row that data entry prompt appears on
 #define LINEBUFSZ     1000   // According to RFC2822 Section 2.1.1 (998+CRLF)
 #define READSZ        512    // Size of buffer for copying files
@@ -985,19 +985,15 @@ void copyaux(char *src, char *dst, uint16_t len, uint8_t dir) {
     char **a2 = (char**)0x3e;
     char **a4 = (char**)0x42;
     *a1 = src;
-    *a2 = src + len - 1; // AUXMOVE moves length+1 bytes!!
+    *a2 = src + len - 1;  // AUXMOVE moves length+1 bytes!!
     *a4 = dst;
-    if (dir == TOAUX) {
-        __asm__("sta $c000"); // Turn off 80STORE
-        __asm__("sec");       // Copy main->aux
-        __asm__("jsr $c311"); // AUXMOVE
-        __asm__("sta $c001"); // Turn on 80STORE
-    } else {
-        __asm__("sta $c000"); // Turn off 80STORE
-        __asm__("clc");       // Copy aux->main
-        __asm__("jsr $c311"); // AUXMOVE
-        __asm__("sta $c001"); // Turn on 80STORE
-    }
+    if (dir == TOAUX)
+        __asm__("sec");   // Copy main->aux
+    else
+        __asm__("clc");   // Copy aux->main
+    __asm__("sta $c000"); // Turn off 80STORE
+    __asm__("jsr $c311"); // AUXMOVE
+    __asm__("sta $c001"); // Turn on 80STORE
 }
 
 /*
@@ -1021,6 +1017,7 @@ void save_screen_to_scrollback(FILE *fp) {
  * Does not trash the screen holes, which must be preserved!
  */
 void load_screen_from_scrollback(FILE *fp, uint8_t screen) {
+  uint8_t i;
   if (fseek(fp, (screen - 1) * 0x0800, SEEK_SET)) {
     error(ERR_NONFATAL, sb_err);
     return;
@@ -1029,26 +1026,14 @@ void load_screen_from_scrollback(FILE *fp, uint8_t screen) {
     error(ERR_NONFATAL, sb_err);
     return;
   }
-  memcpy((void*)0x400, halfscreen + 0x000, 0x078);
-  memcpy((void*)0x480, halfscreen + 0x080, 0x078);
-  memcpy((void*)0x500, halfscreen + 0x100, 0x078);
-  memcpy((void*)0x580, halfscreen + 0x180, 0x078);
-  memcpy((void*)0x600, halfscreen + 0x200, 0x078);
-  memcpy((void*)0x680, halfscreen + 0x280, 0x078);
-  memcpy((void*)0x700, halfscreen + 0x300, 0x078);
-  memcpy((void*)0x780, halfscreen + 0x380, 0x078);
+  for (i = 0; i < 8; ++i)
+    memcpy((char*)0x400 + i * 0x80, halfscreen + i * 0x80, 0x078);
   if (fread(halfscreen, 0x0400, 1, fp) != 1) { // Odd cols
     error(ERR_NONFATAL, sb_err);
     return;
   }
-  copyaux(halfscreen + 0x000, (void*)0x400, 0x078, TOAUX);
-  copyaux(halfscreen + 0x080, (void*)0x480, 0x078, TOAUX);
-  copyaux(halfscreen + 0x100, (void*)0x500, 0x078, TOAUX);
-  copyaux(halfscreen + 0x180, (void*)0x580, 0x078, TOAUX);
-  copyaux(halfscreen + 0x200, (void*)0x600, 0x078, TOAUX);
-  copyaux(halfscreen + 0x280, (void*)0x680, 0x078, TOAUX);
-  copyaux(halfscreen + 0x300, (void*)0x700, 0x078, TOAUX);
-  copyaux(halfscreen + 0x380, (void*)0x780, 0x078, TOAUX);
+  for (i = 0; i < 8; ++i)
+    copyaux(halfscreen + i * 0x80, (char*)0x400 + i * 0x80, 0x078, TOAUX);
   if (fseek(fp, 0, SEEK_END)) {
     error(ERR_NONFATAL, sb_err);
     return;
@@ -2465,7 +2450,7 @@ void main(void) {
     error(ERR_FATAL, "Need 128K");
 
   videomode(VIDEOMODE_80COL);
-  // printf("heapmemavail=%d heapmaxavail=%d\n", _heapmemavail(), _heapmaxavail());
+  //printf("heapmemavail=%d heapmaxavail=%d\n", _heapmemavail(), _heapmaxavail());
   readconfigfile();
   load_prefs();
   read_email_db(first_msg, 1, 0);
