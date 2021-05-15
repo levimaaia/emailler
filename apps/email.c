@@ -45,30 +45,31 @@
 #define SYSTEMTIME    0xbf90
 #define KEYBOARD      0xc000
 
-char closedapple[]  = "\x0f\x1b""@\x18\x0e";
-char openapple[]    = "\x0f\x1b""A\x18\x0e";
-char email[]        = "EMAIL";
-char email_cfg[]    = "EMAIL.CFG";
-char email_prefs[]  = "EMAIL.PREFS";
-char email_db[]     = "%s/%s/EMAIL.DB";
-char email_db_new[] = "%s/%s/EMAIL.DB.NEW";
-char next_email[]   = "%s/%s/NEXT.EMAIL";
-char email_file[]   = "%s/%s/EMAIL.%u";
-char outbox[]       = "OUTBOX";
-char news_outbox[]  = "NEWS.OUTBOX";
-char cant_open[]    = "Can't open %s";
-char cant_seek[]    = "Can't seek in %s";
-char cant_malloc[]  = "Can't allocate memory";
-char cant_delete[]  = "Can't delete %s";
-char cant_write[]   = "Can't write to %s";
-char mime_ver[]     = "MIME-Version: 1.0";
-char ct[]           = "Content-Type: ";
-char cte[]          = "Content-Transfer-Encoding: ";
-char qp[]           = "quoted-printable";
-char b64[]          = "base64";
-char unsupp_enc[]   = "** Unsupp encoding %s\n";
-char sb_err[]       = "Scrollback error";
-char a2_forever[]   = "%s: %s - Apple II Forever!\r\r";
+static char closedapple[]  = "\x0f\x1b""@\x18\x0e";
+static char openapple[]    = "\x0f\x1b""A\x18\x0e";
+static char email[]        = "EMAIL";
+static char email_cfg[]    = "EMAIL.CFG";
+static char email_prefs[]  = "EMAIL.PREFS";
+static char email_db[]     = "%s/%s/EMAIL.DB";
+static char email_db_new[] = "%s/%s/EMAIL.DB.NEW";
+static char next_email[]   = "%s/%s/NEXT.EMAIL";
+static char email_file[]   = "%s/%s/EMAIL.%u";
+static char inbox[]        = "INBOX";
+static char outbox[]       = "OUTBOX";
+static char news_outbox[]  = "NEWS.OUTBOX";
+static char cant_open[]    = "Can't open %s";
+static char cant_seek[]    = "Can't seek in %s";
+static char cant_malloc[]  = "Can't alloc";
+static char cant_delete[]  = "Can't delete %s";
+static char cant_write[]   = "Can't write to %s";
+static char mime_ver[]     = "MIME-Version: 1.0";
+static char ct[]           = "Content-Type: ";
+static char cte[]          = "Content-Transfer-Encoding: ";
+static char qp[]           = "quoted-printable";
+static char b64[]          = "base64";
+static char unsupp_enc[]   = "** Unsupp encoding %s\n";
+static char sb_err[]       = "Scrollback error";
+static char a2_forever[]   = "%s: %s - Apple II Forever!\r\r";
 
 /*
  * Represents a date and time
@@ -83,21 +84,22 @@ struct datetime {
     unsigned char nodatetime;
 };
 
-char                  filename[80];
-char                  userentry[80];
-char                  linebuf[LINEBUFSZ];
-char                  halfscreen[0x0400];
-FILE                  *fp;
-struct emailhdrs      *headers;
-uint16_t              selection, prevselection;
-uint16_t              num_msgs;    // Num of msgs shown in current page
-uint16_t              total_msgs;  // Total number of message in mailbox
-uint16_t              total_new;   // Total number of new messages
-uint16_t              total_tag;   // Total number of tagged messages
-uint16_t              first_msg;   // Msg numr: first message current page
-uint8_t               reverse;     // 0 normal, 1 reverse order
-char                  curr_mbox[80];
-unsigned char         buf[READSZ];
+static char              filename[80];
+static char              userentry[80];
+static char              linebuf[LINEBUFSZ];
+static char              halfscreen[0x0400];
+static FILE              *fp;
+static struct emailhdrs  *headers;
+static uint16_t          selection = 1;
+static uint16_t          prevselection;
+static uint16_t          num_msgs;        // Num of msgs shown in current page
+static uint16_t          total_msgs;      // Total number of message in mailbox
+static uint16_t          total_new;       // Total number of new messages
+static uint16_t          total_tag;       // Total number of tagged messages
+static uint16_t          first_msg = 1;   // Msg numr: first message current page
+static uint8_t           reverse = 0;     // 0 normal, 1 reverse order
+static char              curr_mbox[80] = "INBOX";
+static unsigned char     buf[READSZ];
 
 
 #define ERR_NONFATAL 0
@@ -106,7 +108,6 @@ unsigned char         buf[READSZ];
 /*
  * Save preferences
  */
-#pragma code-name (push, "LC")
 void save_prefs(void) {
   _filetype = PRODOS_T_TXT;
   _auxtype = 0;
@@ -119,21 +120,16 @@ void save_prefs(void) {
   fprintf(fp, "s:%d\n", selection);
   fclose(fp);
 }
-#pragma code-name (pop)
 
 /*
  * Load preferences
  */
+#pragma code-name (push, "LC")
 void load_prefs(void) {
   char order = 'a';
   fp = fopen(email_prefs, "rb");
-  if (!fp) {
-    reverse = 0;
-    strcpy(curr_mbox, "INBOX");
-    first_msg = 1;
-    selection = 1;
+  if (!fp)
     return;
-  }
   fscanf(fp, "o:%c\n", &order);
   fscanf(fp, "m:%s\n", curr_mbox);
   fscanf(fp, "f:%d\n", &first_msg);
@@ -141,6 +137,7 @@ void load_prefs(void) {
   fclose(fp);
   reverse = (order == '<' ? 1 : 0);
 }
+#pragma code-name (pop)
 
 /*
  * Load and run EDIT.SYSTEM
@@ -494,7 +491,7 @@ uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox)
   num_msgs = 0;
   goto_prompt_row();
   putchar(CLRLINE);
-  fputs("Loading message headers  ", stdout);
+  fputs("Loading  ", stdout);
   while (1) {
     spinner();
     curr = (struct emailhdrs*)malloc(sizeof(struct emailhdrs));
@@ -1416,7 +1413,7 @@ void switch_mailbox(char *mbox) {
   uint8_t err;
   // Treat '.' as shortcut for INBOX
   if (!strcmp(mbox, "."))
-    strcpy(mbox, "INBOX");
+    strcpy(mbox, inbox);
   strcpy(prev_mbox, curr_mbox);
   strcpy(curr_mbox, mbox);
   first_msg = 1;
@@ -1443,6 +1440,7 @@ void purge_deleted(void) {
   snprintf(filename, 80, email_db, cfg_emaildir, curr_mbox);
   fp = fopen(filename, "rb");
   if (!fp) {
+    free(h);
     error(ERR_NONFATAL, cant_open, filename);
     return;
   }
@@ -1451,6 +1449,7 @@ void purge_deleted(void) {
   _auxtype = 0;
   fp2 = fopen(filename, "wb");
   if (!fp2) {
+    free(h);
     fclose(fp);
     error(ERR_NONFATAL, cant_open, filename);
     return;
@@ -1561,7 +1560,7 @@ uint8_t parse_from_addr(char *p, char *q) {
     if (end)
       l = end - start - 1;
     else {
-      error(ERR_NONFATAL, "Bad address format '%s'", p);
+      error(ERR_NONFATAL, "Bad address '%s'", p);
       return 1;
     }
   }
@@ -2339,6 +2338,7 @@ void keyboard_hdlr(void) {
         email_summary_for(selection);
       }
       break;
+#if 0
     case 0x04: // Ctrl-D
       if (prompt_okay("Mark deleted from here down - ")) {
         do {
@@ -2351,6 +2351,7 @@ void keyboard_hdlr(void) {
         } while(go_to_next_message() == 1);
       }
       break;
+#endif
     case 'u':
     case 'U':
       if (h) {
