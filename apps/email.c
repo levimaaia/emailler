@@ -1461,9 +1461,8 @@ void purge_deleted(void) {
       goto done;
     if (h->status == 'D') {
       snprintf(filename, 80, email_file, cfg_emaildir, curr_mbox, h->emailnum);
-      if (unlink(filename)) {
+      if (unlink(filename))
         error(ERR_NONFATAL, cant_delete, filename);
-      }
       goto_prompt_row();
       putchar(CLRLINE);
       printf("%u msgs deleted", ++delcount);
@@ -2298,21 +2297,6 @@ void keyboard_hdlr(void) {
         email_summary();
       }
       break;
-    case 't':
-    case 'T':
-      if (h) {
-        if (h->tag == 'T') {
-          h->tag = ' ';
-          --total_tag;
-        } else {
-          h->tag = 'T';
-          ++total_tag;
-        }
-        write_updated_headers(h, get_db_index());
-        email_summary_for(selection);
-        status_bar();
-      }
-      // Fallthrough so tagging also moves down!!!
     case 'j':
     case 'J':
     case DOWNARROW:
@@ -2330,34 +2314,38 @@ void keyboard_hdlr(void) {
         email_summary();
       }
       break;
+    case 't':
+    case 'T':
+      if (h) {
+        if (h->tag == 'T') {
+          h->tag = ' ';
+          --total_tag;
+        } else {
+          h->tag = 'T';
+          ++total_tag;
+        }
+        write_updated_headers(h, get_db_index());
+        email_summary_for(selection);
+        status_bar();
+        go_to_next_message();
+      }
+      break;
     case 'd':
     case 'D':
       if (h) {
         h->status = 'D';
         write_updated_headers(h, get_db_index());
         email_summary_for(selection);
+        go_to_next_message();
       }
       break;
-#if 0
-    case 0x04: // Ctrl-D
-      if (prompt_okay("Mark deleted from here down - ")) {
-        do {
-          h = get_headers(selection);
-          if (h) {
-            h->status = 'D';
-            write_updated_headers(h, get_db_index());
-            email_summary_for(selection);
-          }
-        } while(go_to_next_message() == 1);
-      }
-      break;
-#endif
     case 'u':
     case 'U':
       if (h) {
         h->status = 'R';
         write_updated_headers(h, get_db_index());
         email_summary_for(selection);
+        go_to_next_message();
       }
       break;
     case 'c':
