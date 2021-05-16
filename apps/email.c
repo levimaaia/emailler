@@ -962,18 +962,18 @@ void sanitize_filename(char *s) {
   char c;
   while (1) {
     c = s[i++];
-    if (c == '\r') {
-      s[j] = '\0';
-      return;
-    }
+    if (c == '\r')
+      break;
     if (isalnum(c) || c == '.' || c == '/')
       s[j++] = c;
     if (j == 15) {
-      s[j] = '\0';
       break;
     }
   }
+  s[j] = '\0';
 }
+
+
 
 #define FROMAUX 0
 #define TOAUX   1
@@ -1018,11 +1018,8 @@ void save_screen_to_scrollback(FILE *fp) {
  */
 void load_screen_from_scrollback(FILE *fp, uint8_t screen) {
   uint8_t i;
-  if (fseek(fp, (screen - 1) * 0x0800, SEEK_SET)) {
-    error(ERR_NONFATAL, sb_err);
-    return;
-  }
-  if (fread(halfscreen, 0x0400, 1, fp) != 1) { // Even cols
+  if (fseek(fp, (screen - 1) * 0x0800, SEEK_SET) ||
+     (fread(halfscreen, 0x0400, 1, fp) != 1)) { // Even cols
     error(ERR_NONFATAL, sb_err);
     return;
   }
@@ -1039,6 +1036,9 @@ void load_screen_from_scrollback(FILE *fp, uint8_t screen) {
     return;
   }
 }
+
+
+
 
 #define ENC_7BIT 0   // 7bit
 #define ENC_QP   1   // Quoted-Printable
