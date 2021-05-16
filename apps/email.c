@@ -260,21 +260,22 @@ char cgetc_update_status() {
 void error(uint8_t fatal, const char *fmt, ...) {
   va_list v;
   va_start(v, fmt);
-  vprintf(fmt, v);
-  va_end(v);
   if (fatal) {
     clrscr2();
     printf("\n\n%cFATAL ERROR:%c\n\n", INVERSE, NORMAL);
+    vprintf(fmt, v);
     printf("\n\n\n\n[Press Any Key To Quit]");
     cgetc();
     exit(1);
   } else {
     goto_prompt_row();
     putchar(CLRLINE);
+    vprintf(fmt, v);
     printf(" - [Press Any Key]");
     cgetc();
     putchar(CLRLINE);
   }
+  va_end(v);
 }
 #pragma code-name (pop)
 
