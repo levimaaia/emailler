@@ -1395,15 +1395,19 @@ void new_mailbox(char *mbox) {
  */
 void switch_mailbox(char *mbox) {
   char prev_mbox[80];
-  uint8_t err;
+  uint8_t i = 0;
   // Treat '.' as shortcut for INBOX
   if (!strcmp(mbox, "."))
     strcpy(mbox, inbox);
+  while(mbox[i]) {
+    mbox[i] = toupper(mbox[i]);
+    ++i;
+  }
   strcpy(prev_mbox, curr_mbox);
   strcpy(curr_mbox, mbox);
   first_msg = 1;
-  err = read_email_db(first_msg, 1, 1); // Errors non-fatal
-  if (err) {
+  i = read_email_db(first_msg, 1, 1); // Errors non-fatal
+  if (i) {
     strcpy(curr_mbox, prev_mbox);
     return;
   }
