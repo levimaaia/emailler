@@ -1618,7 +1618,7 @@ esc_pressed:
  */
 void subject_response(FILE *f, char *s) {
   decode_subject(s);
-  fprintf(f, "Subject: %s%s\r", (strncmp(s, "Re: ", 3) ? "Re: " : ""), linebuf);
+  fprintf(f, "Subject: %s%s\r", (strncmp(s, "Re: ", 4) ? "Re: " : ""), linebuf);
 }
 
 /*
@@ -1629,7 +1629,7 @@ void subject_response(FILE *f, char *s) {
  */
 void subject_forward(FILE *f, char *s) {
   decode_subject(s);
-  fprintf(f, "Subject: %s%s\r", (strncmp(s, "Fwd: ", 3) ? "Fwd: " : ""), linebuf);
+  fprintf(f, "Subject: %s%s\r", (strncmp(s, "Fwd: ", 5) ? "Fwd: " : ""), linebuf);
 }
 
 /*
