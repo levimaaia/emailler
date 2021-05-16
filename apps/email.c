@@ -108,6 +108,7 @@ static unsigned char     buf[READSZ];
 /*
  * Save preferences
  */
+#pragma code-name (push, "LC")
 void save_prefs(void) {
   _filetype = PRODOS_T_TXT;
   _auxtype = 0;
@@ -120,6 +121,7 @@ void save_prefs(void) {
   fprintf(fp, "s:%d\n", selection);
   fclose(fp);
 }
+#pragma code-name (pop)
 
 /*
  * Load preferences
@@ -257,27 +259,27 @@ char cgetc_update_status() {
 #pragma code-name (push, "LC")
 void error(uint8_t fatal, const char *fmt, ...) {
   va_list v;
+  va_start(v, fmt);
+  vprintf(fmt, v);
+  va_end(v);
   if (fatal) {
     clrscr2();
     printf("\n\n%cFATAL ERROR:%c\n\n", INVERSE, NORMAL);
-    va_start(v, fmt);
-    vprintf(fmt, v);
-    va_end(v);
     printf("\n\n\n\n[Press Any Key To Quit]");
     cgetc();
     exit(1);
   } else {
     goto_prompt_row();
     putchar(CLRLINE);
-    va_start(v, fmt);
-    vprintf(fmt, v);
-    va_end(v);
     printf(" - [Press Any Key]");
     cgetc();
     putchar(CLRLINE);
   }
 }
 #pragma code-name (pop)
+
+
+
 
 /*
  * Print spaces
@@ -332,15 +334,13 @@ void readconfigfile(void) {
   fp = fopen(email_cfg, "r");
   if (!fp)
     error(ERR_FATAL, cant_open, email_cfg);
-  fscanf(fp, "%s", cfg_server);
-  fscanf(fp, "%s", cfg_user);
-  fscanf(fp, "%s", cfg_pass);
-  fscanf(fp, "%s", cfg_pop_delete);
-  fscanf(fp, "%s", cfg_smtp_server);
-  fscanf(fp, "%s", cfg_smtp_domain);
-  fscanf(fp, "%s", cfg_instdir);
-  fscanf(fp, "%s", cfg_emaildir);
-  fscanf(fp, "%s", cfg_emailaddr);
+  fscanf(fp, "%s%s%s%s%s%s%s%s%s", cfg_server, cfg_user, cfg_pass,
+                                   cfg_pop_delete, cfg_smtp_server,
+                                   cfg_smtp_domain, cfg_instdir,
+                                   cfg_emaildir, cfg_emailaddr);
+
+
+
   fclose(fp);
 }
 #pragma code-name (pop)
@@ -355,7 +355,7 @@ void readdatetime(struct datetime *dt) {
     __asm__("jsr $bf06"); // ProDOS DATETIME call: Updates vals at SYSTEMTIME
     d = time[0] + 256U * time[1];
     t = time[2] + 256U * time[3];
-    if ((d == 0) && (t == 0)) {
+    if ((d | t) == 0) {
         dt->nodatetime = 1;
         return;
     }
@@ -852,8 +852,8 @@ uint8_t word_wrap_line(FILE *fp, char **s, uint8_t cols, char mode) {
     if (l > (ret - ss) + 1)        // If '\r' is not at the end ...
       nextline = ss + (ret - ss) + 1; // Keep track of next line(s)
     l = ret - ss;
-  }
-  if (ret) {
+
+
     if ((col + l) <= cols) {         // Fits on this line
       col += l;
       putline(fp, ss);
