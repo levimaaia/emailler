@@ -503,8 +503,8 @@ uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox)
     ++count;
     if (l != EMAILHDRS_SZ_ON_DISK) {
       free(curr);
-      fclose(fp);
-      return 0;
+      break;
+
     }
     if (count <= MSGS_PER_PAGE) {
       if (!prev)
@@ -516,8 +516,8 @@ uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox)
     } else {
       if (!initialize) {
         free(curr);
-        fclose(fp);
-        return 0;
+        break;
+
       }
       done_visible = 1;
     }
@@ -532,14 +532,14 @@ uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox)
     }
     if (reverse) {
       pos = ftell(fp) - 2L * EMAILHDRS_SZ_ON_DISK;
-      if (pos == -1L * EMAILHDRS_SZ_ON_DISK) {
-        fclose(fp);
-        return 0;
-      }
+      if (pos == -1L * EMAILHDRS_SZ_ON_DISK)
+        break;
+
+
       if (fseek(fp, pos, SEEK_SET)) {
         error(switchmbox ? ERR_NONFATAL : ERR_FATAL, cant_seek, filename);
-        fclose(fp);
-        return 0;
+        break;
+
       }
     }
   }
@@ -602,18 +602,18 @@ uint16_t decode_quoted_printable(uint8_t *p) {
   uint8_t c;
   while (c = p[i]) {
     if (c == '=') {
-      if (p[i + 1] == '\r') { // Trailing '=' is a soft '\r'
-        p[j] = '\0';
-        return j;
-      }
+      if (p[i + 1] == '\r') // Trailing '=' is a soft '\r'
+        break;
+
+
       // Otherwise '=xx' where x is a hex digit
       c = 16 * hexdigit(p[i + 1]) + hexdigit(p[i + 2]);
       p[j++] = c;
       i += 3;
-    } else if (c == '?') {
-      p[j] = '\0';
-      return j;
-    } else {
+    } else if (c == '?')
+      break;
+
+    else {
       p[j++] = c;
       ++i;
     }
