@@ -1038,7 +1038,23 @@ void load_screen_from_scrollback(FILE *fp, uint8_t screen) {
   }
 }
 
-
+/*
+ * Check if text at p is a MIME boundary.
+ * p is assumed to point to start of line.
+ * Valid MIME boundaries start with "--", then have a char sequence
+ * with no spaces, then CR
+ */
+uint8_t is_mime_boundary(char *p) {
+ if (strncmp(p, "--", 2))  // Must start with "--"
+   return 0;
+ p += 2;
+ do {
+   if (*p == ' ')               // Can not contain ' '
+     return 0;
+   ++p;
+ } while(*p && (*p != '\r'));
+ return 1;
+}
 
 
 #define ENC_7BIT 0   // 7bit
@@ -1135,7 +1151,7 @@ restart:
       goto endscreen;
     }
     ++linecount;
-    if ((mime >= 1) && (!strncmp(writep, "--", 2))) {
+    if ((mime >= 1) && is_mime_boundary(writep)) {
       if (attachfp)
         fclose(attachfp);
       if ((mime == 4) && mime_hasfile) {
@@ -1823,7 +1839,7 @@ void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
       writep = linebuf;
     if (get_line(fp, 0, writep, (LINEBUFSZ - (writep - linebuf)), &pos) == 0)
       break;
-    if ((mime >= 1) && (!strncmp(writep, "--", 2))) {
+    if ((mime >= 1) && is_mime_boundary(writep)) {
       if ((mime == 4) && !mime_binary) // End of Text/Plain MIME section
         break;
       mime = 2;
