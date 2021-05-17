@@ -1033,7 +1033,7 @@ uint8_t is_mime_boundary(char *p) {
    if (*p == ' ')               // Can not contain ' '
      return 0;
    ++p;
- } while(*p && (*p != '\r'));
+ } while (*p && (*p != '\r'));
  return 1;
 }
 
@@ -1396,7 +1396,7 @@ void switch_mailbox(char *mbox) {
   // Treat '.' as shortcut for INBOX
   if (!strcmp(mbox, "."))
     strcpy(mbox, inbox);
-  while(mbox[i]) {
+  while (mbox[i]) {
     mbox[i] = toupper(mbox[i]);
     ++i;
   }
@@ -1406,7 +1406,7 @@ void switch_mailbox(char *mbox) {
   i = read_email_db(first_msg, 1, 1); // Errors non-fatal
   if (i) {
     strcpy(curr_mbox, prev_mbox);
-    return;
+    i = read_email_db(first_msg, 1, 0); // Errors fatal
   }
   selection = 1;
   email_summary();
