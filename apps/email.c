@@ -101,7 +101,6 @@ static uint8_t           reverse = 0;     // 0 normal, 1 reverse order
 static char              curr_mbox[80] = "INBOX";
 static unsigned char     buf[READSZ];
 
-
 #define ERR_NONFATAL 0
 #define ERR_FATAL    1
 
@@ -279,9 +278,6 @@ void error(uint8_t fatal, const char *fmt, ...) {
 }
 #pragma code-name (pop)
 
-
-
-
 /*
  * Print spaces
  */
@@ -339,9 +335,6 @@ void readconfigfile(void) {
                                    cfg_pop_delete, cfg_smtp_server,
                                    cfg_smtp_domain, cfg_instdir,
                                    cfg_emaildir, cfg_emailaddr);
-
-
-
   fclose(fp);
 }
 #pragma code-name (pop)
@@ -505,7 +498,6 @@ uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox)
     if (l != EMAILHDRS_SZ_ON_DISK) {
       free(curr);
       break;
-
     }
     if (count <= MSGS_PER_PAGE) {
       if (!prev)
@@ -518,7 +510,6 @@ uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox)
       if (!initialize) {
         free(curr);
         break;
-
       }
       done_visible = 1;
     }
@@ -535,12 +526,9 @@ uint8_t read_email_db(uint16_t startnum, uint8_t initialize, uint8_t switchmbox)
       pos = ftell(fp) - 2L * EMAILHDRS_SZ_ON_DISK;
       if (pos == -1L * EMAILHDRS_SZ_ON_DISK)
         break;
-
-
       if (fseek(fp, pos, SEEK_SET)) {
         error(switchmbox ? ERR_NONFATAL : ERR_FATAL, cant_seek, filename);
         break;
-
       }
     }
   }
@@ -605,15 +593,12 @@ uint16_t decode_quoted_printable(uint8_t *p) {
     if (c == '=') {
       if (p[i + 1] == '\r') // Trailing '=' is a soft '\r'
         break;
-
-
       // Otherwise '=xx' where x is a hex digit
       c = 16 * hexdigit(p[i + 1]) + hexdigit(p[i + 2]);
       p[j++] = c;
       i += 3;
     } else if (c == '?')
       break;
-
     else {
       p[j++] = c;
       ++i;
@@ -853,8 +838,6 @@ uint8_t word_wrap_line(FILE *fp, char **s, uint8_t cols, char mode) {
     if (l > (ret - ss) + 1)        // If '\r' is not at the end ...
       nextline = ss + (ret - ss) + 1; // Keep track of next line(s)
     l = ret - ss;
-
-
     if ((col + l) <= cols) {         // Fits on this line
       col += l;
       putline(fp, ss);
@@ -974,8 +957,6 @@ void sanitize_filename(char *s) {
   s[j] = '\0';
 }
 
-
-
 #define FROMAUX 0
 #define TOAUX   1
 /*
@@ -1055,7 +1036,6 @@ uint8_t is_mime_boundary(char *p) {
  } while(*p && (*p != '\r'));
  return 1;
 }
-
 
 #define ENC_7BIT 0   // 7bit
 #define ENC_QP   1   // Quoted-Printable
