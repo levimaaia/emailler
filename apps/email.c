@@ -65,6 +65,8 @@ static char cant_write[]   = "Can't write to %s";
 static char mime_ver[]     = "MIME-Version: 1.0";
 static char ct[]           = "Content-Type: ";
 static char cte[]          = "Content-Transfer-Encoding: ";
+static char sevenbit[]     = "7bit";
+static char eightbit[]     = "8bit";
 static char qp[]           = "quoted-printable";
 static char b64[]          = "base64";
 static char unsupp_enc[]   = "** Unsupp encoding %s\n";
@@ -997,10 +999,27 @@ uint8_t is_mime_boundary(char *p) {
  return 1;
 }
 
-#define ENC_7BIT 0   // 7bit
-#define ENC_QP   1   // Quoted-Printable
-#define ENC_B64  2   // Base64
-#define ENC_SKIP 255 // Do nothing
+/*
+ * MIME encodings: 7 bit, quoted printable or base64
+ */
+enum mime_enc {ENC_7BIT, ENC_QP, ENC_B64, ENC_SKIP = 255};
+
+/*
+ * Parse text at s and return the MIME encoding
+ * s - Pointer to text being parsed
+ */
+enum mime_enc mime_encoding(char *s) {
+  if (!strncmp(s + 27, sevenbit, 4))
+    return ENC_7BIT;
+  else if (!strncmp(s + 27, eightbit, 4))
+    return ENC_7BIT;
+  else if (!strncmp(s + 27, qp, 16))
+    return ENC_QP;
+  else if (!strncmp(s + 27, b64, 6))
+    return ENC_B64;
+  else
+    return ENC_SKIP;
+}
 
 /*
  * Display email with simple pager functionality
@@ -1117,15 +1136,8 @@ restart:
         }
       } else if (!strncasecmp(writep, cte, 27)) {
         mime = 3;
-        if (!strncmp(writep + 27, "7bit", 4))
-          mime_enc = ENC_7BIT;
-        else if (!strncmp(writep + 27, "8bit", 4))
-          mime_enc = ENC_7BIT;
-        else if (!strncmp(writep + 27, qp, 16))
-          mime_enc = ENC_QP;
-        else if (!strncmp(writep + 27, b64, 6))
-          mime_enc = ENC_B64;
-        else {
+        mime_enc = mime_encoding(writep);
+        if (mime_enc == ENC_SKIP) {
           printf(unsupp_enc, writep + 27);
           mime = 1;
         }
@@ -1259,15 +1271,8 @@ retry:
             mime = 4;
           if (!strncasecmp(linebuf, cte, 27)) {
             mime = 4;
-            if (!strncmp(linebuf + 27, "7bit", 4))
-              mime_enc = ENC_7BIT;
-            else if (!strncmp(linebuf + 27, "8bit", 4))
-              mime_enc = ENC_7BIT;
-            else if (!strncmp(linebuf + 27, qp, 16))
-              mime_enc = ENC_QP;
-            else if (!strncmp(linebuf + 27, b64, 6))
-              mime_enc = ENC_B64;
-            else {
+            mime_enc = mime_encoding(linebuf);
+            if (mime_enc == ENC_SKIP) {
               mime = 0;
               break;
             }
@@ -1729,15 +1734,8 @@ void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
       mime = 4;
     if (!strncasecmp(linebuf, cte, 27)) {
       mime = 4;
-      if (!strncmp(linebuf + 27, "7bit", 4))
-        mime_enc = ENC_7BIT;
-      else if (!strncmp(linebuf + 27, "8bit", 4))
-        mime_enc = ENC_7BIT;
-      else if (!strncmp(linebuf + 27, qp, 16))
-        mime_enc = ENC_QP;
-      else if (!strncmp(linebuf + 27, b64, 6))
-        mime_enc = ENC_B64;
-      else {
+      mime_enc = mime_encoding(linebuf);
+      if (mime_enc == ENC_SKIP) {
         error(ERR_NONFATAL, unsupp_enc, linebuf + 27);
         return;
       }
@@ -1776,15 +1774,8 @@ void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
         }
       } else if (!strncasecmp(writep, cte, 27)) {
         mime = 3;
-        if (!strncmp(writep + 27, "7bit", 4))
-          mime_enc = ENC_7BIT;
-        else if (!strncmp(writep + 27, "8bit", 4))
-          mime_enc = ENC_7BIT;
-        else if (!strncmp(writep + 27, qp, 16))
-          mime_enc = ENC_QP;
-        else if (!strncmp(writep + 27, b64, 6))
-          mime_enc = ENC_B64;
-        else {
+        mime_enc = mime_encoding(writep);
+        if (mime_enc == ENC_SKIP) {
           printf(unsupp_enc, writep + 27);
           mime = 1;
         }
@@ -2387,7 +2378,7 @@ void main(void) {
     error(ERR_FATAL, "Need 128K");
 
   videomode(VIDEOMODE_80COL);
-  //printf("heapmemavail=%d heapmaxavail=%d\n", _heapmemavail(), _heapmaxavail());
+  printf("heapmemavail=%d heapmaxavail=%d\n", _heapmemavail(), _heapmaxavail());
   readconfigfile();
   load_prefs();
   read_email_db(first_msg, 1, 0);
