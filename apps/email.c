@@ -158,57 +158,16 @@ void load_editor(uint8_t compose) {
 }
 #pragma code-name (pop)
 
-/*
- * Load and run NNTP65.SYSTEM
- */
-#pragma code-name (push, "LC")
-void load_nntp65(void) {
-  save_prefs();
-  snprintf(filename, 80, "%s/NNTP65.SYSTEM", cfg_instdir);
-  exec(filename, email);
-}
-#pragma code-name (pop)
+static char *apps[] = {"POP65", "SMTP65", "NNTP65", "NNTP65UP", "DATE65"};
+enum appidx {APP_POP, APP_SMTP, APP_NNTP_DOWN, APP_NNTP_UP, APP_DATE};
 
 /*
- * Load and run NNTP65UP.SYSTEM
+ * Load and run an external app
  */
 #pragma code-name (push, "LC")
-void load_nntp65up(void) {
+void load_app(enum appidx a) {
   save_prefs();
-  snprintf(filename, 80, "%s/NNTP65UP.SYSTEM", cfg_instdir);
-  exec(filename, email);
-}
-#pragma code-name (pop)
-
-/*
- * Load and run POP65.SYSTEM
- */
-#pragma code-name (push, "LC")
-void load_pop65(void) {
-  save_prefs();
-  snprintf(filename, 80, "%s/POP65.SYSTEM", cfg_instdir);
-  exec(filename, email);
-}
-#pragma code-name (pop)
-
-/*
- * Load and run SMTP65.SYSTEM
- */
-#pragma code-name (push, "LC")
-void load_smtp65(void) {
-  save_prefs();
-  snprintf(filename, 80, "%s/SMTP65.SYSTEM", cfg_instdir);
-  exec(filename, email);
-}
-#pragma code-name (pop)
-
-/*
- * Load and run DATE65.SYSTEM
- */
-#pragma code-name (push, "LC")
-void load_date65(void) {
-  save_prefs();
-  snprintf(filename, 80, "%s/DATE65.SYSTEM", cfg_instdir);
+  snprintf(filename, 80, "%s/%s.SYSTEM", cfg_instdir, apps[a]);
   exec(filename, email);
 }
 #pragma code-name (pop)
@@ -238,6 +197,7 @@ void status_bar(void); // Forward declaration
  * Check for key pressed. If so, call cgetc().
  * Otherwise spin and update the status line waiting for a keypress.
  */
+#pragma code-name (push, "LC")
 char cgetc_update_status() {
   uint16_t ctr = 0;
   while (*((char*)KEYBOARD) < 128) {
@@ -250,6 +210,7 @@ char cgetc_update_status() {
   }
   return cgetc();
 }
+#pragma code-name (pop)
 
 /*
  * Show non fatal error in PROMPT_ROW
@@ -574,12 +535,14 @@ uint16_t decode_base64(char *p) {
 /*
  * Convert hex char to value
  */
+#pragma code-name (push, "LC")
 uint8_t hexdigit(char c) {
   if ((c >= '0') && (c <= '9'))
     return c - '0';
   else
     return c - 'A' + 10;
 }
+#pragma code-name (pop)
 
 /*
  * Decode buffer from quoted-printable format in place
@@ -2250,11 +2213,11 @@ void keyboard_hdlr(void) {
       switch (c) {
       case 'r':    // CA-R "Retrieve news via NNTP"
       case 'R':
-        load_nntp65();
+        load_app(APP_NNTP_DOWN);
         break;
       case 's':    // CA-S "Sent news via NNTP"
       case 'S':
-        load_nntp65up();
+        load_app(APP_NNTP_UP);
         break;
       case 'p':    // CA-P "Post news article"
       case 'P':
@@ -2409,7 +2372,7 @@ void keyboard_hdlr(void) {
       break;
     case 0x80 + 'd': // OA-D "Update date using NTP"
     case 0x80 + 'D':
-      load_date65();
+      load_app(APP_DATE);
       break;
     case 0x80 + 'e': // OA-E "Open message in editor"
     case 0x80 + 'E':
@@ -2418,11 +2381,11 @@ void keyboard_hdlr(void) {
       break;
     case 0x80 + 'r': // OA-R "Retrieve messages from server"
     case 0x80 + 'R':
-      load_pop65();
+      load_app(APP_POP);
       break;
     case 0x80 + 's': // OA-S "Send messages in Outbox to server"
     case 0x80 + 'S':
-      load_smtp65();
+      load_app(APP_SMTP);
       break;
     case 0x80 + '?': // OA-? "Help"
       help(1);
