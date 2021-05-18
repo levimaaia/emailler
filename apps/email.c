@@ -103,8 +103,6 @@ static uint8_t           reverse = 0;     // 0 normal, 1 reverse order
 static char              curr_mbox[80] = "INBOX";
 static unsigned char     buf[READSZ];
 
-#define ERR_NONFATAL 0
-#define ERR_FATAL    1
 
 /*
  * Save preferences
@@ -214,12 +212,13 @@ char cgetc_update_status() {
 }
 #pragma code-name (pop)
 
+enum err_level {ERR_NONFATAL, ERR_FATAL};
 /*
  * Show non fatal error in PROMPT_ROW
  * Fatal errors are shown on a blank screen
  */
 #pragma code-name (push, "LC")
-void error(uint8_t fatal, const char *fmt, ...) {
+void error(enum err_level fatal, const char *fmt, ...) {
   va_list v;
   va_start(v, fmt);
   if (fatal) {
@@ -919,12 +918,12 @@ void sanitize_filename(char *s) {
   s[j] = '\0';
 }
 
-#define FROMAUX 0
-#define TOAUX   1
+enum aux_ops {FROMAUX, TOAUX};
+
 /*
  * Aux memory copy routine
  */
-void copyaux(char *src, char *dst, uint16_t len, uint8_t dir) {
+void copyaux(char *src, char *dst, uint16_t len, enum aux_ops dir) {
     char **a1 = (char**)0x3c;
     char **a2 = (char**)0x3e;
     char **a4 = (char**)0x42;
