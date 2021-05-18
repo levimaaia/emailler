@@ -1434,35 +1434,29 @@ done:
   }
 }
 
-/*
- * Get next email number from NEXT.EMAIL
- * Returns 1 on error, 0 if all is good
- */
-uint8_t get_next_email(char *mbox, uint16_t *num) {
-  snprintf(filename, 80, next_email, cfg_emaildir, mbox);
-  fp = fopen(filename, "rb");
-  if (!fp) {
-    error(ERR_NONFATAL, cant_open, filename);
-    return 1;
-  }
-  fscanf(fp, "%u", num);
-  fclose(fp);
-  return 0;
-}
+enum ne_op {NEXT_EMAIL_GET, NEXT_EMAIL_UPD};
 
 /*
- * Update NEXT.EMAIL file
+ * If op is NEXT_EMAIL_GET: Get next email number from NEXT.EMAIL
+ * If op is NEXT_EMAIL_UPD: Write next email number to NEXT.EMAIL
+ * op - NEXT_EMAIL_GET or NEXT_EMAIL_UPD
+ * mbox - Name of mailbox
+ * num - pointer to the value to get or set
+ * Returns 1 on error, 0 if all is good
  */
-uint8_t update_next_email(char *mbox, uint16_t num) {
+uint8_t next_email_op(enum ne_op op, char *mbox, uint16_t *num) {
   snprintf(filename, 80, next_email, cfg_emaildir, mbox);
   _filetype = PRODOS_T_TXT;
   _auxtype = 0;
-  fp = fopen(filename, "wb");
+  fp = fopen(filename, (op == NEXT_EMAIL_UPD ? "wb" : "rb"));
   if (!fp) {
     error(ERR_NONFATAL, cant_open, filename);
     return 1;
   }
-  fprintf(fp, "%u", num);
+  if (op == NEXT_EMAIL_UPD)
+    fprintf(fp, "%u", *num);
+  else
+    fscanf(fp, "%u", num);
   fclose(fp);
   return 0;
 }
@@ -1865,7 +1859,7 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
   }
 
   // Read next number from dest/NEXT.EMAIL
-  if (get_next_email(mbox, &num))
+  if (next_email_op(NEXT_EMAIL_GET, mbox, &num))
     return;
 
   // Open source email file
@@ -1959,7 +1953,8 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
   }
 
   // Update dest/NEXT.EMAIL, incrementing count by 1
-  if (update_next_email(mbox, num + 1))
+  ++num;
+  if (next_email_op(NEXT_EMAIL_UPD, mbox, &num))
     return;
 
   if (delete)
@@ -2048,7 +2043,7 @@ err:
 void create_blank_outgoing(void) {
   struct datetime dt;
   uint16_t num;
-  if (get_next_email(outbox, &num))
+  if (next_email_op(NEXT_EMAIL_GET, outbox, &num))
     return;
   snprintf(filename, 80, email_file, cfg_emaildir, outbox, num);
   _filetype = PRODOS_T_TXT;
@@ -2076,7 +2071,8 @@ void create_blank_outgoing(void) {
     fprintf(fp, "cc: %s\r", userentry);
   fprintf(fp, a2_forever, "X-Mailer", PROGNAME);
   fclose(fp);
-  if (update_next_email(outbox, num + 1))
+  ++num;
+  if (next_email_op(NEXT_EMAIL_UPD, outbox, &num))
     return;
   snprintf(filename, 80, email_file, cfg_emaildir, outbox, num);
   load_editor(1);
@@ -2091,7 +2087,7 @@ done:
 void create_blank_news(void) {
   struct datetime dt;
   uint16_t num;
-  if (get_next_email(news_outbox, &num))
+  if (next_email_op(NEXT_EMAIL_GET, news_outbox, &num))
     return;
   snprintf(filename, 80, email_file, cfg_emaildir, news_outbox, num);
   _filetype = PRODOS_T_TXT;
@@ -2116,7 +2112,8 @@ void create_blank_news(void) {
   fprintf(fp, "Message-ID: <%05d-%s>\r", num, cfg_emailaddr);
   fprintf(fp, a2_forever, "User-Agent", PROGNAME);
   fclose(fp);
-  if (update_next_email(news_outbox, num + 1))
+  ++num;
+  if (next_email_op(NEXT_EMAIL_UPD, news_outbox, &num))
     return;
   snprintf(filename, 80, email_file, cfg_emaildir, news_outbox, num);
   load_editor(2);
