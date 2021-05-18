@@ -869,16 +869,13 @@ char prompt_okay_attachment(char *filename) {
     printf("ProDOS filename:  %s\n", filename);
     printf("%c                                                      A)ccept | S)kip | R)ename%c\n", INVERSE, NORMAL);
     c = cgetc();
-    switch (c) {
-    case 'A':
+    switch (c | 0x20) {
     case 'a':
       return 1;
       break;
-    case 'S':
     case 's':
       return 0;
       break;
-    case 'R':
     case 'r':
       c = wherey();
       if (prompt_for_name("Save As", 2) == 255) {
@@ -1216,7 +1213,7 @@ endscreen:
       }
 retry:
       c = cgetc();
-      switch (c) {
+      switch (c | 0x20) {
       case ' ':
         if (sbackfp && (screennum < maxscreennum)) {
           load_screen_from_scrollback(sbackfp, ++screennum);
@@ -1228,7 +1225,6 @@ retry:
           }
         }
         break;
-      case 'B':
       case 'b':
         if (sbackfp && (screennum > 1)) {
           load_screen_from_scrollback(sbackfp, --screennum);
@@ -1238,21 +1234,18 @@ retry:
           goto retry;
         }
         break;
-      case 'T':
       case 't':
         mime = 0;
         pos = hh.skipbytes;
         fseek(fp, pos, SEEK_SET);
         goto restart;
         break;
-      case 'H':
       case 'h':
         mime = 0;
         pos = 0;
         fseek(fp, pos, SEEK_SET);
         goto restart;
       break;
-      case 'M':
       case 'm':
         mime = 1;
         mime_enc = ENC_7BIT;
@@ -1283,7 +1276,6 @@ retry:
         pos = hh.skipbytes;
         fseek(fp, pos, SEEK_SET);
         goto restart;
-      case 'Q':
       case 'q':
         if (attachfp)
           fclose(attachfp);
@@ -2198,21 +2190,17 @@ void keyboard_hdlr(void) {
     h = get_headers(selection);
     c = cgetc_update_status();
     if (*(uint8_t*)0xc062 & 0x80) { // Closed Apple depressed
-      switch (c) {
+      switch (c | 0x20) {
       case 'r':    // CA-R "Retrieve news via NNTP"
-      case 'R':
         load_app(APP_NNTP_DOWN);
         break;
       case 's':    // CA-S "Sent news via NNTP"
-      case 'S':
         load_app(APP_NNTP_UP);
         break;
       case 'p':    // CA-P "Post news article"
-      case 'P':
         create_blank_news();
         break;
       case 'f':    // CA-F "Follow-up news article"
-      case 'F':
         if (h)
           copy_to_mailbox(h, get_db_index(), news_outbox, 0, 'N');
         break;
