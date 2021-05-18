@@ -1575,25 +1575,16 @@ esc_pressed:
 }
 
 /*
- * Write subject line to file
+ * Add prefix to subject line if it is not already there
  * f - File descriptor to write to
- * s - Subject text
+ * subject - Existing subject text
+ * prefix - Text to prefix ("Re: " or "Fwd: ")
  * Adds 'Re: ' to subject line unless it is already there
  */
-void subject_response(FILE *f, char *s) {
-  decode_subject(s);
-  fprintf(f, "Subject: %s%s\r", (strncmp(s, "Re: ", 4) ? "Re: " : ""), linebuf);
-}
-
-/*
- * Write subject line to file
- * f - File descriptor to write to
- * s - Subject text
- * Adds 'Fwd: ' to subject line unless it is already there
- */
-void subject_forward(FILE *f, char *s) {
-  decode_subject(s);
-  fprintf(f, "Subject: %s%s\r", (strncmp(s, "Fwd: ", 5) ? "Fwd: " : ""), linebuf);
+void prefix_subject(FILE *f, char *subject, char *prefix) {
+  decode_subject(subject);
+  fprintf(f, "Subject: %s%s\r",
+          (strncmp(subject, prefix, strlen(prefix)) ? prefix : ""), linebuf);
 }
 
 /*
@@ -1610,10 +1601,7 @@ uint8_t write_email_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h,
   struct datetime dt;
   fprintf(fp2, "From: %s\r", cfg_emailaddr);
   truncate_header(h->subject, buf, 80);
-  if (mode == 'F')
-    subject_forward(fp2, buf);
-  else
-    subject_response(fp2, buf);
+  prefix_subject(fp2, buf, (mode == 'F' ? "Fwd: " : "Re: "));
   readdatetime(&dt);
   datetimelong(&dt, buf);
   fprintf(fp2, "Date: %s\r", buf);
@@ -1665,7 +1653,7 @@ uint8_t write_news_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h, uint16_t n
   truncate_header(&(h->to[5]), buf, 80);
   fprintf(fp2, "Newsgroups: %s\r", buf);
   truncate_header(h->subject, buf, 80);
-  subject_response(fp2, buf);
+  prefix_subject(fp2, buf, "Re: ");
   readdatetime(&dt);
   datetimelong(&dt, userentry);
   fprintf(fp2, "Date: %s\r", userentry);
