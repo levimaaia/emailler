@@ -2377,7 +2377,7 @@ void main(void) {
     error(ERR_FATAL, "Need 128K");
 
   videomode(VIDEOMODE_80COL);
-  printf("heapmemavail=%d heapmaxavail=%d\n", _heapmemavail(), _heapmaxavail());
+  //printf("heapmemavail=%d heapmaxavail=%d\n", _heapmemavail(), _heapmaxavail());
   readconfigfile();
   load_prefs();
   read_email_db(first_msg, 1, 0);
