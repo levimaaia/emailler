@@ -27,6 +27,8 @@ The rest of the line shows the From, Date and Subject headers of the message.
 
 19 messages may be shown on the summary screen.  If the mailbox has more than 19 messages there will be multiple screens.
 
+Subject headers which are encoded using Quoted Printable or Base64 representations are decoded before display.  Typically they will include non-ASCII UTF-8 characters, which the Apple II is unable to display.  Any such characters are shown as `#`.
+
 ### Online Help
 
 The command `Open Apple`-? will show the help screen, with a summary of all the keyboard commands:
@@ -52,8 +54,8 @@ The command `Open Apple`-? will show the help screen, with a summary of all the 
    - `A` - Archive current message (or tagged messages) - This is a shortcut for moving messages to the `RECEIVED` mailbox.
    - `C` - Copy current message (or tagged messages) - Copy message(s) to another mailbox.  If no messages are tagged (see below) then the copy operation will apply to the current message only.  If messages are tagged then the copy operation will apply to the tagged messages.
    - `M` - Move current message (or tagged messages) - Move message(s) to another mailbox. If no messages are tagged (see below) then the move operation will apply to the current message only.  If messages are tagged then the copy operation will apply to the tagged messages.  Moving a message involves two steps - first the message is copied to the destination mailbox and then it is marked as deleted in the source mailbox.
-   - `D` - Delete - Mark current message as deleted.
-   - `U` - Undelete - Remove deleted mark from a message.
+   - `D` - Delete - Mark current message as deleted.  Moves to the next message automatically to allow rapid deletion of messages.
+   - `U` - Undelete - Remove deleted mark from a message.  Moves to the next message automatically to allow rapid undeletion of messages.
    - `P` - Purge messages - Purge deleted messages from the mailbox.  This command iterates through all the messages marked for deletion and removes their files from the mailbox.  A new `EMAIL.DB` is created, compacting any 'holes' where files have been deleted.
 
  - Email Composition:
@@ -78,6 +80,23 @@ The command `Open Apple`-? will show the help screen, with a summary of all the 
 By using the `Open Apple`+`R` command to retrieve email messages and the `Open Apple`-`S` command to transmit email messages to the server, it is possible to retreive, review, respond, compose and transmit emails all without leaving the `EMAIL.SYSTEM` environment.
 
 Similarly, by using the `Closed Apple`+`R` command to retrieve news articles and the `Open Apple`-`S` command to transmit news articles to the server, it is possible to retreive, review, follow-up, compose and transmit articles all without leaving the `EMAIL.SYSTEM` environment.
+
+### Preferences File
+
+`EMAIL.SYSTEM` stores persistent preferences in a file called `EMAIL.PREFS`.  Specifically, the following settings are stored in the preferences file:
+
+ - Folder sort order: '<' or '>'
+ - Name of current email or news folder
+ - Number of first displayed message on current page
+ - Number of currently selected message in folder
+
+When `EMAIL.SYSTEM` is started it will read `EMAIL.PREFS` if it exists.  This allows `EMAIL.SYSTEM` to go back to displaying the same page of the same folder, with the same message selected.  This is especially convenient when using the other programs in the emai//er suite.  When the external program terminates, `EMAIL.SYSTEM` is automatically restarted and will automatically return to the same spot.
+
+If the preferences file is invalid or the folder it references has been deleted, `EMAIL.SYSTEM` may show an error on startup.  In this case, you can simply delete `EDIT.PREFS`.  Without a preferences file `EMAIL.SYSTEM` will always begin showing the `INBOX` folder.  The preferences file will be automatically recreated.
+
+### Real-Time Clock (RTC) Support
+
+If a real-time clock that is supported by ProDOS (such as the No Slot Clock, Thunderclock or the built-in clock in the Apple IIgs) is present, EMAIL.SYSTEM will call the ProDOS driver to get the up-to-date time and date every time a datestamp is required.  In addition, the time displayed at the top right hand corner of the summary screen will refresh regularly, so the current time is always displayed.
 
 ### Message Pager
 
