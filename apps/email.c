@@ -1458,7 +1458,7 @@ uint8_t next_email_op(enum ne_op op, char *mbox, uint16_t *num) {
     return 1;
   }
   if (op == NEXT_EMAIL_UPD)
-    fprintf(fp, "%u", *num);
+    fprintf(fp, "%u", *num + 1);
   else
     fscanf(fp, "%u", num);
   fclose(fp);
@@ -1943,7 +1943,6 @@ void copy_to_mailbox(struct emailhdrs *h, uint16_t idx,
   }
 
   // Update dest/NEXT.EMAIL, incrementing count by 1
-  ++num;
   if (next_email_op(NEXT_EMAIL_UPD, mbox, &num))
     return;
 
@@ -2061,7 +2060,6 @@ void create_blank_outgoing(void) {
     fprintf(fp, "cc: %s\r", userentry);
   fprintf(fp, a2_forever, "X-Mailer", PROGNAME);
   fclose(fp);
-  ++num;
   if (next_email_op(NEXT_EMAIL_UPD, outbox, &num))
     return;
   snprintf(filename, 80, email_file, cfg_emaildir, outbox, num);
@@ -2102,7 +2100,6 @@ void create_blank_news(void) {
   fprintf(fp, "Message-ID: <%05d-%s>\r", num, cfg_emailaddr);
   fprintf(fp, a2_forever, "User-Agent", PROGNAME);
   fclose(fp);
-  ++num;
   if (next_email_op(NEXT_EMAIL_UPD, news_outbox, &num))
     return;
   snprintf(filename, 80, email_file, cfg_emaildir, news_outbox, num);
