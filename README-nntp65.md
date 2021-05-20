@@ -20,6 +20,7 @@ Before running `NNTP65.SYSTEM` for the first time, be sure you have performed th
 
  - Detect Uthernet-II.
  - Obtain IP address using DHCP.
+ - If there is a file named `KILL.LIST.CFG` then load the file into memory. Each line is treated as a separate kill pattern. See the subsection [Kill File](#Kill-File) below.
  - Connect to NNTP server using parameters from first three lines of `NEWS.CFG`. (`AUTHINFO USER` and `AUTHINFO PASS` commands).
  - For each newsgroup listed in `NEWSGROUPS.CFG`:
    - Issue `GROUP` command to select the newsgroup.
@@ -31,11 +32,22 @@ Before running `NNTP65.SYSTEM` for the first time, be sure you have performed th
      - Issue the `NEXT` command to the NNTP server to advance to the next article.
      - Issue to `ARTICLE` command to retrieve the news article, writing it to a file in the `NEWS.SPOOL` directory (eg: `/H1/DOCUMENTS/EMAIL/NEWS.SPOOL/NEWS.1234`).
    - Once all articles have been retrieved for this newsgroup, write an updated newsgroup line to the file `NEWSGROUPS.NEW`. This will be identical to the line read from `NEWSGROUPS.CFG` except with the last article number updated.
-   - Copy the messages just retrieved from the `NEWS.SPOOL` directory to the mailbox for the newsgroup in question.
+   - Examine each message in `NEWS.SPOOL`. If there is a kill-file, the 'From:' header of the message is compared to each line in the killfile and if the text in the kill-file matches any part of the 'From:' header, the message is discarded.  If there is no match, the message is copied from the `NEWS.SPOOL` directory to the mailbox for the newsgroup in question.  If there is no kill-file then all messages are copied unconditionally.
  - Once all newsgroups have been retrieved, rename `NEWSGROUPS.NEW` to replace `NEWSGROUPS.CFG`.
  - Issue the `QUIT` command to disconnect from the NNTP server.
  - If `NNTP65.SYSTEM` was invoked from `EMAIL.SYSTEM`, load and run `EMAIL.SYSTEM`. Otherwise quit t
 o ProDOS.
+
+### Kill File
+
+It is possible to define a kill file which is used to filter incoming news articles according to the value of the 'From:' header. This facility is useful to filter out spam from a small number of nuisance senders.
+
+ - The kill file is a plain Apple II text file named `KILL.LIST.CFG`. You can create and maintain such a file using Emai//er's `EDIT.SYSTEM` or any other Apple II text editor.
+ - Each line in the kill file is treated as a separate pattern.
+ - Pattern matching is very simple. `NNTP65.SYSTEM` simply checks each 'From:' header against each line in the kill file in turn. If any substring of the 'From:' header matches any line of the kill file, that message is discarded.
+ - Only the first approximately 80 characters of each 'From:' header are examined.
+ - Subject to the limitation above, the matching can apply to any text in the 'From:' header, full names or email address.
+ - Don't make kill files too big. It will slow down news processing and (eventually) exhaust all the precious memory in your Apple II!
 
 [Back to Main emai//er Docs](README.md#detailed-documentation-for-usenet-functions)
 
