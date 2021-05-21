@@ -1640,7 +1640,7 @@ uint8_t write_news_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h, uint16_t n
   uint32_t pos;
   uint8_t refstate = 0, idstate = 0;
   fprintf(fp2, "From: %s\r", cfg_emailaddr);
-  truncate_header(&(h->to[5]), buf, 80);
+  truncate_header(&(h->to[5]), buf, 75);
   fprintf(fp2, "Newsgroups: %s\r", buf);
   truncate_header(h->subject, buf, 80);
   prefix_subject(fp2, buf, "Re: ");
