@@ -614,6 +614,23 @@ done:
 }
 
 /*
+ * Return pointer to start of the filename portion of a full path.
+ * /FOO/BAR/BAZ -> BAZ
+ */
+char *shortfilename(char *fullfilename) {
+  uint8_t i = 0;
+  int8_t lastslash = -1;
+  while (fullfilename[i]) {
+    if (fullfilename[i] == '/')
+      lastslash = i;
+    ++i;
+  }
+  if (lastslash == -1)
+    return fullfilename;
+  return fullfilename + lastslash + 1;
+}
+
+/*
  * Optionally attach files to outgoing email.
  * filename - Name of file containing email message
  */
@@ -739,7 +756,7 @@ ask:
       latest->next = malloc(sizeof(struct attachinfo));
       latest = latest->next;
     }
-    strcpy(latest->filename, userentry);
+    strcpy(latest->filename, shortfilename(userentry));
     latest->size = size;
     latest->next = NULL;
   }
