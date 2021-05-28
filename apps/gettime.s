@@ -6,4 +6,5 @@
 _gettime:
 	jsr $bf00			; MLI
 	.byte $82			; GET_TIME
+	.word $0000			; Null param list
 	rts
