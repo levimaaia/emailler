@@ -67,6 +67,8 @@ nntp65.up.bin: w5100.c
 nntp65.up.bin: IP65LIB = ../ip65/ip65.lib
 nntp65.up.bin: A2_DRIVERLIB = ../drivers/ip65_apple2_uther2.lib
 
+email.bin: gettime.s
+
 date65.bin hfs65.bin tweet65.bin: CL65FLAGS = --start-addr 0x0C00 apple2enh-iobuf-0800.o
 
 telnet65.com: ATARI_CFG = atrtelnet.cfg

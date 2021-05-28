@@ -301,6 +301,9 @@ void readconfigfile(void) {
 }
 #pragma code-name (pop)
 
+/* Defined in gettime.s */
+void gettime(void);
+
 /*
  * Convert date/time bytes into struct datetime format.
  */
@@ -308,7 +311,7 @@ void readconfigfile(void) {
 void readdatetime(struct datetime *dt) {
     unsigned char *time = (unsigned char*)SYSTEMTIME;
     unsigned int d, t;
-    __asm__("jsr $bf06"); // ProDOS DATETIME call: Updates vals at SYSTEMTIME
+    gettime();
     d = time[0] + 256U * time[1];
     t = time[2] + 256U * time[3];
     if ((d | t) == 0) {
