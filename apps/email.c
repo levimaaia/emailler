@@ -2339,8 +2339,10 @@ void keyboard_hdlr(void) {
       break;
     case 0x80 + 'e': // OA-E "Open message in editor"
     case 0x80 + 'E':
-      snprintf(filename, 80, email_file, cfg_emaildir, curr_mbox, h->emailnum);
-      load_editor(0);
+      if (h) {
+        snprintf(filename, 80, email_file, cfg_emaildir, curr_mbox, h->emailnum);
+        load_editor(0);
+      }
       break;
     case 0x80 + 'r': // OA-R "Retrieve messages from server"
     case 0x80 + 'R':
