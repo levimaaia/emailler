@@ -285,7 +285,7 @@ smtp      inet  n       -       y       -       -       smtpd y
 
 Create the directory `/etc/postfix/sasl`.
 
-Create the file `/etc/postfix/sasl_passwd` as follows:
+Create the file `/etc/postfix/sasl/sasl_passwd` as follows:
 
 ```
 [smtp.gmail.com]:587 username@gmail.com:xxxx xxxx xxxx xxxx
@@ -294,7 +294,7 @@ Create the file `/etc/postfix/sasl_passwd` as follows:
 where `username` is your Gmail account name and `xxxx xxxx xxxx xxxx` is the
 App Password Google gave you.
 
-Run: `sudo postmap /etc/postfix/sasl_passwd` to build the hash file
+Run: `sudo postmap /etc/postfix/sasl/sasl_passwd` to build the hash file
 `sasl_passwd.db`.
 
 
