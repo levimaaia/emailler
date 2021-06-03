@@ -297,7 +297,10 @@ App Password Google gave you.
 Run: `sudo postmap /etc/postfix/sasl/sasl_passwd` to build the hash file
 `sasl_passwd.db`.
 
+#### Restart Postfix
 
+Be sure to restart Postfix after any configuration changes:
+`sudo systemctl restart postfix`
  
 ### Dovecot
 
@@ -337,6 +340,8 @@ service pop3-login {
   }
 }
 ```
+
+
 ### Fetchmail
 
 Fetchmail's configuration is in the file `/etc/fetchmailrc`.  It should look
@@ -423,8 +428,61 @@ GMail account to connect to the Apple II as described in this document.
    account be associated with a Linux account.  Set a password for the
    new user account using `passwd` and make sure it has a valid home
    directory and that you are able to log in using the new account.
- - ...
 
+### Postfix Configuration for Multiple GMail accounts
+
+The Postfix configuration documented above needs to be adjusted slightly
+to allow mail to be sent to both GMail accounts.
+
+The following files are affected:
+
+  - `/etc/postfix/main.cf`
+  - `/etc/postfix/sender_relay`
+  - `/etc/postfix/sasl/sasl_passwd`
+
+#### `main.cf`
+
+Add the following lines to `/etc/postfix/main.cf`:
+
+```
+smtp_sender_dependent_authentication = yes
+smtp_dependent_relayhost_maps = hash:/etc/postfix/sender_relay
+```
+
+#### `sender_relay`
+
+You will have to create the file `/etc/postfix/sender_relay`, as follows:
+
+```
+user1@gmail.com    [smtp.gmail.com]:587
+user2@gmail.com    [smtp.gmail.com]:587
+```
+
+Run: `sudo postmap /etc/postfix/sender_relay` to build the hash file
+`sender_relay.db`.
+
+#### `sasl_passwd`
+
+Modify `/etc/postfix/sasl/sasl_passwd` as follows.
+
+```
+user1@gmail.com       user1@gmail.com:aaaa bbbb cccc dddd
+user2@gmail.com       user2@gmail.com:eeee ffff gggg hhhh
+[smtp.gmail.com]:587  user1@gmail.com:aaaa bbbb cccc dddd
+```
+
+This file records the Google App password for each of the GMail accounts.
+The final line is a default entry, if nothing matches.
+
+Run: `sudo postmap /etc/postfix/sasl/sasl_passwd` to build the hash file
+`sasl_passwd.db`.
+
+#### Restart Postfix
+
+Be sure to restart Postfix after any configuration changes:
+`sudo systemctl restart postfix`
+
+### Fetchmail Configuration for Multiple GMail accounts
 
 *INSTRUCTIONS TO FOLLOW*
 
