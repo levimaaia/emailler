@@ -408,6 +408,24 @@ If, like me, you have more than one Apple II equipped with an Uthernet-II
 card, you may find it convenient to have a separate GMail account associated
 with each machine.
 
+The basic idea here is to have two different GMail accounts, each associated
+with a separate Linux user account on the Raspberry Pi.
+
+These instructions assume you have already successfully configured one
+GMail account to connect to the Apple II as described in this document.
+
+ - Create a second GMail account, for example user2@gmail.com
+ - Enable two-factor authentication for user2@gmail.com and obtain an app
+   password.  Follow the instructions
+   [here](#Obtaining-App-Passwords-from-Google)
+ - Create a new Linux account, for example 'user2', on your Raspberry Pi.
+   You may use the `useradd` command.  Fetchmail requires that each email
+   account be associated with a Linux account.  Set a password for the
+   new user account using `passwd` and make sure it has a valid home
+   directory and that you are able to log in using the new account.
+ - ...
+
+
 *INSTRUCTIONS TO FOLLOW*
 
 
