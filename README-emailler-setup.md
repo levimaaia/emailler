@@ -52,7 +52,7 @@ To get started, you will need to create the following directories:
 
  - The email root directory (`/H1/DOCUMENTS/EMAIL` in the example config)
  - The `SPOOL` directory, used by POP65, within the email root directory.  This will be `/H1/DOCUMENTS/EMAIL/SPOOL` for our example configuration.
- - The `INBOX` directory, used by POP65, within the email root directory.  This will be `/H1/DOCUMENTS/EMAIL/INBOX` for our example configuration.
+ - The `INBOX` directory, used by POP65, within the email root directory.  This will be `/H1/DOCUMENTS/EMAIL/INBOX` for our example configuration.  This directory also needs to have an empty text file `EMAIL.DB`.
  - The `OUTBOX` directory, used by SMTP65, within the email root directory.  This will be `/H1/DOCUMENTS/EMAIL/OUTBOX` for our example configuration.
  - The `ATTACHMENTS` directory, used by EMAIL for storing downloaded MIME attachments, within the email root directory.  This will be `/H1/DOCUMENTS/EMAIL/ATTACHMENTS` for our example configuration.
 
