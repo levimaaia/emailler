@@ -59,6 +59,15 @@ Each line contains the following three fields, separated by a space:
 2) Name of Emai//er mailbox which will be used for this newsgroup
 3) Most recent message number downloaded
 
+Note: When you first create this file (or when you add an additional newsgroup you wish to subscribe to) you will not know the number corresponding to the most recent message.  Emai//er has a way to help you out here.  If you simply omit the number altogether, Emai//er will fetch the most recent 100 messages from the newsgroup, and will record the most recent article number so that subsequent runs of `NNTP65.SYSTEM` will retrieve just the new articles.  So, for the initial setup, the file may look like this:
+
+```
+comp.sys.apple2 CSA2
+comp.sys.apple2.programmer CSA2P
+comp.emulators.apple2 CEA2
+comp.os.cpm COC
+```
+
 ### Creating Directories
 
 A number of additional subdirectories are required within the email root directory for handling Usenet news articles.  The email root directory is assumed to be `/H1/DOCUMENTS/EMAIL` in this example.  Special news directories are as follows:
