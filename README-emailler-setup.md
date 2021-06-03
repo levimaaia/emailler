@@ -29,8 +29,8 @@ pi
 NODELETE
 192.168.10.2:25
 apple2.local
-/IP65
-/H1/EMAIL
+/H1/IP65
+/H1/DOCUMENTS/EMAIL
 bobbi.8bit@gmail.com
 ```
 
