@@ -402,6 +402,15 @@ a simple test.
 The final period on its own serves to terminate the message and signal to 
 Postfix that it should process the DATA block and enqueue the message.
 
+## What if you want multiple GMail accounts for multiple Apple IIs?
+
+If, like me, you have more than one Apple II equipped with an Uthernet-II
+card, you may find it convenient to have a separate GMail account associated
+with each machine.
+
+*INSTRUCTIONS TO FOLLOW*
+
+
 Bobbi
 Jun 3, 2021
 *bobbi.8bit@gmail.com*
