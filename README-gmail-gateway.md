@@ -484,8 +484,31 @@ Be sure to restart Postfix after any configuration changes:
 
 ### Fetchmail Configuration for Multiple GMail accounts
 
-*INSTRUCTIONS TO FOLLOW*
+Edit `/etc/fetchmailrc` as follows:
 
+```
+set postmaster "pi"
+set bouncemail
+set no spambounce
+set softbounce
+set properties ""
+poll imap.gmail.com with proto IMAP auth password
+       user 'user1' is pi here
+       password 'aaaa bbbb cccc dddd'
+       ssl, sslcertck
+       user 'user2' is user2 here
+       password 'eeee ffff gggg hhhh`
+       ssl, sslcertck
+```
+
+Fetchmail does not support IMAP idle when retrieving mail for more than
+one account.
+
+#### Restart Fetchmail
+
+```
+sudo systemctl restart fetchmail
+```
 
 Bobbi
 Jun 3, 2021
