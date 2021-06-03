@@ -59,13 +59,13 @@ Each line contains the following three fields, separated by a space:
 2) Name of Emai//er mailbox which will be used for this newsgroup
 3) Most recent message number downloaded
 
-Note: When you first create this file (or when you add an additional newsgroup you wish to subscribe to) you will not know the number corresponding to the most recent message.  Emai//er has a way to help you out here.  If you simply omit the number altogether, Emai//er will fetch the most recent 100 messages from the newsgroup, and will record the most recent article number so that subsequent runs of `NNTP65.SYSTEM` will retrieve just the new articles.  So, for the initial setup, the file may look like this:
+Note: When you first create this file (or when you add an additional newsgroup you wish to subscribe to) you will not know the number corresponding to the most recent message.  Emai//er has a way to help you out here.  If you use the value 0, Emai//er will fetch the most recent 100 messages from the newsgroup, and will record the most recent article number so that subsequent runs of `NNTP65.SYSTEM` will retrieve just the new articles.  So, for the initial setup, the file may look like this:
 
 ```
-comp.sys.apple2 CSA2
-comp.sys.apple2.programmer CSA2P
-comp.emulators.apple2 CEA2
-comp.os.cpm COC
+comp.sys.apple2 CSA2 0
+comp.sys.apple2.programmer CSA2P 0
+comp.emulators.apple2 CEA2 0
+comp.os.cpm COC 0
 ```
 
 ### Creating Directories
