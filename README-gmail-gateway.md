@@ -402,22 +402,8 @@ a simple test.
 The final period on its own serves to terminate the message and signal to 
 Postfix that it should process the DATA block and enqueue the message.
 
-## Configuring SAM2 Email Client on the GS
-
-Configuring the client is simple:
-
- - Incoming mail via POP3
-   - Hostname: hostname or IP address of your Raspberry Pi
-   - Port: Default (110)
-   - Username and password: Your Raspberry Pi account credentials
- - Outgoing mail via SMTP
-   - Hostname: hostname or IP address of your Raspberry Pi
-   - Port: Default (25)
-   - Username and password: Your Raspberry Pi account credentials
-
-
 Bobbi
-Jun 17, 2020
+Jun 3, 2021
 *bobbi.8bit@gmail.com*
 
 
