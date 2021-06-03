@@ -11,10 +11,10 @@ This section outlines the steps for subscribing to a newsgroup.
 For example, suppose you want to subscribe to newsgroup `comp.sys.pdp11`.
 
 1) The first step is to add a new line to `NEWSGROUPS.CFG` for the newgroup subscription. `NEWSGROUPS.CFG` is found in the email root directory (`/H1/DOCUMENTS/EMAIL` using the example settings.)  Start `EDIT.SYSTEM` and use the `Open Apple`-`O` command to open the file `/H1/DOCUMENTS/EMAIL/NEWSGROUPS.CFG`.
-2) Using `EDIT.SYSTEM` add a line to the file consisting of the newsgroup name, a space, the name of the mailbox you want to use to store messages, another space, and finally the digit zero. For example, we may decide to use mailbox name `ASP11` for this newsgroup:
+2) Using `EDIT.SYSTEM` add a line to the file consisting of the newsgroup name, a space, the name of the mailbox you want to use to store messages. For example, we may decide to use mailbox name `ASP11` for this newsgroup:
 
 ```
-alt.sys.pdp11 ASP11 0
+alt.sys.pdp11 ASP11
 ```
 
 3) Save the file with `Open Apple`-`S` and quit `EDIT.SYSTEM` with `Open Apple`-`Q`.
