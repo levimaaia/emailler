@@ -167,6 +167,10 @@ Main1:  cld
 ; Actually set the MAC address on the Uthernet-II
 ; TODO: Make this slot independent and not hard-coded
 ;       Hard-coded for slot 5
+        lda        #$80                         ; Reset W5100
+        sta        $bfff+$d5                    ; Store in MODE register
+        lda        #$03                         ; Address autoinc, indirect
+        sta        $bfff+$d5                    ; Store in MODE register
         lda        #$00                         ; High byte of MAC reg addr
         ldx        #$09                         ; Low byte
         sta        $bfff+$d6                    ; Set high byte of pointer
