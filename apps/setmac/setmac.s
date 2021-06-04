@@ -161,6 +161,7 @@ Main1:  cld
         .byte   $8D                             ; CR
         hasc    "Uthernet-II SETMAC Utility"
         .byte   $8D,$00                         ; CR, done
+        jsr     loadsettings
         lda     #5                              ; Slot 5 TODO: This is hardcoded for now
         jsr     setmac
 
@@ -171,6 +172,51 @@ Main1:  cld
         bit     KBDSTR
 
         jmp     NextSys
+.endproc
+.proc   loadsettings
+; Load slot number and MAC from 'SETMAC.CFG'
+        ldx     #$00
+:       lda     CfgName,x
+        sta     PATHBUF,x
+        inx
+        cpx     #$0B                            ; copied all the chars?
+        bcc     :-                              ; nope
+        jsr     PRODOS
+        .byte   $C8                             ; OPEN
+        .word   PL_OPEN
+        bcs     CantOpen
+        lda     PL_OPEN+$05                     ; copy ref number
+        sta     PL_RDCFG+$01                    ; into READ parameter list
+        jsr     PRODOS
+        .byte   $CA                             ; READ
+        .word   PL_RDCFG                        ; 22 bytes -> CfgBuf
+        bcs     CantRead
+        lda     CfgBuf
+        ;;
+        jsr     iprint
+        .byte   $8D                             ; CR
+        hasc    "Read file!"
+        .byte   $8D,$00                         ; CR, done
+        ;;
+        jsr     PRODOS
+        .byte   $CC                             ; CLOSE
+        .word   PL_CLOSE
+        rts
+CantRead:
+        jsr     iprint
+        .byte   $8D                             ; CR
+        hasc    "CantRead"
+        .byte   $8D,$00                         ; CR, done
+        jsr     PRODOS
+        .byte   $CC                             ; CLOSE
+        .word   PL_CLOSE
+        bcs     CantOpen
+CantOpen:
+        jsr     iprint
+        .byte   $8D                             ; CR
+        hasc    "CantOpen"
+        .byte   $8D,$00                         ; CR, done
+        rts
 .endproc
 .proc   setmac
 ; Set the MAC address on the Uthernet-II
@@ -487,11 +533,21 @@ PL_READ:
         .word   SYSEXEC                         ; data buffer
         .word   $FFFF                           ; request count
         .word   $0000                           ; transfer count
+PL_RDCFG:
+        .byte   $04
+        .byte   $01                             ; ref num
+        .word   CfgBuf                          ; data buffer
+        .word   $0016                           ; request count
+        .word   $0000                           ; transfer count
 PL_CLOSE:
         .byte   $01
         .byte   $00                             ; ref num $00 = all files
 ; ----------------------------------------------------------------------------
-FdSelf: .byte   $00                             ; bit 7 set if we found our name in volume dir
-system: .byte   ".SYSTEM"
-MyName: .byte   $0F,"SETMAC.SYSTEM"
+FdSelf:  .byte   $00                            ; bit 7 set if we found our name in volume dir
+system:  .byte   ".SYSTEM"
+MyName:  .byte   $0D,"SETMAC.SYSTEM"
+CfgName: .byte   $0A,"SETMAC.CFG"
+CfgBuf:  .byte   $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
+;                slt spc m1h m1l :   m2h m2l :   m3h m3l :   m4h m4l :   m5h m5l :   m6h m6l
+                 
 
