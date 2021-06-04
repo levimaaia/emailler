@@ -159,36 +159,37 @@ Main1:  cld
         jsr     iprint
         .byte   $8D                             ; CR
         hasc    "Uthernet-II SETMAC Utility"
-        .byte   $8D,$00                     	; CR, done
-		jsr		setmac							; Do it!
+        .byte   $8D,$00                         ; CR, done
+        jsr     setmac
         jmp     NextSys
 .endproc
-.proc	setmac
+.proc   setmac
 ; Actually set the MAC address on the Uthernet-II
 ; TODO: Make this slot independent and not hard-coded
-		lda		#$00							; High byte of MAC reg addr
-		lda		#$09							; Low byte
-		sta		$c0d5							; Set high byte of pointer
-		sta		$c0d6							; Set low byte
-		lda		#$00							; First byte of MAC
-		sta		$c0d7							; Set and autoinc
-		lda		#$08							; Second byte of MAC
-		sta		$c0d7							; Set and autoinc
-		lda		#$dc							; Third byte of MAC
-		sta		$c0d7							; Set and autoinc
-		lda		#$de							; Fourth byte of MAC
-		sta		$c0d7							; Set and autoinc
-		lda		#$ad							; Fifth byte of MAC
-		sta		$c0d7							; Set and autoinc
-		lda		#$00							; Sixth byte of MAC
-		sta		$c0d7							; Set and autoinc
-		lda		#$00							; High byte of $001a reg addr
-		lda		#$1a							; Low byte
-		sta		$c0d5							; Set high byte of pointer
-		sta		$c0d6							; Set low byte
-		lda		#$06							; Magic value: MAC set!
-		sta		$c0d7
-		rts
+;       Hard-coded for slot 5
+        lda        #$00                         ; High byte of MAC reg addr
+        ldx        #$09                         ; Low byte
+        sta        $bfff+$d6                    ; Set high byte of pointer
+        stx        $bfff+$d7                    ; Set low byte
+        lda        #$00                         ; First byte of MAC
+        sta        $bfff+$d8                    ; Set and autoinc
+        lda        #$08                         ; Second byte of MAC
+        sta        $bfff+$d8                    ; Set and autoinc
+        lda        #$dc                         ; Third byte of MAC
+        sta        $bfff+$d8                    ; Set and autoinc
+        lda        #$de                         ; Fourth byte of MAC
+        sta        $bfff+$d8                    ; Set and autoinc
+        lda        #$ad                         ; Fifth byte of MAC
+        sta        $bfff+$d8                    ; Set and autoinc
+        lda        #$00                         ; Sixth byte of MAC
+        sta        $bfff+$d8                    ; Set and autoinc
+        lda        #$00                         ; High byte of $001a reg addr
+        ldx        #$1a                         ; Low byte
+        sta        $c0d5                        ; Set high byte of pointer
+        stx        $c0d6                        ; Set low byte
+        lda        #$06                         ; Magic value: MAC set!
+        sta        $bfff+$d8                    ; Set and autoinc
+        rts
 .endproc
 ; This starts the process of finding & launching next system file
 ; unfortunately it also uses block reads and can't be run from an AppleShare
@@ -352,7 +353,7 @@ nozero: pla
         jsr     COUT
         rts
 .endproc
-CaseCv: .byte   $FF	                        ; default case conversion byte = none
+CaseCv: .byte   $FF                            ; default case conversion byte = none
 ; ----------------------------------------------------------------------------
 .proc   DoQuit
         jsr     PRODOS
