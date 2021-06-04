@@ -64,6 +64,7 @@ CLR80VID        := $C00C                        ; Turn off 80-column mode
 CLRALTCHAR      := $C00E                        ; Turn off alt charset
 SLOT3ROM        := $C300                        ; SLOT 3 ROM
 C8OFF           := $CFFF                        ; C8xx Slot ROM off
+IOMINUSONE      := $BFFF                        ; For IOMINUSONE,y addressing
 
 ; Misc
 CLKCODEMAX      := $7D
@@ -160,7 +161,7 @@ Main1:  cld
         .byte   $8D                             ; CR
         hasc    "Uthernet-II SETMAC Utility"
         .byte   $8D,$00                         ; CR, done
-        lda     #5                              ; Slot 5
+        lda     #5                              ; Slot 5 TODO: This is hardcoded for now
         jsr     setmac
         jmp     NextSys
 .endproc
@@ -175,34 +176,34 @@ Main1:  cld
         adc     #$85
         tay                                  ; Mode register offset
         lda     #$80                         ; Reset W5100
-        sta     $bfff,y                      ; Store in MODE register
+        sta     IOMINUSONE,y                 ; Store in MODE register
         lda     #$03                         ; Address autoinc, indirect
-        sta     $bfff,y                      ; Store in MODE register
-        lda     #$00                         ; High byte of MAC reg addr
-        ldx     #$09                         ; Low byte
+        sta     IOMINUSONE,y                 ; Store in MODE register
         iny                                  ; $d6
-        sta     $bfff,y                      ; Set high byte of pointer
+        lda     #$00                         ; High byte of MAC reg addr
+        sta     IOMINUSONE,y                 ; Set high byte of pointer
         iny                                  ; $d7
-        stx     $bfff,y                      ; Set low byte
+        lda     #$09                         ; Low byte
+        sta     IOMINUSONE,y                 ; Set low byte
         ldx     #$00
         iny                                  ; $d8
 :       lda     mac,x                        ; Load byte of MAC
-        sta     $bfff,y                      ; Set and autoinc
+        sta     IOMINUSONE,y                 ; Set and autoinc
         inx
         cpx     #6
         bne     :-
-        lda     #$00                         ; High byte of $001a reg addr
-        ldx     #$1a                         ; Low byte
         dey
         dey                                  ; $d6
-        sta     $bfff,y                      ; Set high byte of pointer
+        lda     #$00                         ; High byte of $001a reg addr
+        sta     IOMINUSONE,y                 ; Set high byte of pointer
         iny                                  ; $d7
-        stx     $bfff,y                      ; Set low byte
+        lda     #$1a                         ; Low byte
+        sta     IOMINUSONE,y                 ; Set low byte
         lda     #$06                         ; Magic value: MAC set!
         iny                                  ; $d8
-        sta     $bfff,y                      ; Set and autoinc
+        sta     IOMINUSONE,y                 ; Set and autoinc
         rts
-mac:    .byte   $00,$08,$0d,$00,$de,$ad
+mac:    .byte   $00,$08,$0d,$00,$de,$ad      ; TODO: Hardcoded for now
 .endproc
 ; This starts the process of finding & launching next system file
 ; unfortunately it also uses block reads and can't be run from an AppleShare
