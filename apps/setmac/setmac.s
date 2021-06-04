@@ -156,13 +156,20 @@ Main1:  cld
         bne     :+                              ; has lower case, skip over next few instructions
         lda     #$DF                            ; mask value
         sta     CaseCv                          ; to make print routine convert to upper case  
-:       jsr     HOME
+:       ;jsr     HOME
         jsr     iprint
         .byte   $8D                             ; CR
         hasc    "Uthernet-II SETMAC Utility"
         .byte   $8D,$00                         ; CR, done
         lda     #5                              ; Slot 5 TODO: This is hardcoded for now
         jsr     setmac
+
+        ; wait for keyboard
+        bit     KBDSTR
+:       lda     KBD
+        bpl     :-   
+        bit     KBDSTR
+
         jmp     NextSys
 .endproc
 .proc   setmac
@@ -188,6 +195,8 @@ Main1:  cld
         ldx     #$00
         iny                                  ; $d8
 :       lda     mac,x                        ; Load byte of MAC
+        jsr     PrHex
+        lda     mac,x                        ; Load byte of MAC again
         sta     IOMINUSONE,y                 ; Set and autoinc
         inx
         cpx     #6
@@ -368,6 +377,35 @@ nozero: pla
         rts
 .endproc
 CaseCv: .byte   $FF                            ; default case conversion byte = none
+; ----------------------------------------------------------------------------
+; print hex digits in A (already validated)
+.proc   PrHexDigit
+        cmp #$0a
+        bcc :+                                 ; A < $A
+        clc
+        adc #('a' | $80) - $0a
+        jsr COUT
+        rts
+:       ;; clc
+        adc #('0' | $80)
+        jsr COUT
+        rts
+.endproc
+; ----------------------------------------------------------------------------
+; print two hex digits in A
+.proc   PrHex
+        pha
+        lsr
+        lsr
+        lsr
+        lsr
+        and #$0f
+        jsr PrHexDigit
+        pla
+        and #$0f
+        jsr PrHexDigit
+        rts
+.endproc
 ; ----------------------------------------------------------------------------
 .proc   DoQuit
         jsr     PRODOS
