@@ -160,13 +160,20 @@ Main1:  cld
         .byte   $8D                             ; CR
         hasc    "Uthernet-II SETMAC Utility"
         .byte   $8D,$00                         ; CR, done
+        lda     #5                              ; Slot 5
         jsr     setmac
         jmp     NextSys
 .endproc
 .proc   setmac
 ; Set the MAC address on the Uthernet-II
-; TODO: Hard-coded for slot 5.
-        ldy     $d5                          ; Slot 5 mode reg offset
+; Expects slot number in A
+        asl
+        asl
+        asl
+        asl
+        clc
+        adc     #$85
+        tay                                  ; Mode register offset
         lda     #$80                         ; Reset W5100
         sta     $bfff,y                      ; Store in MODE register
         lda     #$03                         ; Address autoinc, indirect
