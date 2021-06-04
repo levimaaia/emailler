@@ -164,30 +164,36 @@ Main1:  cld
         jmp     NextSys
 .endproc
 .proc   setmac
-; Actually set the MAC address on the Uthernet-II
-; TODO: Make this slot independent and not hard-coded
-;       Hard-coded for slot 5
-        ldy     $d0                          ; Slot 5 offset
+; Set the MAC address on the Uthernet-II
+; TODO: Hard-coded for slot 5.
+        ldy     $d5                          ; Slot 5 mode reg offset
         lda     #$80                         ; Reset W5100
-        sta     $bfff+$d5                    ; Store in MODE register
+        sta     $bfff,y                      ; Store in MODE register
         lda     #$03                         ; Address autoinc, indirect
-        sta     $bfff+$d5                    ; Store in MODE register
+        sta     $bfff,y                      ; Store in MODE register
         lda     #$00                         ; High byte of MAC reg addr
         ldx     #$09                         ; Low byte
-        sta     $bfff+$d6                    ; Set high byte of pointer
-        stx     $bfff+$d7                    ; Set low byte
+        iny                                  ; $d6
+        sta     $bfff,y                      ; Set high byte of pointer
+        iny                                  ; $d7
+        stx     $bfff,y                      ; Set low byte
         ldx     #$00
+        iny                                  ; $d8
 :       lda     mac,x                        ; Load byte of MAC
-        sta     $bfff+$d8                    ; Set and autoinc
+        sta     $bfff,y                      ; Set and autoinc
         inx
         cpx     #6
         bne     :-
         lda     #$00                         ; High byte of $001a reg addr
         ldx     #$1a                         ; Low byte
-        sta     $c0d5                        ; Set high byte of pointer
-        stx     $c0d6                        ; Set low byte
+        dey
+        dey                                  ; $d6
+        sta     $bfff,y                      ; Set high byte of pointer
+        iny                                  ; $d7
+        stx     $bfff,y                      ; Set low byte
         lda     #$06                         ; Magic value: MAC set!
-        sta     $bfff+$d8                    ; Set and autoinc
+        iny                                  ; $d8
+        sta     $bfff,y                      ; Set and autoinc
         rts
 mac:    .byte   $00,$08,$0d,$00,$de,$ad
 .endproc
