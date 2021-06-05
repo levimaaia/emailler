@@ -162,7 +162,7 @@ Main1:  cld
         hasc    "Uthernet-II SETMAC Utility"
         .byte   $8D,$00                         ; CR, done
         jsr     loadsettings
-        lda     #5                              ; Slot 5 TODO: This is hardcoded for now
+        lda     UWSlot                          ; Load UW slot number
         jsr     setmac
 
         ; wait for keyboard
@@ -191,36 +191,104 @@ Main1:  cld
         .byte   $CA                             ; READ
         .word   PL_RDCFG                        ; 22 bytes -> CfgBuf
         bcs     CantRead
-        lda     CfgBuf
-        ;;
+        lda     CfgBuf                          ; Slot number char
+        sec
+        sbc     #'0'                            ; TODO NO VALIDATION!
+        sta     UWSlot
+        jsr     parsemac
         jsr     iprint
         .byte   $8D                             ; CR
-        hasc    "Read file!"
+        hasc    "Settings from SETMAC.CFG"
         .byte   $8D,$00                         ; CR, done
-        ;;
         jsr     PRODOS
         .byte   $CC                             ; CLOSE
         .word   PL_CLOSE
         rts
 CantRead:
-        jsr     iprint
-        .byte   $8D                             ; CR
-        hasc    "CantRead"
-        .byte   $8D,$00                         ; CR, done
         jsr     PRODOS
         .byte   $CC                             ; CLOSE
         .word   PL_CLOSE
-        bcs     CantOpen
 CantOpen:
         jsr     iprint
         .byte   $8D                             ; CR
-        hasc    "CantOpen"
+        hasc    "Can't Read SETMAC.CFG"
+        .byte   $8D                             ; CR
+        hasc    "Using default settings"
         .byte   $8D,$00                         ; CR, done
+        lda     #$05                            ; Default slot 5
+        sta     UWSlot
+        rts
+.endproc
+.proc parsemac
+; Parse the ASCII MAC in CfgBuf 's xx:xx:xx:xx:xx:xx',
+; convert it to six bytes and put it in MACBuf
+        ldx     #$02                           ; Source index
+        ldy     #$00                           ; Dest index
+:       lda     CfgBuf,x
+        jsr     decodeHex
+        asl
+        asl
+        asl
+        asl
+        sta     temp
+        inx
+        lda     CfgBuf,x
+        jsr     decodeHex
+        clc
+        adc     temp
+        sta     MACBuf,y
+        iny
+        inx                                    ; Extra to skip ':'
+        inx
+        cpy     #$06                           ; Done all bytes?
+        bne     :-
+        rts
+temp:   .byte   $00
+.endproc
+.proc decodeHex
+; Decode a single hex character in A
+; Hex char may be '0'-'9', 'a'-'f', 'A'-'F'
+        cmp     #('f'+1)
+        bcc     :+
+        jmp     bad                            ; char > 'f'
+:       cmp     #'a'                           ; char <= 'f'
+        bcc     :+
+        sec                                    ; 'a' <= char <= 'f'
+        sbc     #('a'-10)
+        rts
+:       cmp     #('F'+1)
+        bcc     :+
+        jmp     bad                            ; 'F' < char < 'a'
+:       cmp     #'A'
+        bcc     :+
+        sec                                    ; 'A' <= char <= 'F'
+        sbc     #('A'-10)
+        rts
+:       cmp     #('9'+1)
+        bcc     :+
+        jmp     bad                            ; '9' < char  < 'A'
+:       cmp     #'0'
+        bcc     bad
+        sec                                    ; '0' <= char <= '9'
+        sbc     #'0'
+        rts
+bad:    lda     #$00
         rts
 .endproc
 .proc   setmac
 ; Set the MAC address on the Uthernet-II
 ; Expects slot number in A
+        pha
+        jsr     iprint
+        .byte   $8D                          ; CR
+        hasc    "Slot "
+        .byte   $00
+        pla
+        pha
+        jsr     PrDec
+        jsr     iprint
+        .byte   $8D,$00                      ; CR, done
+        pla
         asl
         asl
         asl
@@ -240,9 +308,9 @@ CantOpen:
         sta     IOMINUSONE,y                 ; Set low byte
         ldx     #$00
         iny                                  ; $d8
-:       lda     mac,x                        ; Load byte of MAC
+:       lda     MACBuf,x                     ; Load byte of MAC
         jsr     PrHex
-        lda     mac,x                        ; Load byte of MAC again
+        lda     MACBuf,x                     ; Load byte of MAC again
         sta     IOMINUSONE,y                 ; Set and autoinc
         inx
         cpx     #6
@@ -258,7 +326,6 @@ CantOpen:
         iny                                  ; $d8
         sta     IOMINUSONE,y                 ; Set and autoinc
         rts
-mac:    .byte   $00,$08,$0d,$00,$de,$ad      ; TODO: Hardcoded for now
 .endproc
 ; This starts the process of finding & launching next system file
 ; unfortunately it also uses block reads and can't be run from an AppleShare
@@ -549,5 +616,7 @@ MyName:  .byte   $0D,"SETMAC.SYSTEM"
 CfgName: .byte   $0A,"SETMAC.CFG"
 CfgBuf:  .byte   $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
 ;                slt spc m1h m1l :   m2h m2l :   m3h m3l :   m4h m4l :   m5h m5l :   m6h m6l
+UWSlot:  .byte   $00
+MACBuf:  .byte   $00,$08,$0d,$10,$20,$30        ; Fallback value
                  
 
