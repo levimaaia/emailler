@@ -6,6 +6,10 @@ in an Apple //e or GS.
 It is intended to be placed in the top level directory of a ProDOS boot disk (ie: in
 the "volume directory"). 
 
+### Applicability
+
+Works with IP65 and Contiki applictions under ProDOS-8.
+
 ### Configuration File
 
 `SETMAC.SYSTEM` looks for a configuration file called `SETMAC.CFG` in the directory
