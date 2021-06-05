@@ -156,7 +156,7 @@ Main1:  cld
         bne     :+                              ; has lower case, skip over next few instructions
         lda     #$DF                            ; mask value
         sta     CaseCv                          ; to make print routine convert to upper case  
-:       ;jsr     HOME
+:       jsr     HOME
         jsr     iprint
         .byte   $8D                             ; CR
         hasc    "Uthernet-II SETMAC Utility"
@@ -165,13 +165,21 @@ Main1:  cld
         lda     UWSlot                          ; Load UW slot number
         jsr     setmac
 
+        lda     Default                         ; See if we used the defaults
+        cmp     #$ff
+        bne     nxtsys
+        jsr     iprint
+        .byte   $8D,$8D                         ; CR, CR
+        hasc    "<Press Any Key>"
+        .byte   $8D,$00                         ; CR, done
+
         ; wait for keyboard
         bit     KBDSTR
 :       lda     KBD
         bpl     :-   
         bit     KBDSTR
 
-        jmp     NextSys
+nxtsys: jmp     NextSys
 .endproc
 .proc   loadsettings
 ; Load slot number and MAC from 'SETMAC.CFG'
@@ -203,6 +211,8 @@ Main1:  cld
         jsr     PRODOS
         .byte   $CC                             ; CLOSE
         .word   PL_CLOSE
+        lda     #$00                            ; Record that we opened file
+        sta     Default
         rts
 CantRead:
         jsr     PRODOS
@@ -211,9 +221,7 @@ CantRead:
 CantOpen:
         jsr     iprint
         .byte   $8D                             ; CR
-        hasc    "Can't Read SETMAC.CFG"
-        .byte   $8D                             ; CR
-        hasc    "Using default settings"
+        hasc    "Can't Read SETMAC.CFG - Using Defaults"
         .byte   $8D,$00                         ; CR, done
         lda     #$05                            ; Default slot 5
         sta     UWSlot
@@ -308,13 +316,17 @@ bad:    lda     #$00
         sta     IOMINUSONE,y                 ; Set low byte
         ldx     #$00
         iny                                  ; $d8
-:       lda     MACBuf,x                     ; Load byte of MAC
+l1:     lda     MACBuf,x                     ; Load byte of MAC
         jsr     PrHex
-        lda     MACBuf,x                     ; Load byte of MAC again
+        cpx     #5
+        beq     ncolon
+        lda     #(':'|$80)
+        jsr     COUT
+ncolon: lda     MACBuf,x                     ; Load byte of MAC again
         sta     IOMINUSONE,y                 ; Set and autoinc
         inx
         cpx     #6
-        bne     :-
+        bne     l1
         dey
         dey                                  ; $d6
         lda     #$00                         ; High byte of $001a reg addr
@@ -618,5 +630,7 @@ CfgBuf:  .byte   $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
 ;                slt spc m1h m1l :   m2h m2l :   m3h m3l :   m4h m4l :   m5h m5l :   m6h m6l
 UWSlot:  .byte   $00
 MACBuf:  .byte   $00,$08,$0d,$10,$20,$30        ; Fallback value
+Default: .byte   $ff                            ; Set to $00 if we load SETMAC.CFG
+
                  
 
