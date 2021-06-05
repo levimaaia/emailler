@@ -1,6 +1,6 @@
 ca65 setmac.s
-ld65 setmac.o -t none -o setmac.system\#ff2000
+ld65 setmac.o -t none -o SETMAC.SYSTEM\#FF2000
 cp ../ip65.dsk ip65.po
-cadius replacefile ip65.po /IP65 setmac.system\#ff2000
+cadius replacefile ip65.po /IP65 SETMAC.SYSTEM\#FF2000
 scp ip65.po pi@pi-eth:~/virtual-1.po
 
