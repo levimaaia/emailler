@@ -629,7 +629,7 @@ CfgName: .byte   $0A,"SETMAC.CFG"
 CfgBuf:  .byte   $00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00,$00
 ;                slt spc m1h m1l :   m2h m2l :   m3h m3l :   m4h m4l :   m5h m5l :   m6h m6l
 UWSlot:  .byte   $00
-MACBuf:  .byte   $00,$08,$0d,$10,$20,$30        ; Fallback value
+MACBuf:  .byte   $00,$08,$dc,$10,$20,$30        ; Fallback value
 Default: .byte   $ff                            ; Set to $00 if we load SETMAC.CFG
 
                  
