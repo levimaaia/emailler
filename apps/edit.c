@@ -426,13 +426,16 @@ void goto_prompt_row(void) {
  */
 void update_status_line(void) {
   uint8_t l;
+  uint8_t no_name = 0;
   static char dispfname[MAX_DISP_FILENAME + 1];
   static char disppartnum[8 + 1];
 
   goto_prompt_row();
 
-  if (strlen(filename) == 0)
-    strcpy(dispfname, "<scratch>");
+  if (strlen(filename) == 0) {
+    strcpy(filename, "<scratch>");
+    no_name = 1;
+  }
   if (status[2] == 0)
     strcpy(disppartnum, "");
   else
@@ -483,6 +486,8 @@ void update_status_line(void) {
   revers(0);
   gotoxy(curscol, cursrow);
   cursor(1);
+  if (no_name)
+    strcpy(filename, "");
 }
 
 /*
