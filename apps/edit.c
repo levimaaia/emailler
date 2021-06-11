@@ -419,37 +419,41 @@ void goto_prompt_row(void) {
   gotoxy(0, PROMPT_ROW);
 }
 
+#define MAX_DISP_FILENAME 35 /* Max display space for filename */
+
 /*
  * Refresh the status line at the bottom of the screen
  */
 void update_status_line(void) {
-  uint8_t nofile = 0;
   uint8_t l;
-
-  static char selmsg1[] = ": Go to end of selection, then [Return]";
-  static char selmsg2[] = ": Go to target, then [Return] to ";
+  static char dispfname[MAX_DISP_FILENAME + 1];
+  static char disppartnum[8 + 1];
 
   goto_prompt_row();
 
-  if (strlen(filename) == 0) {
-    strcpy(filename, "<scratch>");
-    nofile = 1;
+  if (strlen(filename) == 0)
+    strcpy(dispfname, "<scratch>");
+  if (status[2] == 0)
+    strcpy(disppartnum, "");
+  else
+    snprintf(disppartnum, 8, ":Part%u", status[2]);
+  l = strlen(filename) + strlen(disppartnum);
+  if (l <= MAX_DISP_FILENAME) {
+    strcpy(dispfname, filename);
+  } else {
+    strcpy(dispfname, filename + (l - MAX_DISP_FILENAME));
+    dispfname[0] = dispfname[1] = dispfname[2] = '.';
   }
+  strcat(dispfname, disppartnum);
   revers(1);
   switch (mode) {
   case SEL_NONE:
-    if (status[2] == 0) {
-      cprintf("OA-? Help | [%03u] %c File:%s  %2uKB free",
-              l_auxbank, status[0] ? '*' : ' ', filename,
-              (FREESPACE() + 512) / 1024);
-      l = 44 - strlen(filename);
-    } else {
-      snprintf(userentry, 80, "%s Part:%u", filename, status[2]);
-      cprintf("OA-? Help | [%03u] %c File:%s %2uKB free",
-              l_auxbank, status[0] ? '*' : ' ', userentry,
-              (FREESPACE() + 512) / 1024);
-      l = 45 - strlen(userentry);
-    } 
+    cprintf("OA-? Help | [%03u] %c %s",
+            l_auxbank, status[0] ? '*' : ' ', dispfname);
+    l = 49 - strlen(dispfname);
+    cclear(l);
+    cprintf("| Free:%2uKB", (FREESPACE() + 512) / 1024);
+    l = 0;
     break;
   case SEL_SELECT:
     cprintf("Select: OA-[Space] to end");
@@ -464,25 +468,17 @@ void update_status_line(void) {
     l = 80 - 23;
     break;
   case SRCH3:
-    if (status[2] == 0) {
-      cprintf("OA-? Help | [%03u] %c File:%s  %2uKB free | Not Found",
-              l_auxbank, status[0] ? '*' : ' ', filename, (FREESPACE() + 512) / 1024);
-      l = 44 - 12 - strlen(filename);
-    } else {
-      snprintf(userentry, 80, "%s Part:%u", filename, status[2]);
-      cprintf("OA-? Help | [%03u] %c File:%s %2uKB free | Not Found",
-              l_auxbank, status[0] ? '*' : ' ', userentry,
-              (FREESPACE() + 512) / 1024);
-      l = 45 - 12 - strlen(userentry);
-    }
+    cprintf("OA-? Help | [%03u] %c %s",
+            l_auxbank, status[0] ? '*' : ' ', dispfname);
+    l = 49 - 12 - strlen(dispfname);
+    cclear(l);
+    cprintf("| Free:%2uKB | NOT FOUND", (FREESPACE() + 512) / 1024);
+    l = 0;
     break;
   }
-  cclear(l);
+  if (l > 0)
+    cclear(l);
   revers(0);
-
-  if (nofile)
-    strcpy(filename, "");
-
   gotoxy(curscol, cursrow);
   cursor(1);
 }
@@ -1888,7 +1884,7 @@ void init_aux_banks(void) {
   uint16_t count;
   clrscr();
   revers(1);
-  cprintf("EDIT.SYSTEM v1.27             Bobbi 2020");
+  cprintf("EDIT.SYSTEM v1.28             Bobbi 2021");
   revers(0);
   cprintf("\n\n\n  %u x 64KB aux banks -> %uKB\n", banktbl[0], banktbl[0]*64);
   for (i = 1; i <= banktbl[0]; ++i) {
