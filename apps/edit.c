@@ -473,6 +473,8 @@ void update_status_line(void) {
     l = 49 - 12 - strlen(dispfname);
     cclear(l);
     cprintf("| Free:%2uKB | NOT FOUND", (FREESPACE() + 512) / 1024);
+    beep();
+    beep();
     l = 0;
     break;
   }
@@ -1623,8 +1625,8 @@ uint8_t finish_search_replace(uint16_t pos, uint8_t r, uint8_t ask) {
   uint8_t i;
   mode = SEL_NONE;
   jump_pos(pos);
-  startsel = gapend + 1;
-  endsel = gapend + 1 + strlen(search);
+//  startsel = gapend + 1;
+//  endsel = gapend + 1 + strlen(search);
   draw_screen();
   if (r == 0) { // Replace mode
     if (ask) {
@@ -1647,7 +1649,7 @@ uint8_t finish_search_replace(uint16_t pos, uint8_t r, uint8_t ask) {
     cursor_right();
     return 1; // Continue
   }
-  startsel = endsel = 65535U;
+//  startsel = endsel = 65535U;
   return 0; // Do not continue
 }
 
