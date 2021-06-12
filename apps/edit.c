@@ -766,7 +766,7 @@ void spinner(uint32_t sz, uint8_t saving, uint8_t copymode) {
              (saving ? "Saving" : "Opening"), filename, chars[(i++) % 4], sz);
   revers(1);
   cprintf("%s", buf);
-  cclear(79 - strlen(buf));
+  cclear(80 - strlen(buf));
   revers(0);
 }
 
