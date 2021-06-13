@@ -45,7 +45,7 @@ TCP =\
 	tweet65 \
 	pop65-slow
 
-bin: wget65.bin pop65.bin smtp65.bin email.bin rebuild.bin edit.bin attacher.bin nntp65.bin nntp65.up.bin
+bin: wget65.bin pop65.bin smtp65.bin email.bin rebuild.bin edit.bin attacher.bin nntp65.bin nntp65.up.bin print65.bin
 
 wget65.bin: w5100.c w5100_http.c linenoise.c
 wget65.bin: IP65LIB = ../ip65/ip65.lib
@@ -66,6 +66,10 @@ nntp65.bin: A2_DRIVERLIB = ../drivers/ip65_apple2_uther2.lib
 nntp65.up.bin: w5100.c
 nntp65.up.bin: IP65LIB = ../ip65/ip65.lib
 nntp65.up.bin: A2_DRIVERLIB = ../drivers/ip65_apple2_uther2.lib
+
+print65.bin: w5100.c
+print65.bin: IP65LIB = ../ip65/ip65.lib
+print65.bin: A2_DRIVERLIB = ../drivers/ip65_apple2_uther2.lib
 
 email.bin: gettime.s
 
@@ -166,6 +170,8 @@ ip65.dsk: bin
 	java -jar $(AC) -p  $@ nntp65up.system sys < $(CC65)/apple2enh/util/loader.system
 	java -jar $(AC) -as $@ pop65               < pop65.bin
 	java -jar $(AC) -p  $@ pop65.system    sys < $(CC65)/apple2enh/util/loader.system
+	java -jar $(AC) -as $@ print65             < print65.bin
+	java -jar $(AC) -p  $@ print65.system  sys < $(CC65)/apple2enh/util/loader.system
 	java -jar $(AC) -as $@ rebuild             < rebuild.bin
 	java -jar $(AC) -p  $@ rebuild.system  sys < $(CC65)/apple2enh/util/loader.system
 	java -jar $(AC) -as $@ smtp65              < smtp65.bin
