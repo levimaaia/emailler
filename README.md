@@ -31,6 +31,7 @@ Emai//er is implemented as a number of ProDOS executables, each of which perform
  - `ATTACHER.SYSTEM` is used for creating multi-part MIME messages with attached files.
  - `REBUILD.SYSTEM` is a utility for rebuilding mailbox databases, should they become corrupted.  This can also be used for bulk import of messages.
  - `DATE65.SYSTEM` is a Network Time Protocol (NTP) client which can be used for setting the system time and date if you do not have a real time clock.
+ - `PRINT65.SYSTEM` allows text file to be printed to a network-attached printer that supports the Hewlett Packard Jetdirect protocol.
 
 The following diagram shows the various executables that form the emai//er suite and how they execute one another.  Note how `EMAIL.SYSTEM` serves as the hub from which all the other programs may be invoked.
 
@@ -105,6 +106,7 @@ Please refer to the linked documents for detailed instructions on how to configu
  - [Receiving Email with `POP65.SYSTEM`](README-pop65.md)
  - [Sending Email with `SMTP65.SYSTEM`](README-smtp65.md)
  - [Rebuilding Mailboxes with `REBUILD.SYSTEM`](README-rebuild.md)
+ - [Printing Files with `PRINT65.SYSTEM`](README-print65.md)
 
 ## Detailed Documentation for Usenet Functions
 
