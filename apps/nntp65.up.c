@@ -369,7 +369,7 @@ void readconfigfile(void) {
 
   colon = strchr(cfg_server, ':');
   if (!colon)
-    nntp_port = 110;
+    nntp_port = 119;
   else
     nntp_port = atoi(colon + 1);
 }
@@ -645,19 +645,22 @@ sendmessage:
       if (expect(buf, "200 ")) // "200" if posting is allowed
         error_exit();
 
-      sprintf(sendbuf, "AUTHINFO USER %s\r\n", cfg_user);
-      if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
-        error_exit();
-      }
-      if (expect(buf, "381")) // Username accepted
-        error_exit();
+      // Skip authentication?
+      if (strcmp(cfg_user, "-") != 0) {
+        sprintf(sendbuf, "AUTHINFO USER %s\r\n", cfg_user);
+        if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
+          error_exit();
+        }
+        if (expect(buf, "381")) // Username accepted
+          error_exit();
 
-      sprintf(sendbuf, "AUTHINFO PASS %s\r\n", cfg_pass);
-      if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
-        error_exit();
+        sprintf(sendbuf, "AUTHINFO PASS %s\r\n", cfg_pass);
+        if (!w5100_tcp_send_recv(sendbuf, buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
+          error_exit();
+        }
+        if (expect(buf, "281")) // Authentication successful
+          error_exit();
       }
-      if (expect(buf, "281")) // Authentication successful
-        error_exit();
 
       connected = 1;
     }
