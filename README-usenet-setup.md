@@ -34,7 +34,7 @@ bobbi.8bit@gmail.com
 The lines are as follows, in order:
 
  1) IP address of the NNTP server, optionally followed by a colon and then the TCP port number.  If the colon and port number are omitted, port 119 is the default.
- 2) Username to use when connecting to NNTP.
+ 2) Username to use when connecting to NNTP. If your NNTP server does not need authentication then use '-' for the username and password.
  3) Password to use when connecting to NNTP.
  4) ProDOS path of the directory where the email executables are installed.
  5) ProDOS path to the root of the email folder tree.  Mailboxes will be created and managed under this root path.
