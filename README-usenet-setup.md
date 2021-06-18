@@ -27,7 +27,7 @@ Here is an example config file (with passwords replaced with `****` for obvious 
 Bobbi
 ****
 /H1/IP65
-/DATA/EMAIL
+/H1/DOCUMENTS/EMAIL
 bobbi.8bit@gmail.com
 ```
 
