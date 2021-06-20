@@ -335,6 +335,8 @@ struct tabent {
  */
 void file_ui_draw(uint16_t i, uint16_t first, uint16_t selected, uint16_t entries) {
   struct tabent *entry;
+  if (i < first)
+    return;
   gotoxy(5, i - first + 6);
   if (i < entries) {
     entry = (struct tabent*)iobuf + i;

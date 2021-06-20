@@ -299,6 +299,7 @@ void main(int argc, char *argv[]) {
     printf("Ok\n\n");
 
   }
+  printf("Sending to printer  ");
   if (!w5100_tcp_send()) {
       error_exit();
   }

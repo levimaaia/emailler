@@ -1891,7 +1891,7 @@ void init_aux_banks(void) {
   uint16_t count;
   clrscr();
   revers(1);
-  cprintf("EDIT.SYSTEM v1.28             Bobbi 2021");
+  cprintf("EDIT.SYSTEM v1.29             Bobbi 2021");
   revers(0);
   cprintf("\n\n\n  %u x 64KB aux banks -> %uKB\n", banktbl[0], banktbl[0]*64);
   for (i = 1; i <= banktbl[0]; ++i) {
@@ -2044,6 +2044,8 @@ struct tabent {
  */
 void file_ui_draw(uint16_t i, uint16_t first, uint16_t selected, uint16_t entries) {
   struct tabent *entry;
+  if (i < first)
+    return;
   gotoxy(5, i - first + 6);
   if (i < entries) {
     entry = (struct tabent*)iobuf + i;
