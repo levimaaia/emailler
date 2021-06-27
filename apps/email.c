@@ -1273,7 +1273,7 @@ retry:
         get_line(fp, 1, linebuf, LINEBUFSZ, &pos); // Reset buffer
         do {
           get_line(fp, 0, linebuf, LINEBUFSZ, &pos);
-          if (!strncasecmp(linebuf, ct, 14))
+          if (!strncasecmp(linebuf, ct, 14)) {
             mime = 4;
 #if 0
             ... {
