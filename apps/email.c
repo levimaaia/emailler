@@ -589,11 +589,12 @@ void printfield(char *s, uint8_t start, uint8_t end) {
 #pragma code-name (pop)
 
 /*
- * Decode Subject header which may be encoded Quoted-Printable or Base64
+ * Decode Subject or From header which may be encoded
+ * Quoted-Printable or Base64
  * p - pointer to subject header content
  * Decoded (and sanitized) text is returned in linebuf[]
  */
-void decode_subject(char *p) {
+void decode_qp_header(char *p) {
   uint8_t i = 0, j = 0;
   if (strncasecmp(p, "=?utf-8?", 8) == 0) {
     strcpy(linebuf, p + 10); // Skip '=?UTF-8?x?'
@@ -633,9 +634,10 @@ void print_one_email_summary(struct emailhdrs *h, uint8_t inverse) {
   putchar('|');
   printfield(h->date, 0, 16);
   putchar('|');
-  printfield(h->from, 0, 20);
+  decode_qp_header(h->from);
+  printfield(linebuf, 0, 20);
   putchar('|');
-  decode_subject(h->subject);
+  decode_qp_header(h->subject);
   printfield(linebuf, 0, 39);
   putchar(NORMAL);
 }
@@ -1028,6 +1030,7 @@ enum mime_enc mime_encoding(char *s) {
  * Includes support for decoding MIME headers
  */
 void email_pager(struct emailhdrs *h) {
+  static char boundary[71];
   static struct emailhdrs hh;
   uint32_t pos = 0;
   uint8_t *cursorrow = (uint8_t*)CURSORROW, mime = 0;
@@ -1081,7 +1084,8 @@ restart:
   fputs("Date:    ", stdout);
   printfield(hh.date, 0, 39);
   fputs("\nFrom:    ", stdout);
-  printfield(hh.from, 0, 70);
+  decode_qp_header(hh.from);
+  printfield(linebuf, 0, 70);
   if (strncmp(hh.to, "News:", 5) == 0) {
     fputs("\nNewsgrp: ", stdout);
     printfield(&(hh.to[5]), 0, 70);
@@ -1098,7 +1102,7 @@ restart:
     }
   }
   fputs("\nSubject: ", stdout);
-  decode_subject(hh.subject);
+  decode_qp_header(hh.subject);
   printfield(linebuf, 0, 70);
   fputs("\n\n", stdout);
   get_line(fp, 1, linebuf, LINEBUFSZ, &pos); // Reset buffer
@@ -1271,6 +1275,24 @@ retry:
           get_line(fp, 0, linebuf, LINEBUFSZ, &pos);
           if (!strncasecmp(linebuf, ct, 14))
             mime = 4;
+#if 0
+            ... {
+            readp = writep = NULL;
+            mime = 4;
+            readp = strstr(linebuf, "boundary=\"");
+            if (readp)
+              writep = strstr(readp + 10, "\"");
+            if (writep) {
+              strncpy(boundary, readp + 10, writep - readp - 10);
+              printf("Boundary is %s\n", boundary);
+cgetc();
+            } else {
+              mime = 0;
+            }
+#endif
+          } else {
+            mime = 0;
+          }
           if (!strncasecmp(linebuf, cte, 27)) {
             mime = 4;
             mime_enc = mime_encoding(linebuf);
@@ -1575,7 +1597,7 @@ esc_pressed:
  * Adds 'Re: ' to subject line unless it is already there
  */
 void prefix_subject(FILE *f, char *subject, char *prefix) {
-  decode_subject(subject);
+  decode_qp_header(subject);
   fprintf(f, "Subject: %s%s\r",
           (strncmp(subject, prefix, strlen(prefix)) ? prefix : ""), linebuf);
 }
@@ -1613,16 +1635,18 @@ uint8_t write_email_headers(FILE *fp1, FILE *fp2, struct emailhdrs *h,
   if (mode == 'R') {
     truncate_header(h->date, buf, 40);
     fprintf(fp2, "On %s, ", buf);
-    truncate_header(h->from, buf, 80);
+    decode_qp_header(h->from);
+    truncate_header(linebuf, buf, 80);
     fprintf(fp2, "%s wrote:\r\r", buf);
   } else {
     fprintf(fp2, "-------- Forwarded Message --------\r");
-    decode_subject(h->subject);
+    decode_qp_header(h->subject);
     truncate_header(linebuf, buf, 80);
     fprintf(fp2, "Subject: %s\r", buf);
     truncate_header(h->date, buf, 40);
     fprintf(fp2, "Date: %s\r", buf);
-    truncate_header(h->from, buf, 80);
+    decode_qp_header(h->from);
+    truncate_header(linebuf, buf, 80);
     fprintf(fp2, "From: %s\r", buf);
     truncate_header(h->to, buf, 80);
     fprintf(fp2, "To: %s\r\r", buf);
