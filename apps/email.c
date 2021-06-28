@@ -1,7 +1,7 @@
 /////////////////////////////////////////////////////////////////
 // emai//er - Simple Email User Agent vaguely inspired by Elm
 // Handles INBOX in the format created by POP65
-// Bobbi June 2020 - May 2021
+// Bobbi June 2020 - June 2021
 /////////////////////////////////////////////////////////////////
 
 #include <stdio.h>
@@ -986,24 +986,6 @@ void load_screen_from_scrollback(FILE *fp, uint8_t screen) {
 }
 
 /*
- * Check if text at p is a MIME boundary.
- * p is assumed to point to start of line.
- * Valid MIME boundaries start with "--", then have a char sequence
- * with no spaces, then CR
- */
-uint8_t is_mime_boundary(char *p) {
- if (strncmp(p, "--", 2))  // Must start with "--"
-   return 0;
- p += 2;
- do {
-   if (*p == ' ')               // Can not contain ' '
-     return 0;
-   ++p;
- } while (*p && (*p != '\r'));
- return 1;
-}
-
-/*
  * MIME encodings: 7 bit, quoted printable or base64
  */
 enum mime_enc {ENC_7BIT, ENC_QP, ENC_B64, ENC_SKIP = 255};
@@ -1026,11 +1008,53 @@ enum mime_enc mime_encoding(char *s) {
 }
 
 /*
+ * Support three levels of nesting
+ */
+static char mime_boundaries[3][71];
+static uint8_t mime_idx;
+
+/*
+ * linebuf[] is expected to contain the Content-Type: header
+ * Parse it and obtain the MIME boundary, write it to buf[]
+ */
+void mime_get_boundary(void) {
+  char *p, *q;
+  if (mime_idx > 2)
+    return;
+  p = strstr(linebuf, "boundary=\"");
+  if (p) {
+    q = strstr(p + 10, "\"");
+    if (q) {
+      strncpy(mime_boundaries[mime_idx], p + 10, q - p - 10);
+      mime_boundaries[mime_idx][q - p - 10] = '\0';
+      ++mime_idx;
+    }
+  }
+}
+
+/*
+ * Check if text at p is a MIME boundary.
+ * Uses the MIME boundaries stored in mime_boundaries[]
+ * p is assumed to point to start of line.
+ */
+uint8_t is_mime_boundary(char *p) {
+ uint8_t i;
+ if (strncmp(p, "--", 2))  // Must start with "--"
+   return 0;
+ p += 2;
+ for (i = 0; i < mime_idx; ++i) {
+   // Match boundary followed by '\r' or "--" (or anything else, actually)
+   if (strncmp(mime_boundaries[i], p, strlen(mime_boundaries[i])) == 0)
+     return 1;
+ }
+ return 0;
+}
+
+/*
  * Display email with simple pager functionality
  * Includes support for decoding MIME headers
  */
 void email_pager(struct emailhdrs *h) {
-  static char boundary[71];
   static struct emailhdrs hh;
   uint32_t pos = 0;
   uint8_t *cursorrow = (uint8_t*)CURSORROW, mime = 0;
@@ -1060,6 +1084,7 @@ void email_pager(struct emailhdrs *h) {
   pos = hh.skipbytes;
   fseek(fp, pos, SEEK_SET); // Skip over headers
   mime_enc = ENC_7BIT;
+  mime_idx = 0;
 restart:
   eof = 0;
   linecount = 0;
@@ -1137,6 +1162,7 @@ restart:
           printf("\n<Not showing HTML>\n");
           mime = 1;
         } else {
+          mime_get_boundary(); // BOBBI
           mime_binary = 1;
           mime = 3;
         }
@@ -1275,23 +1301,7 @@ retry:
           get_line(fp, 0, linebuf, LINEBUFSZ, &pos);
           if (!strncasecmp(linebuf, ct, 14)) {
             mime = 4;
-#if 0
-            ... {
-            readp = writep = NULL;
-            mime = 4;
-            readp = strstr(linebuf, "boundary=\"");
-            if (readp)
-              writep = strstr(readp + 10, "\"");
-            if (writep) {
-              strncpy(boundary, readp + 10, writep - readp - 10);
-              printf("Boundary is %s\n", boundary);
-cgetc();
-            } else {
-              mime = 0;
-            }
-#endif
-          } else {
-            mime = 0;
+            mime_get_boundary(); // BOBBI
           }
           if (!strncasecmp(linebuf, cte, 27)) {
             mime = 4;
