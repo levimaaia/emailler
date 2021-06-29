@@ -1016,11 +1016,16 @@ static uint8_t mime_idx;
 /*
  * linebuf[] is expected to contain the Content-Type: header
  * Parse it and obtain the MIME boundary, write it to buf[]
+ * Returns 1 if boundary was found or if there is no room for more
+ * boundaries to be stored, 0 if boundary was not found.
+ *
+ * Three levels of nesting are supported, to avoid mime_boundaries[]
+ * chewing up too much memory.
  */
-void mime_get_boundary(void) {
+uint8_t mime_get_boundary(void) {
   char *p, *q;
   if (mime_idx > 2)
-    return;
+    return 1; // No point in trying any more
   p = strstr(linebuf, "boundary=\"");
   if (p) {
     q = strstr(p + 10, "\"");
@@ -1029,7 +1034,9 @@ void mime_get_boundary(void) {
       mime_boundaries[mime_idx][q - p - 10] = '\0';
       ++mime_idx;
     }
+    return 1; // Got boundary
   }
+  return 0; // Did not get boundary
 }
 
 /*
@@ -1162,7 +1169,7 @@ restart:
           printf("\n<Not showing HTML>\n");
           mime = 1;
         } else {
-          mime_get_boundary();
+          mime_get_boundary(); // #1 email body
           mime_binary = 1;
           mime = 3;
         }
@@ -1300,8 +1307,8 @@ retry:
         do {
           get_line(fp, 0, linebuf, LINEBUFSZ, &pos);
           if (!strncasecmp(linebuf, ct, 14)) {
-            mime = 4;
-            mime_get_boundary();
+            mime = 3 + mime_get_boundary(); // 4 if boundary, 3 otherwise
+            continue;
           }
           if (!strncasecmp(linebuf, cte, 27)) {
             mime = 4;
@@ -1310,6 +1317,11 @@ retry:
               mime = 0;
               break;
             }
+            continue;
+          }
+          if (mime == 3) {       // We have Content-Type but no boundary yet
+            mime_get_boundary();
+            mime = 4;
           }
         } while (linebuf[0] != '\r');
         pos = hh.skipbytes;
@@ -1768,8 +1780,8 @@ void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
     if (!strncasecmp(linebuf, mime_ver, 17))
       mime = 1;
     if (!strncasecmp(linebuf, ct, 14)) {
-      mime = 4;
-      mime_get_boundary();
+      mime = 3 + mime_get_boundary(); // 4 if boundary, 3 otherwise
+      continue;
     }
     if (!strncasecmp(linebuf, cte, 27)) {
       mime = 4;
@@ -1778,6 +1790,11 @@ void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
         error(ERR_NONFATAL, unsupp_enc, linebuf + 27);
         return;
       }
+      continue;
+    }
+    if (mime == 3) {       // We have Content-Type but no boundary yet
+      mime_get_boundary();
+      mime = 4;
     }
   } while (linebuf[0] != '\r');
   pos = h->skipbytes;
@@ -1807,7 +1824,7 @@ void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
         } else if (!strncmp(writep + 14, "text/html", 9)) {
           mime = 1;
         } else {
-          mime_get_boundary();
+          mime_get_boundary(); // #4 email body
           mime_binary = 1;
           mime = 3;
         }
