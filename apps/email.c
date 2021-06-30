@@ -1169,9 +1169,8 @@ restart:
           printf("\n<Not showing HTML>\n");
           mime = 1;
         } else {
-          mime_get_boundary(); // #1 email body
+          mime = 2 + mime_get_boundary(); // 3 if boundary, 2 otherwise
           mime_binary = 1;
-          mime = 3;
         }
       } else if (!strncasecmp(writep, cte, 27)) {
         mime = 3;
@@ -1209,6 +1208,8 @@ prompt_dl:
           mime_enc = ENC_SKIP; // Skip over binary MIME parts with no filename
           printf("\n");
         }
+      } else if (mime == 2) {
+        mime = 2 + mime_get_boundary(); // 3 if boundary, 2 otherwise
       }
       readp = writep = NULL;
     } else if (mime == 4) {
@@ -1805,6 +1806,7 @@ void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
   mime_hasfile = 0;
   get_line(fp, 1, linebuf, LINEBUFSZ, &pos); // Reset buffer
   while (1) {
+    spinner();
     if (!readp)
       readp = linebuf;
     if (!writep)
@@ -1824,9 +1826,8 @@ void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
         } else if (!strncmp(writep + 14, "text/html", 9)) {
           mime = 1;
         } else {
-          mime_get_boundary(); // #4 email body
+          mime = 2 + mime_get_boundary(); // 3 if boundary, 2 otherwise
           mime_binary = 1;
-          mime = 3;
         }
       } else if (!strncasecmp(writep, cte, 27)) {
         mime = 3;
@@ -1841,6 +1842,8 @@ void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
         mime = 4;
         if (mime_binary)
           mime_enc = ENC_SKIP; // Skip over binary MIME parts
+      } else if (mime == 2) {
+        mime = 2 + mime_get_boundary(); // 3 if boundary, 2 otherwise
       }
       readp = writep = NULL;
     } else if (mime == 4) {
