@@ -69,6 +69,10 @@ Recommended optional hardware:
 
 Emai//er has been extensively tested using ProDOS 2.4.2. However, it should not be a problem to run it under other versions of ProDOS.
 
+## Uthernet-II Slot
+
+The default slot is 5. If you have your card in another slot then create a file called `ethernet.slot` using `EDIT.SYSTEM` with your slot number on the first line.
+
 ## Transport Level Security (TLS)
 
 One problem faced by any retrocomputing project of this type is that Transport Layer Security (TLS) is endemic on today's Internet.  While this is great for security, the encryption algorithms are not feasible to implement on a 6502-based system.  In order to bridge the plain text world of the Apple II to today's encrypted Internet, I have set up a Raspberry Pi using several common open source packages as a gateway.
