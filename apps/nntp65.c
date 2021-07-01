@@ -26,6 +26,8 @@
 #define BELL      7
 #define BACKSPACE 8
 
+#define LOGFILE "NNTP65.LOG"
+
 // Both pragmas are obligatory to have cc65 generate code
 // suitable to access the W5100 auto-increment registers.
 #pragma optimize      (on)
@@ -568,7 +570,9 @@ void update_mailbox(char *mbox) {
 
 void main(int argc, char *argv[]) {
   uint32_t nummsgs, lownum, highnum, msgnum, msg;
+  uint16_t msgcount, i;
   char sendbuf[80];
+  FILE *logfp;
   uint8_t eth_init = ETH_INIT_DEFAULT;
 
   if ((argc == 2) && (strcmp(argv[1], "EMAIL") == 0))
@@ -666,6 +670,12 @@ void main(int argc, char *argv[]) {
       error_exit();
   }
 
+  // Make empty log file
+  _filetype = PRODOS_T_TXT;
+  _auxtype = 0;
+  logfp = fopen(LOGFILE, "w");
+  fclose(logfp);
+
   while (1) {
     msg = fscanf(newsgroupsfp, "%s %s %ld", newsgroup, mailbox, &msgnum);
     if (strcmp(newsgroup, "0") == 0)
@@ -706,6 +716,7 @@ void main(int argc, char *argv[]) {
         break;
     }
 
+    msgcount = 0;
     while (1) {
       if (!w5100_tcp_send_recv("NEXT\r\n", buf, NETBUFSZ, DO_SEND, CMD_MODE)) {
         error_exit();
@@ -727,11 +738,23 @@ void main(int argc, char *argv[]) {
       }
       spinner(filesize, 1); // Cleanup spinner
       fclose(fp);
+      ++msgcount;
     }
     printf("Updating NEWSGROUPS.NEW (%s:%ld) ...\n", newsgroup, msg);
     fprintf(newnewsgroupsfp, "%s %s %ld\n", newsgroup, mailbox, msg);
     printf("Updating mailbox %s ...\n", mailbox);
     update_mailbox(mailbox);
+
+    _filetype = PRODOS_T_TXT;
+    _auxtype = 0;
+    logfp = fopen(LOGFILE, "a");
+    if (logfp) {
+      fprintf(logfp, "  %s", newsgroup);
+      for (i = 0; i < (30 - strlen(newsgroup)); ++i)
+      	fputc(' ', logfp);
+      fprintf(logfp, "%5u messages retrieved to mailbox %s\n", msgcount, mailbox);
+      fclose(logfp);
+    }
   }
 
   fclose(newsgroupsfp);
@@ -754,6 +777,18 @@ void main(int argc, char *argv[]) {
 
   printf("Disconnecting\n");
   w5100_disconnect();
+
+  logfp = fopen(LOGFILE, "r");
+  if (logfp) {
+    puts("\nNNTP65 Session Summary:\n");
+    i = fgetc(logfp);
+    while (!feof(logfp)) {
+      putchar(i);
+      i = fgetc(logfp);
+    }
+    fclose(logfp);
+    puts("");
+  }
 
   confirm_exit();
 }
