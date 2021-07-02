@@ -1025,13 +1025,22 @@ static uint8_t mime_idx;
 uint8_t mime_get_boundary(void) {
   char *p, *q;
   if (mime_idx > 2)
-    return 1; // No point in trying any more
-  p = strstr(linebuf, "boundary=\"");
+    return 1; // No point in trying if nested too deep
+  p = strstr(linebuf, "boundary=");
   if (p) {
-    q = strstr(p + 10, "\"");
+    q = strstr(p + 9, "\r");  // Terminated by EOL ..
+    if (!q)
+      q = strstr(p + 9, ";"); // .. or by semicolon
     if (q) {
-      strncpy(mime_boundaries[mime_idx], p + 10, q - p - 10);
-      mime_boundaries[mime_idx][q - p - 10] = '\0';
+      if (*(p + 9) == '\"') {
+	// Trim quotes, if present
+        strncpy(mime_boundaries[mime_idx], p + 10, q - p - 10);
+        mime_boundaries[mime_idx][q - p - 11] = '\0';
+      } else {
+        strncpy(mime_boundaries[mime_idx], p + 9, q - p - 9);
+        mime_boundaries[mime_idx][q - p - 9] = '\0';
+      }
+      //printf("Boundary: %s\n", mime_boundaries[mime_idx]);
       ++mime_idx;
     }
     return 1; // Got boundary
