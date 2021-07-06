@@ -1730,8 +1730,8 @@ void disconnect_ramdisk(void) {
   uint16_t *s3d2 = (uint16_t*)0xbf26; // s3d2 driver vector
   if (*s0d1 != *s3d2)
     check_ramdisk(3 + (2 - 1) * 8);     // s3d2
-  if (*s0d1 != *s3d1)
-    check_ramdisk(3 + (1 - 1) * 8);     // s3d1
+//  if (*s0d1 != *s3d1)
+//    check_ramdisk(3 + (1 - 1) * 8);     // s3d1
   if (*s0d1 == *s3d2) {
     s3d2dev = 0;
     goto s3d1;                        // No /RAM
@@ -1747,6 +1747,8 @@ void disconnect_ramdisk(void) {
   *s3d2 = *s0d1;
   --(*devcnt);  
 s3d1:
+  return;
+#if 0
   if (*s0d1 == *s3d1) {
     s3d1dev = 0;
     return;                           // No /RAM3
@@ -1761,6 +1763,7 @@ s3d1:
   s3d1vec = *s3d1;
   *s3d1 = *s0d1;
   --(*devcnt);  
+#endif
 }
 
 /*
@@ -1808,6 +1811,7 @@ void reconnect_ramdisk(void) {
     printf("Unable to reconnect S3D2");
   }
 s3d1:
+# if 0
   if (s3d1dev) {
     *s3d1 = s3d1vec;
     ++(*devcnt);
@@ -1828,6 +1832,7 @@ s3d1:
     beep();
     printf("Unable to reconnect S3D1");
   }
+#endif
 done:
   return;
 }
@@ -1891,7 +1896,7 @@ void init_aux_banks(void) {
   uint16_t count;
   clrscr();
   revers(1);
-  cprintf("EDIT.SYSTEM v1.29             Bobbi 2021");
+  cprintf("EDIT.SYSTEM v1.30             Bobbi 2021");
   revers(0);
   cprintf("\n\n\n  %u x 64KB aux banks -> %uKB\n", banktbl[0], banktbl[0]*64);
   for (i = 1; i <= banktbl[0]; ++i) {
