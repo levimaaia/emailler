@@ -553,7 +553,7 @@ uint8_t hexdigit(char c) {
  * p - Pointer to buffer to decode. Results written in place.
  * Returns number of bytes decoded
  */
-uint16_t decode_quoted_printable(uint8_t *p) {
+uint16_t decode_quoted_printable(uint8_t *p, uint8_t isheader) {
   uint16_t i = 0, j = 0;
   uint8_t c;
   while (c = p[i]) {
@@ -564,7 +564,7 @@ uint16_t decode_quoted_printable(uint8_t *p) {
       c = 16 * hexdigit(p[i + 1]) + hexdigit(p[i + 2]);
       p[j++] = c;
       i += 3;
-    } else if (c == '?')
+    } else if ((c == '?') && isheader)
       break;
     else {
       p[j++] = c;
@@ -601,7 +601,7 @@ void decode_qp_header(char *p) {
     if (p[8] == 'B')
       decode_base64(linebuf);
     else
-      decode_quoted_printable(linebuf);
+      decode_quoted_printable(linebuf, 1);
     while (linebuf[i]) {
       if ((linebuf[i] <= 127) && (linebuf[i] >= 32))
         linebuf[j++] = linebuf[i];
@@ -1224,7 +1224,7 @@ prompt_dl:
     } else if (mime == 4) {
       switch (mime_enc) {
       case ENC_QP:
-        chars = decode_quoted_printable(writep);
+        chars = decode_quoted_printable(writep, 0);
         break;
        case ENC_B64:
         chars = decode_base64(writep);
@@ -1858,7 +1858,7 @@ void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
     } else if (mime == 4) {
       switch (mime_enc) {
       case ENC_QP:
-        chars = decode_quoted_printable(writep);
+        chars = decode_quoted_printable(writep, 0);
         break;
        case ENC_B64:
         chars = decode_base64(writep);

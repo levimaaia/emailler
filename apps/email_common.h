@@ -1,12 +1,12 @@
 /////////////////////////////////////////////////////////////////
 // EMAIL_COMMON.H
 // Definitions shared between pop65.c and email.c
-// Bobbi June 2020
+// Bobbi August 2021
 /////////////////////////////////////////////////////////////////
 
 #include <stdint.h>
 
-#define PROGNAME "emai//er v2.1.7"
+#define PROGNAME "emai//er v2.1.8"
 
 // Configuration params from EMAIL.CFG
 char cfg_server[40];         // IP of POP3 server
