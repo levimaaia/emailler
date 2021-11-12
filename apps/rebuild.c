@@ -163,6 +163,9 @@ void repair_mailbox(void) {
   }
   fclose(fp);
 
+  maxemailnum = 0;
+  minemailnum = 65535;
+
   printf("** Scanning directory %s\n", dirname);
 
   while (d = readdir(dp)) {
