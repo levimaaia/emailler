@@ -183,6 +183,11 @@ void repair_mailbox(void) {
   }
   closedir(dp);
 
+  if (maxemailnum < minemailnum) {
+    printf("** No messages in this directory\n");
+    error_exit();
+  }
+
   printf("** Will process EMAIL.%u to EMAIL.%u\n", minemailnum, maxemailnum);
   for (emailnum = minemailnum; emailnum <= maxemailnum; ++emailnum) {
     sprintf(filename, "%s/EMAIL.%u", dirname, emailnum);
