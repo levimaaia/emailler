@@ -2044,7 +2044,7 @@ uint16_t get_db_index(void) {
  * on the current message.  If they are, prompt the user and, if affirmative,
  * iterate through the tagged messages calling copy_to_mailbox() on each.
  */
-uint8_t copy_to_mailbox_tagged(char *mbox, uint8_t delete) {
+uint8_t copy_to_mailbox_tagged(char *mbox, char mode, uint8_t delete) {
   uint16_t count = 0, tagcount = 0;
   struct emailhdrs *h;
   uint16_t l;
@@ -2053,7 +2053,8 @@ uint8_t copy_to_mailbox_tagged(char *mbox, uint8_t delete) {
     copy_to_mailbox(h, get_db_index(), mbox, delete, ' ');
     return 0;
   }
-  snprintf(filename, 80, "%u tagged - ", total_tag);
+  snprintf(filename, 80, "%s %u tagged - ",
+           (mode == 'C' ? "Copy" : (mode == 'M' ? "Move" : "Archive")), total_tag);
   if (!prompt_okay(filename))
     return 0;
   h = (struct emailhdrs*)malloc(sizeof(struct emailhdrs));
@@ -2333,7 +2334,7 @@ void keyboard_hdlr(void) {
       if (h) {
         c = prompt_for_name("Copy to mbox", 1);
         if ((c != 0) && (c != 255))
-          copy_to_mailbox_tagged(userentry, 0);
+          copy_to_mailbox_tagged(userentry, 'C', 0);
       }
       break;
     case 'm':
@@ -2341,14 +2342,14 @@ void keyboard_hdlr(void) {
       if (h) {
         c = prompt_for_name("Move to mbox", 1);
         if ((c != 0) && (c != 255))
-          copy_to_mailbox_tagged(userentry, 1);
+          copy_to_mailbox_tagged(userentry, 'M', 1);
       }
       break;
     case 'a':
     case 'A':
       if (h) {
         goto_prompt_row();
-        copy_to_mailbox_tagged("RECEIVED", 1);
+        copy_to_mailbox_tagged("RECEIVED", 'A', 1);
       }
       break;
     case 'p':
@@ -2421,6 +2422,7 @@ void keyboard_hdlr(void) {
       load_app(APP_SMTP);
       break;
     case 0x80 + '?': // OA-? "Help"
+    case 0x80 + '/': // OA-/ "Help"
       help(1);
       c = cgetc();
       email_summary();

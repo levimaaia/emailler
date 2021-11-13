@@ -2638,6 +2638,7 @@ int edit(char *fname) {
       }
       break;
     case 0x80 + '?': // OA-? "Help"
+    case 0x80 + '/': // OA-/ "Help"
 help1:
       help(1);
       c = cgetc();
