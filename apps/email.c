@@ -22,8 +22,9 @@
 // Program constants
 #define MSGS_PER_PAGE 19     // Number of messages shown on summary screen
 #define PROMPT_ROW    24     // Row that data entry prompt appears on
-#define LINEBUFSZ     1000   // According to RFC2822 Section 2.1.1 (998+CRLF)
 #define READSZ        512    // Size of buffer for copying files
+#define LINEBUFSZ     1024   // Max line 1000 according to RFC2822 Sect 2.1.1
+                             // We use 1024 because this is also used for scrollback
 
 // Characters
 #define BELL          0x07
@@ -89,7 +90,6 @@ struct datetime {
 static char              filename[80];
 static char              userentry[80];
 static char              linebuf[LINEBUFSZ];
-static char              halfscreen[0x0400];
 static FILE              *fp;
 static struct emailhdrs  *headers;
 static uint16_t          selection = 1;
@@ -946,43 +946,53 @@ void copyaux(char *src, char *dst, uint16_t len, enum aux_ops dir) {
 
 /*
  * Save the current screen to the scrollback file
+ * We preserve linebuf[] by copying it to aux 0x0800, and recover
+ * it at the end.  This saves us having an additional 1KB buffer.
  */
 void save_screen_to_scrollback(FILE *fp) {
+  copyaux(linebuf, (void*)0x800, 1024, TOAUX); // Preserve linebuf[]
   if (fwrite((void*)0x0400, 0x0400, 1, fp) != 1) { // Even cols
     error(ERR_NONFATAL, sb_err);
-    return;
+    goto done;
   }
-  copyaux((void*)0x400, halfscreen, 0x400, FROMAUX);
-  if (fwrite(halfscreen, 0x0400, 1, fp) != 1) { // Odd cols
+  copyaux((void*)0x400, linebuf, 0x400, FROMAUX);
+  if (fwrite(linebuf, 0x0400, 1, fp) != 1) { // Odd cols
     error(ERR_NONFATAL, sb_err);
-    return;
+    goto done;
   }
+done:
+  copyaux((void*)0x800, linebuf, 1024, FROMAUX); // Recover linebuf[]
 }
 
 /*
  * Load a screen from the scrollback file
  * Screens are numbered 1, 2, 3 ...
  * Does not trash the screen holes, which must be preserved!
+ * We preserve linebuf[] by copying it to aux 0x0800, and recover
+ * it at the end.  This saves us having an additional 1KB buffer.
  */
 void load_screen_from_scrollback(FILE *fp, uint8_t screen) {
   uint8_t i;
+  copyaux(linebuf, (void*)0x800, 1024, TOAUX); // Preserve linebuf[]
   if (fseek(fp, (screen - 1) * 0x0800, SEEK_SET) ||
-     (fread(halfscreen, 0x0400, 1, fp) != 1)) { // Even cols
+     (fread(linebuf, 0x0400, 1, fp) != 1)) { // Even cols
     error(ERR_NONFATAL, sb_err);
-    return;
+    goto done;
   }
   for (i = 0; i < 8; ++i)
-    memcpy((char*)0x400 + i * 0x80, halfscreen + i * 0x80, 0x078);
-  if (fread(halfscreen, 0x0400, 1, fp) != 1) { // Odd cols
+    memcpy((char*)0x400 + i * 0x80, linebuf + i * 0x80, 0x078);
+  if (fread(linebuf, 0x0400, 1, fp) != 1) { // Odd cols
     error(ERR_NONFATAL, sb_err);
-    return;
+    goto done;
   }
   for (i = 0; i < 8; ++i)
-    copyaux(halfscreen + i * 0x80, (char*)0x400 + i * 0x80, 0x078, TOAUX);
+    copyaux(linebuf + i * 0x80, (char*)0x400 + i * 0x80, 0x078, TOAUX);
   if (fseek(fp, 0, SEEK_END)) {
     error(ERR_NONFATAL, sb_err);
-    return;
+    goto done;
   }
+done:
+  copyaux((void*)0x800, linebuf, 1024, FROMAUX); // Recover linebuf[]
 }
 
 /*
