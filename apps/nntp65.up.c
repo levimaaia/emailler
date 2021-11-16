@@ -577,7 +577,7 @@ void main(int argc, char *argv[]) {
     linecount = 0;
 
     while (1) {
-      if ((get_line(fp, 0, linebuf, LINEBUFSZ) == 0) || (linecount == 20))
+      if ((get_line(fp, 0, linebuf, LINEBUFSZ) == 0) || (linecount == 20) || (linebuf[0] == '\r'))
         break;
       ++linecount;
       if (!strncmp(linebuf, "Newsgroups: ", 12))

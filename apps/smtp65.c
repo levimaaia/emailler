@@ -577,7 +577,7 @@ void main(int argc, char *argv[]) {
     strcpy(recipients, "");
 
     while (1) {
-      if ((get_line(fp, 0, linebuf, LINEBUFSZ) == 0) || (linecount == 20)) {
+      if ((get_line(fp, 0, linebuf, LINEBUFSZ) == 0) || (linecount == 20) || (linebuf[0] == '\r')) {
         if (strlen(recipients) == 0) {
           printf("No recipients (To or Cc) in %s. Skipping msg.\n", d->d_name);
           goto skiptonext;
