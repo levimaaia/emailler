@@ -561,7 +561,8 @@ void update_mailbox(char *mbox) {
       update_email_db(mbox, &hdrs);
     puts("");
 
-    sprintf(filename, "%s/NEWS.SPOOL/NEWS.%u", cfg_emaildir, msg);
+    //sprintf(filename, "%s/NEWS.SPOOL/NEWS.%u", cfg_emaildir, msg);
+    sprintf(filename, "%s/NEWS.SPOOL/%s", cfg_emaildir, d->d_name);
     if (unlink(filename))
       printf("Can't delete %s\n", filename);
   }
