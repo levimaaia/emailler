@@ -82,7 +82,7 @@ Install the packages with root privs on the Pi:
 ```
 sudo apt update
 sudo apt upgrade
-sudo apt install postfix postfix-pcre
+sudo apt install postfix postfix-pcre libsasl2-modules
 sudo apt install dovecot-common dovecot-pop3d
 sudo apt install fetchmail
 ```
