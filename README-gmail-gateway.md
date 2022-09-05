@@ -179,6 +179,10 @@ My home network is 192.168.10.0/24, so I added it here:
 `mynetworks = 192.168.10.0/24 127.0.0.0/8 [::ffff:127.0.0.0]/104 [::1]/128`.
 You should adjust this line to match your own LAN subnet.
 
+I had an issue where the Pi was unable to connect to Google's SMTP server.
+It turned out it was trying to use IPv6, so I forced IPv4 as follows:
+`inet_protocols = ipv4`
+
 Finally I added the following block of settings to enabled SASL authentication
 when talking to Gmail:
 
@@ -245,7 +249,7 @@ mynetworks = 192.168.10.0/24 127.0.0.0/8 [::ffff:127.0.0.0]/104 [::1]/128
 mailbox_size_limit = 0
 recipient_delimiter = +
 inet_interfaces = all
-inet_protocols = all
+inet_protocols = ipv4
 
 # Enable SASL authentication
 smtp_sasl_auth_enable = yes
