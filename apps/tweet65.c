@@ -152,9 +152,9 @@ int main(void)
     {
       read(file, &eth_init, 1);
       close(file);
-      eth_init &= ~'0';
+      eth_init &= 7;
     }
-    printf("- %d\n", eth_init);
+    printf("- %u\n", eth_init);
   }
 #endif
 

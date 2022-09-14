@@ -65,12 +65,8 @@ static uint16_t addr_mask [2];
 
 static void set_addr(uint16_t addr)
 {
-  // The variables are necessary to have cc65 generate code
-  // suitable to access the W5100 auto-increment registers.
-  uint8_t addr_hi = addr >> 8;
-  uint8_t addr_lo = addr;
-  *w5100_addr_hi = addr_hi;
-  *w5100_addr_lo = addr_lo;
+  *w5100_addr_hi = addr >> 8;
+  *w5100_addr_lo = addr;
 }
 
 static uint8_t get_byte(uint16_t addr)
@@ -91,54 +87,44 @@ static uint16_t get_word(uint16_t addr)
 {
   set_addr(addr);
 
-  {
-    // The variables are necessary to have cc65 generate code
-    // suitable to access the W5100 auto-increment registers.
-    uint8_t data_hi = *w5100_data;
-    uint8_t data_lo = *w5100_data;
-    return data_hi << 8 | data_lo;
-  }
+  return *w5100_data << 8 | *w5100_data;
 }
 
 static void set_word(uint16_t addr, uint16_t data)
 {
   set_addr(addr);
 
-  {
-    // The variables are necessary to have cc65 generate code
-    // suitable to access the W5100 auto-increment registers.
-    uint8_t data_hi = data >> 8;
-    uint8_t data_lo = data;
-    *w5100_data = data_hi;
-    *w5100_data = data_lo;
-  }
+  *w5100_data = data >> 8;
+  *w5100_data = data;
 }
 
 static void set_quad(uint16_t addr, uint32_t data)
 {
   set_addr(addr);
 
-  {
-    // The variables are necessary to have cc65 generate code
-    // suitable to access the W5100 auto-increment registers.
-    uint8_t data_1 = data;
-    uint8_t data_2 = data >> 8;
-    uint8_t data_3 = data >> 16;
-    uint8_t data_4 = data >> 24;
-    *w5100_data = data_1;
-    *w5100_data = data_2;
-    *w5100_data = data_3;
-    *w5100_data = data_4;
-  }
+  *w5100_data = data;
+  *w5100_data = data >> 8;
+  *w5100_data = data >> 16;
+  *w5100_data = data >> 24;
 }
 
-void w5100_config(uint8_t eth_init)
+bool w5100_init(uint8_t eth_init)
 {
   w5100_mode    = (uint8_t*)(eth_init << 4 | 0xC084);
   w5100_addr_hi = w5100_mode + 1;
   w5100_addr_lo = w5100_mode + 2;
   w5100_data    = w5100_mode + 3;
 
+  // PPP Link Control Protocol Request Timer Register defaults to 0x28
+  // on a real W5100. However, AppleWin features a virtual W5100 that
+  // supports DNS offloading. On that virtual W5100, the (otherwise
+  // anyhow unused) register defaults to 0x00 as detection mechanism.
+  // https://github.com/a2retrosystems/uthernet2/wiki/Virtual-W5100-with-DNS
+  return get_byte(0x0028) == 0x00;
+}
+
+void w5100_config(void)
+{
 #ifdef SINGLE_SOCKET
 
   // IP65 is inhibited so disable the W5100 Ping Block Mode.
@@ -193,13 +179,13 @@ void w5100_config(uint8_t eth_init)
   }
 }
 
-bool w5100_connect(uint32_t addr, uint16_t port)
+static bool w5100_connect(uint16_t port)
 {
-  // Socket x Mode Register: TCP
-  set_byte(SOCK_REG(0x00), 0x01);
-
   // Socket x Source Port Register
   set_word(SOCK_REG(0x04), ip65_random_word());
+
+  // Socket x Destination Port Register
+  set_word(SOCK_REG(0x10), port);
 
   // Socket x Command Register: OPEN
   set_byte(SOCK_REG(0x01), 0x01);
@@ -212,12 +198,6 @@ bool w5100_connect(uint32_t addr, uint16_t port)
       return false;
     }
   }
-
-  // Socket x Destination IP Address Register
-  set_quad(SOCK_REG(0x0C), addr);
-
-  // Socket x Destination Port Register
-  set_word(SOCK_REG(0x10), port);
 
   // Socket x Command Register: CONNECT
   set_byte(SOCK_REG(0x01), 0x04);
@@ -236,6 +216,34 @@ bool w5100_connect(uint32_t addr, uint16_t port)
       return false;
     }
   }
+}
+
+bool w5100_connect_addr(uint32_t addr, uint16_t port)
+{
+  // Socket x Mode Register: TCP, Use No Delayed ACK
+  set_byte(SOCK_REG(0x00), 0x21);
+
+  // Socket x Destination IP Address Register
+  set_quad(SOCK_REG(0x0C), addr);
+
+  return w5100_connect(port);
+}
+
+bool w5100_connect_name(const char* name, uint8_t length, uint16_t port)
+{
+  // Socket x Mode Register: TCP, Use No Delayed ACK, Use DNS Offloading
+  set_byte(SOCK_REG(0x00), 0x29);
+
+  // Socket x DNS name length
+  set_byte(SOCK_REG(0x2A), length);
+
+  // Socket x DNS name chars
+  while (length--)
+  {
+    *w5100_data = *name++;
+  }
+
+  return w5100_connect(port);
 }
 
 bool w5100_connected(void)

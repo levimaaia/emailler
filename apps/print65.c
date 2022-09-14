@@ -280,7 +280,8 @@ void main(int argc, char *argv[]) {
   printf("Ok\n");
 
   // Copy IP config from IP65 to W5100
-  w5100_config(eth_init);
+  w5100_init(eth_init);
+  w5100_config();
 
   fp = fopen(filename, "rb");
   if (!fp) {
@@ -291,7 +292,7 @@ void main(int argc, char *argv[]) {
   if (!connected) {
     printf("\nConnecting to %s:%d - ", cfg_server, jetdirect_port);
 
-    if (!w5100_connect(parse_dotted_quad(cfg_server), jetdirect_port)) {
+    if (!w5100_connect_addr(parse_dotted_quad(cfg_server), jetdirect_port)) {
       printf("Fail\n");
       error_exit();
     }

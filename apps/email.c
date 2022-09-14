@@ -89,7 +89,7 @@ struct datetime {
 
 static char              filename[80];
 static char              userentry[80];
-static char              linebuf[LINEBUFSZ];
+static uint8_t           linebuf[LINEBUFSZ];
 static FILE              *fp;
 static struct emailhdrs  *headers;
 static uint16_t          selection = 1;
@@ -1796,7 +1796,7 @@ char prompt_okay(char *msg) {
  */
 void get_email_body(struct emailhdrs *h, FILE *f, char mode) {
   uint16_t chars;
-  char c, *readp, *writep;
+  uint8_t c, *readp, *writep;
   uint32_t pos = 0;
   const int8_t *b = b64dec - 43;
   uint8_t  mime = 0, mime_enc = ENC_7BIT, mime_binary, mime_hasfile;

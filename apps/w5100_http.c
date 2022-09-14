@@ -39,16 +39,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #pragma optimize      (on)
 #pragma static-locals (on)
 
-bool w5100_http_open(uint32_t addr, uint16_t port, const char* selector,
-                     char* buffer, size_t length)
+static bool w5100_http_open(const char* selector, char* buffer, size_t length)
 {
-  printf("Connecting to %s:%d ", dotted_quad(addr), port);
-
-  if (!w5100_connect(addr, port))
-  {
-    printf("- Connect failed\n");
-    return false;
-  }
+  register volatile uint8_t *data = w5100_data;
 
   printf("- Ok\n\nSending request ");
   {
@@ -82,15 +75,11 @@ bool w5100_http_open(uint32_t addr, uint16_t port, const char* selector,
       }
 
       {
-        // One less to allow for faster pre-increment below
-        const char *dataptr = selector + pos - 1;
+        const char *dataptr = selector + pos;
         uint16_t i;
         for (i = 0; i < snd; ++i)
         {
-          // The variable is necessary to have cc65 generate code
-          // suitable to access the W5100 auto-increment register.
-          char data = *++dataptr;
-          *w5100_data = data;
+          *data = *dataptr++;
         }
       }
 
@@ -132,17 +121,13 @@ bool w5100_http_open(uint32_t addr, uint16_t port, const char* selector,
       }
 
       {
-        // One less to allow for faster pre-increment below
-        char *dataptr = buffer + len - 1;
+        char *dataptr = buffer + len;
         uint16_t i;
         for (i = 0; i < rcv; ++i)
         {
-          // The variable is necessary to have cc65 generate code
-          // suitable to access the W5100 auto-increment register.
-          char data = *w5100_data;
-          *++dataptr = data;
+          *dataptr++ = *data;
 
-          if (!memcmp(dataptr - 3, "\r\n\r\n", 4))
+          if (!memcmp(dataptr - 4, "\r\n\r\n", 4))
           {
             rcv = i + 1;
             body = true;
@@ -182,4 +167,32 @@ bool w5100_http_open(uint32_t addr, uint16_t port, const char* selector,
     }
   }
   return true;
+}
+
+bool w5100_http_open_addr(uint32_t addr, uint16_t port, const char* selector,
+                          char* buffer, size_t length)
+{
+  printf("Connecting to %s:%d ", dotted_quad(addr), port);
+
+  if (!w5100_connect_addr(addr, port))
+  {
+    printf("- Connect failed\n");
+    return false;
+  }
+
+  return w5100_http_open(selector, buffer, length);
+}
+
+bool w5100_http_open_name(const char* name, uint8_t name_length, uint16_t port,
+                          const char* selector, char* buffer, size_t buffer_length)
+{
+  printf("Connecting to port %d ", port);
+
+  if (!w5100_connect_name(name, name_length, port))
+  {
+    printf("- Connect failed\n");
+    return false;
+  }
+
+  return w5100_http_open(selector, buffer, buffer_length);
 }

@@ -241,6 +241,7 @@ void exit_on_key(void)
 
 void write_file(const char *name)
 {
+  register volatile uint8_t *data = w5100_data;
   uint16_t i;
   int file;
   uint16_t rcv;
@@ -277,14 +278,10 @@ void write_file(const char *name)
     }
 
     {
-      // One less to allow for faster pre-increment below
-      char *dataptr = buffer + len - 1;
+      char *dataptr = buffer + len;
       for (i = 0; i < rcv; ++i)
       {
-        // The variable is necessary to have cc65 generate code
-        // suitable to access the W5100 auto-increment register.
-        char data = *w5100_data;
-        *++dataptr = data;
+        *dataptr++ = *data;
       }
     }
 
@@ -318,6 +315,7 @@ void write_file(const char *name)
 
 void write_device(char device)
 {
+  register volatile uint8_t *data = w5100_data;
   uint16_t i;
   dhandle_t dio;
   uint16_t rcv;
@@ -383,8 +381,7 @@ void write_device(char device)
           rcv = sizeof(buffer) - len;
         }
 
-        // One less to allow for faster pre-increment below
-        dataptr = buffer + len - 1;
+        dataptr = buffer + len;
       }
       else
       {
@@ -394,16 +391,12 @@ void write_device(char device)
           rcv = 0x100 - len % 0x100;
         }
 
-        // One less to allow for faster pre-increment below
-        dataptr = buffer + (skew[len / 0x100] << 8 | len % 0x100) - 1;
+        dataptr = buffer + (skew[len / 0x100] << 8 | len % 0x100);
       }
 
       for (i = 0; i < rcv; ++i)
       {
-        // The variable is necessary to have cc65 generate code
-        // suitable to access the W5100 auto-increment register.
-        char data = *w5100_data;
-        *++dataptr = data;
+        *dataptr++ = *data;
       }
     }
 
@@ -442,6 +435,7 @@ int main(int, char *argv[])
   uint16_t i;
   char *arg;
   char device;
+  bool Offload_DNS;
   uint8_t eth_init = ETH_INIT_DEFAULT;
 
   if (doesclrscrafterexit())
@@ -475,11 +469,11 @@ int main(int, char *argv[])
     {
       read(file, &eth_init, 1);
       close(file);
-      eth_init &= ~'0';
+      eth_init &= 7;
     }
   }
 
-  printf("- %d\n\nInitializing %s ", eth_init, eth_name);
+  printf("- %u\n\nInitializing %s ", eth_init, eth_name);
   if (ip65_init(eth_init))
   {
     ip65_error_exit();
@@ -488,15 +482,20 @@ int main(int, char *argv[])
   // Abort on Ctrl-C to be consistent with Linenoise
   abort_key = 0x83;
 
-  printf("- Ok\n\nObtaining IP address ");
-  if (dhcp_init())
+  Offload_DNS = w5100_init(eth_init);
+
+  if (!Offload_DNS)
   {
-    ip65_error_exit();
+    printf("- Ok\n\nObtaining IP address ");
+    if (dhcp_init())
+    {
+      ip65_error_exit();
+    }
   }
   printf("- Ok\n\n");
 
   // Copy IP config from IP65 to W5100
-  w5100_config(eth_init);
+  w5100_config();
 
   load_argument("wget.urls");
   while (true)
@@ -504,7 +503,7 @@ int main(int, char *argv[])
     arg = get_argument(1, "URL", url_completion);
 
     printf("\n\nProcessing URL ");
-    if (!url_parse(arg))
+    if (!url_parse(arg, !Offload_DNS))
     {
       break;
     }
@@ -657,9 +656,21 @@ int main(int, char *argv[])
   save_argument("wget.files");
 
   printf("\n\n");
-  if (!w5100_http_open(url_ip, url_port, url_selector, buffer, sizeof(buffer)))
+  if (Offload_DNS)
   {
-    return EXIT_FAILURE;
+    if (!w5100_http_open_name(url_host, strlen(url_host) - 4, url_port,
+                              url_selector, buffer, sizeof(buffer)))
+    {
+      return EXIT_FAILURE;
+    }
+  }
+  else
+  {
+    if (!w5100_http_open_addr(url_ip, url_port,
+                              url_selector, buffer, sizeof(buffer)))
+    {
+      return EXIT_FAILURE;
+    }
   }
 
   if (device)

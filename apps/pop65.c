@@ -534,17 +534,19 @@ void main(int argc, char *argv[]) {
   // Abort on Ctrl-C to be consistent with Linenoise
   abort_key = 0x83;
 
+  w5100_init(eth_init);
+
   printf("Ok\nObtaining IP address         - ");
   if (dhcp_init()) {
     ip65_error_exit();
   }
 
   // Copy IP config from IP65 to W5100
-  w5100_config(eth_init);
+  w5100_config();
 
   printf("Ok\nConnecting to %s   - ", cfg_server);
 
-  if (!w5100_connect(parse_dotted_quad(cfg_server), pop_port)) {
+  if (!w5100_connect_addr(parse_dotted_quad(cfg_server), pop_port)) {
     printf("Fail\n");
     error_exit();
   }

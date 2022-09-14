@@ -78,15 +78,15 @@ struct linenoiseState {
     int history_index;  /* The history index we are currently editing. */
 };
 
-enum KEY_ACTION{
-	CTRL_A = 1,         /* Ctrl+a */
-	CTRL_B = 2,         /* Ctrl-b */
-	CTRL_C = 3,         /* Ctrl-c */
-	CTRL_D = 4,         /* Ctrl-d */
-	CTRL_E = 5,         /* Ctrl-e */
-	CTRL_F = 6,         /* Ctrl-f */
-	CTRL_N = 14,        /* Ctrl-n */
-	CTRL_P = 16         /* Ctrl-p */
+enum KEY_ACTION {
+    CTRL_A = 1,         /* Ctrl+a */
+    CTRL_B = 2,         /* Ctrl-b */
+    CTRL_C = 3,         /* Ctrl-c */
+    CTRL_D = 4,         /* Ctrl-d */
+    CTRL_E = 5,         /* Ctrl-e */
+    CTRL_F = 6,         /* Ctrl-f */
+    CTRL_N = 14,        /* Ctrl-n */
+    CTRL_P = 16         /* Ctrl-p */
 };
 
 static void refreshLine(struct linenoiseState *l);
@@ -102,14 +102,16 @@ static int getColumns() {
     return cols;
 }
 
-#ifdef __APPLE2__
-#pragma code-name (push, "LC")
-#endif
-
 /* Beep, used for completion when there is nothing to complete or when all
  * the choices were already shown. */
 static void linenoiseBeep(void) {
+#ifdef __APPLE2__
+    unsigned char x = wherex();
+#endif
     putchar('\a');
+#ifdef __APPLE2__
+    gotox(x);
+#endif
 }
 
 /* ============================== Completion ================================ */
@@ -122,6 +124,10 @@ static void freeCompletions(linenoiseCompletions *lc) {
     if (lc->cvec != NULL)
         free(lc->cvec);
 }
+
+#ifdef __APPLE2__
+#pragma code-name (push, "LC")
+#endif
 
 /* This is an helper function for linenoiseEdit() and is called when the
  * user types the <tab> key in order to complete the string currently in the

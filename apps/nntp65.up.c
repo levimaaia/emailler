@@ -548,7 +548,8 @@ void main(int argc, char *argv[]) {
   printf("Ok\n");
 
   // Copy IP config from IP65 to W5100
-  w5100_config(eth_init);
+  w5100_init(eth_init);
+  w5100_config();
 
   sprintf(filename, "%s/NEWS.OUTBOX", cfg_emaildir);
   dp = opendir(filename);
@@ -632,7 +633,7 @@ sendmessage:
     if (!connected) {
       printf("\nConnecting to %s (%u)  - ", cfg_server, nntp_port);
 
-      if (!w5100_connect(parse_dotted_quad(cfg_server), nntp_port)) {
+      if (!w5100_connect_addr(parse_dotted_quad(cfg_server), nntp_port)) {
         printf("Fail\n");
         error_exit();
       }

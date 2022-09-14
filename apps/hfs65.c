@@ -42,7 +42,7 @@ void send(unsigned char flags, const char* str, ...)
   }
 
   va_start(args, str);
-  send_size += vsnprintf(send_buffer + send_size, sizeof(send_buffer) - send_size, str, args);
+  send_size += vsnprintf((char*)send_buffer + send_size, sizeof(send_buffer) - send_size, str, args);
   va_end(args);
 
   if (flags & SEND_LAST || sizeof(send_buffer) - send_size < 1024 / 4)
@@ -309,9 +309,9 @@ int main(void)
     {
       read(file, &eth_init, 1);
       close(file);
-      eth_init &= ~'0';
+      eth_init &= 7;
     }
-    printf("- %d", eth_init);
+    printf("- %u", eth_init);
   }
 #endif
 

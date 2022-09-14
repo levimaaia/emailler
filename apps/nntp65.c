@@ -637,11 +637,12 @@ void main(int argc, char *argv[]) {
   }
 
   // Copy IP config from IP65 to W5100
-  w5100_config(eth_init);
+  w5100_init(eth_init);
+  w5100_config();
 
   printf("Ok\nConnecting to %s (%u) - ", cfg_server, nntp_port);
 
-  if (!w5100_connect(parse_dotted_quad(cfg_server), nntp_port)) {
+  if (!w5100_connect_addr(parse_dotted_quad(cfg_server), nntp_port)) {
     printf("Fail\n");
     error_exit();
   }
