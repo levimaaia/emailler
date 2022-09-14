@@ -926,6 +926,21 @@ void sanitize_filename(char *s) {
 enum aux_ops {FROMAUX, TOAUX};
 
 /*
+ * Asm code for copyaux()
+ */
+#pragma optimize (push, off)
+void copyauxasm(enum aux_ops dir) {
+    if (dir == TOAUX)
+        __asm__("sec");   // Copy main->aux
+    else
+        __asm__("clc");   // Copy aux->main
+    __asm__("sta $c000"); // Turn off 80STORE
+    __asm__("jsr $c311"); // AUXMOVE
+    __asm__("sta $c001"); // Turn on 80STORE
+}
+#pragma optimize (pop)
+
+/*
  * Aux memory copy routine
  */
 void copyaux(char *src, char *dst, uint16_t len, enum aux_ops dir) {
@@ -935,13 +950,7 @@ void copyaux(char *src, char *dst, uint16_t len, enum aux_ops dir) {
     *a1 = src;
     *a2 = src + len - 1;  // AUXMOVE moves length+1 bytes!!
     *a4 = dst;
-    if (dir == TOAUX)
-        __asm__("sec");   // Copy main->aux
-    else
-        __asm__("clc");   // Copy aux->main
-    __asm__("sta $c000"); // Turn off 80STORE
-    __asm__("jsr $c311"); // AUXMOVE
-    __asm__("sta $c001"); // Turn on 80STORE
+    copyauxasm(dir);
 }
 
 /*
