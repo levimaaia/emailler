@@ -397,14 +397,10 @@ void file_ui_draw_all(uint16_t first, uint16_t selected, uint16_t entries) {
 }
 
 /*
- * Perform ProDOS MLI ON_LINE call to
- * write all online volume names into iobuf[]
- * Return the number of entries
+ * Asm code for online()
  */
-uint16_t online(void) {
-  uint16_t entries = 0;
-  struct tabent *entry;
-  uint8_t i, j, len;
+#pragma optimize (push, off)
+void onlineasm(void) {
   __asm__("lda #$00"); // All devices
   __asm__("sta mliparam + 1");
   __asm__("lda #<%v", iobuf); // iobuf LSB
@@ -415,6 +411,19 @@ uint16_t online(void) {
   __asm__("lda #$c5"); // ON_LINE
   __asm__("ldx #$02"); // Two parms
   __asm__("jsr callmli");
+}
+#pragma optimize (pop)
+
+/*
+ * Perform ProDOS MLI ON_LINE call to
+ * write all online volume names into iobuf[]
+ * Return the number of entries
+ */
+uint16_t online(void) {
+  uint16_t entries = 0;
+  struct tabent *entry;
+  uint8_t i, j, len;
+  onlineasm();
   entry = (struct tabent*)iobuf;
   for (i = 0; i < 16; ++i) {
     len = iobuf[256 + i * 16] & 0x0f;
