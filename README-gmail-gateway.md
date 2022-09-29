@@ -134,7 +134,7 @@ We will modify a number of configuration files:
  - `/etc/postfix/sasl/sasl_passwd`
  - `/etc/postfix/sasl/sasl_passwd.db`
 
-Once Dovecot has been configured, the service may be controlled as follows:
+Once Postfix has been configured, the service may be controlled as follows:
   - `systemctl start postfix` - start service.
   - `systemctl stop postfix` - stop service.
   - `systemctl status postfix` - status of service.
